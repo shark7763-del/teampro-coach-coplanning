@@ -1,6 +1,6 @@
 # TEST REPORT
 
-版本：`1.1.3-internal`
+版本：`1.1.4-internal`
 
 ## 已執行檢查
 
@@ -8,6 +8,7 @@
 - `node --check sw.js`：通過。
 - `DB.open()` 可重入與 `ensureDbReady()` 已加入，避免示範資料流程在 DB 尚未開啟時寫入。
 - 匯入級別測試：`紅一線`、`紅二線`、`黑頭`、`兩段` 均在 `BELTS` 清單內；舊值 `紅黑帶`、`紅黑頭`、`紅1線`、`紅2線`、`二段`、`四段以上` 會自動轉換。
+- 刪除示範學員：新增 `App.deleteDemoStudents()`，函式層檢查管理者、建立備份、要求 PIN 與文字確認，只刪 `demo:true`。
 - 搜尋 `tp_user`：未再用於自動登入。
 - 搜尋 `confirm(`：僅保留發布未完成課程時的提醒確認，不涉及刪除、清空、匯入、還原或雲端覆蓋。
 - 搜尋 `replaceAll`：UI 對外流程走 `SYNC.replaceAll()`，內部 `_replaceAllUnsafe()` 需要 token。

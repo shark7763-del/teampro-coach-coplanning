@@ -376,7 +376,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.1.3-internal';
+const APP_VERSION='1.1.4-internal';
 const DB_NAME='teampro_planner', DB_VER=2;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1146,6 +1146,22 @@ const App={
         Modal.close();$('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();toast('已清空全部資料','ok');
       }});
   },
+  async deleteDemoStudents(){
+    if(!requireAdminRole())return;
+    const demo=C('students').filter(s=>s.demo===true);
+    if(!demo.length){toast('目前沒有示範學員可刪除','warn');return;}
+    await this.requireAdminPin({actionName:'刪除示範學員',impact:`將刪除 ${demo.length} 位 demo:true 的示範學員，並從既有分組中移除這些學員。正式匯入學員不會受影響。`,confirmText:'刪除示範',
+      backupReason:'刪除示範學員前自動備份',onConfirm:async()=>{
+        const ids=new Set(demo.map(s=>s.id));
+        for(const s of demo)await remove('students',s.id);
+        for(const g of C('training_groups')){
+          const next=(g.students||[]).filter(id=>!ids.has(id));
+          if(next.length!==(g.students||[]).length)await save('training_groups',{...g,students:next});
+        }
+        await audit('delete_demo_students','students',null,null,{count:demo.length});
+        Modal.close();toast('已刪除示範學員 '+demo.length+' 位','ok');App.go('students','more');
+      }});
+  },
 };
 
 /* ---------- modal helper ---------- */
@@ -1462,6 +1478,7 @@ Views.view_students=function(el){
     <div class="row">
       <input class="grow" id="stuSearch" placeholder="🔍 搜尋姓名/備註">
       ${can('*')?'<button class="btn sm" onclick="Views.editStudent()">＋ 新增</button>':''}
+      ${can('*')&&C('students').some(s=>s.demo===true)?'<button class="btn bad sm" onclick="App.deleteDemoStudents()">刪除示範學員</button>':''}
     </div>
     <div class="row" style="margin-top:8px">
       <select id="fAge"><option value="">全部年齡</option>${AGE_GROUPS.map(a=>`<option>${a}</option>`).join('')}</select>
@@ -2383,6 +2400,7 @@ Views.view_settings=function(el){
     <div class="row"><button class="btn g sm" onclick="Views.exportData()">⬇️ 匯出備份(JSON)</button>
       <label class="btn g sm">⬆️ 匯入備份<input type="file" id="impBackup" accept=".json" style="display:none"></label>
       <button class="btn warn sm" onclick="App.seedFromLogin()">重載示範資料</button>
+      <button class="btn bad sm" onclick="App.deleteDemoStudents()">刪除示範學員</button>
       <button class="btn bad sm" onclick="App.wipeAll()">清空全部</button></div>
     <p class="muted" style="margin-top:8px">學員 ${C('students').length}・帳號 ${C('profiles').length}・班別 ${C('classes').length}・週計畫 ${C('weekly_plans').length}・稽核 ${C('audit_logs').length}</p>
   </div>
