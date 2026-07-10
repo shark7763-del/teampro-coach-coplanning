@@ -378,12 +378,12 @@ textarea{resize:vertical;min-height:60px}
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
 const APP_VERSION='1.2.0-internal';
-const DB_NAME='teampro_planner', DB_VER=4;
+const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
 const DEFAULT_SYNC_URL='https://script.google.com/macros/s/AKfycbyPf7Qd2LuIsx-P0z-kdrAMxrsqpvonswGHXHnHrrLaT22EWjXXQYOQGUd29SlNc7Lt/exec';
 const DATA_STORES=['settings','profiles','students','classes','weekly_plans','daily_plans',
-  'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs','edit_locks','warmup_library'];
+  'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs','edit_locks','warmup_library','attendance_records'];
 const LOCAL_STORES=['backups','sync_outbox','sync_conflicts'];
 const STORES=[...DATA_STORES,...LOCAL_STORES];
 
@@ -840,7 +840,40 @@ const Stats={
   coachesAvailable(weekdayIdx){
     return C('profiles').filter(p=>p.active&&(p.role==='head'||p.role==='assistant')&&
       (!p.available_weekdays||!p.available_weekdays.length||p.available_weekdays.includes(WEEKDAYS[weekdayIdx])));
-  }
+  },
+  // 實際用於分組的名單：已確認出席(confirmed)+臨時到課(walk_in)；若尚未點名則暫用預計名單
+  attendingFor(date,classId){
+    const roster=this.studentsFor(classId,weekdayOf(date));
+    const recs=C('attendance_records').filter(a=>a.date===date&&a.class_id===classId);
+    if(!recs.length)return roster; // 尚未確認出席 → 退回預計名單，讓系統仍可運作
+    const map={};recs.forEach(a=>map[a.student_id]=a.status);
+    const out=roster.filter(s=>map[s.id]==='confirmed'||map[s.id]==='walk_in');
+    recs.forEach(a=>{if(a.status==='walk_in'&&!roster.some(s=>s.id===a.student_id)){const s=C('students').find(x=>x.id===a.student_id);if(s&&s.active)out.push(s);}});
+    return out;
+  },
+  attendanceConfirmed(date,classId){return C('attendance_records').some(a=>a.date===date&&a.class_id===classId);}
+};
+/* ---- 多維度分類（年齡／程度／專項 各自獨立，不可相加）---- */
+const AGE_DIMS=['幼兒','兒童青少年','成人'], LEVEL_DIMS=['低色帶','中色帶','高色帶','黑帶'], SPEC_DIMS=['一般基礎','品勢','對練','晉級加強','比賽選手'];
+function ageDim(s){return s.age_group==='幼兒'?'幼兒':(s.age_group==='成人'?'成人':'兒童青少年');}
+function levelDim(s){const i=BELTS.indexOf(normBelt(s.belt_rank));if(i<0||i<=2)return '低色帶';if(i<=5)return '中色帶';if(i<=8)return '高色帶';return '黑帶';}
+function specDim(s){if(s.competition_athlete||s.specialty==='比賽選手')return '比賽選手';if(s.promotion_status)return '晉級加強';if(s.specialty==='品勢')return '品勢';if(s.specialty==='對練')return '對練';return '一般基礎';}
+function dimBuckets(list){const r={age:{},level:{},spec:{}};AGE_DIMS.forEach(x=>r.age[x]=[]);LEVEL_DIMS.forEach(x=>r.level[x]=[]);SPEC_DIMS.forEach(x=>r.spec[x]=[]);
+  list.forEach(s=>{r.age[ageDim(s)].push(s);r.level[levelDim(s)].push(s);r.spec[specDim(s)].push(s);});return r;}
+/* ---- 出席 ---- */
+const Attendance={
+  LABEL:{expected:'預計',confirmed:'已確認',leave:'請假',walk_in:'臨時',unknown:'未確認',absent:'未到'},
+  recId(date,classId,sid){return 'att_'+date+'_'+classId+'_'+sid;},
+  get(date,classId,sid){const r=C('attendance_records').find(a=>a.id===Attendance.recId(date,classId,sid));return r?r.status:null;},
+  async set(date,classId,sid,status){const id=Attendance.recId(date,classId,sid);const old=C('attendance_records').find(a=>a.id===id)||{};
+    await save('attendance_records',{...old,id,date,class_id:classId,student_id:sid,status,created_at:old.created_at||Date.now(),updated_at:Date.now(),created_by:State.user?.id});},
+  async allPresent(date,classId){const roster=Stats.studentsFor(classId,weekdayOf(date));
+    for(const s of roster){const cur=Attendance.get(date,classId,s.id);if(cur!=='leave'&&cur!=='absent')await Attendance.set(date,classId,s.id,'confirmed');}},
+  counts(date,classId){const roster=Stats.studentsFor(classId,weekdayOf(date));const recs=C('attendance_records').filter(a=>a.date===date&&a.class_id===classId);
+    const map={};recs.forEach(a=>map[a.student_id]=a.status);let confirmed=0,leave=0,absent=0,unconfirmed=0,walkin=0;
+    roster.forEach(s=>{const st=map[s.id]||'expected';if(st==='confirmed')confirmed++;else if(st==='leave')leave++;else if(st==='absent')absent++;else unconfirmed++;});
+    recs.forEach(a=>{if(a.status==='walk_in'&&!roster.some(s=>s.id===a.student_id))walkin++;});
+    return {roster:roster.length,confirmed,leave,absent,unconfirmed,walkin,attending:confirmed+walkin};}
 };
 
 /* =========================================================================
@@ -1389,7 +1422,7 @@ const Views={};
 function planStatus(date,classId){
   const dp=findDaily(date,classId);
   const wd=weekdayOf(date);
-  const list=Stats.studentsFor(classId,wd);
+  const list=Stats.attendingFor(date,classId);
   const groups=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];
   const blocks=dp?C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id):[];
   const stageFilled=k=>{const b=blocks.find(x=>x.block_type===k&&!x.training_group_id);if(!b)return false;
@@ -1545,37 +1578,80 @@ Views.view_stats=function(el){
   ensureClassCtx();
   const cls=C('classes').filter(c=>c.active);
   if(App.area==='plan'&&!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
-  const wd=weekdayOf(State.ctx.date);
-  const list=Stats.studentsFor(State.ctx.classId,wd);
-  const sm=Stats.summary(list);
+  const date=State.ctx.date,classId=State.ctx.classId,wd=weekdayOf(date);
+  const confirmed=Stats.attendanceConfirmed(date,classId);
+  const statList=confirmed?Stats.attendingFor(date,classId):Stats.studentsFor(classId,wd);
+  const bk=dimBuckets(statList);
+  const cnt=Attendance.counts(date,classId);
   const coaches=Stats.coachesAvailable(wd);
+  const tile=(dim,key)=>`<div class="stat" onclick="Stats.showDim('${dim}','${key}')"><div class="n">${bk[dim][key].length}</div><div class="l">${key}</div></div>`;
   el.innerHTML=`
+  <div class="ctxrow" style="margin-bottom:14px">
+    <div class="grow"><label class="sm">日期</label><input type="date" id="stDate" value="${date}"></div>
+    <div class="grow"><label class="sm">班別</label><select id="stClass">${classId?'':'<option value="">選擇班別</option>'}${cls.map(c=>`<option value="${c.id}" ${c.id===classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+  </div>
+  ${classId?`
   <div class="card">
-    <div class="row">
-      <div class="grow"><label class="sm">日期</label><input type="date" id="stDate" value="${State.ctx.date}"></div>
-      <div class="grow"><label class="sm">星期</label><input value="${WEEKDAYS[wd]}" disabled></div>
-      <div class="grow"><label class="sm">班別</label><select id="stClass">
-        <option value="">全部班別</option>
-        ${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}
-      </select></div>
+    <div class="sect-head" style="margin-top:0"><h3>今日出席確認</h3><span class="sp" style="flex:1"></span>
+      <button class="btn sm ok" onclick="Views.attAllPresent()">一鍵全到</button>
+      <button class="btn sm secondary" onclick="Views.attAddWalkIn()">＋ 臨時到課</button></div>
+    <div class="chips" style="margin:4px 0 10px">
+      <span class="tag">預計 ${cnt.roster}</span><span class="tag spec">已確認 ${cnt.confirmed}</span>
+      <span class="tag" style="background:#FEF3C7;color:#92400E">請假 ${cnt.leave}</span>
+      <span class="tag" style="background:#E0F2FE;color:#0369A1">臨時 ${cnt.walkin}</span>
+      <span class="tag" style="background:#F1F5F9;color:#64748B">未確認 ${cnt.unconfirmed}</span></div>
+    <div class="row" style="margin-bottom:8px">
+      <input class="grow" id="attQ" placeholder="搜尋學員" value="${esc(Views._attQ||'')}" oninput="Views._attQ=this.value;document.getElementById('attList').innerHTML=Views.attListHtml()">
+      <div class="chips">${[['all','全部'],['unconfirmed','未確認'],['confirmed','已確認'],['leave','請假']].map(f=>`<span class="chip ${(Views._attFilter||'all')===f[0]?'on':''}" onclick="Views._attFilter='${f[0]}';App.go('stats')">${f[1]}</span>`).join('')}</div>
     </div>
+    <div id="attList">${Views.attListHtml()}</div>
   </div>
-  <div class="sect-title">預計人數（點卡片看名單）</div>
-  <div class="grid g4">
-    <div class="stat" onclick="Stats.show('all')"><div class="n">${sm.total}</div><div class="l">總人數</div></div>
-    ${AGE_GROUPS.map(a=>`<div class="stat" onclick="Stats.show('age','${a}')"><div class="n">${sm.age[a]}</div><div class="l">${a}</div></div>`).join('')}
-    <div class="stat" onclick="Stats.show('promo')"><div class="n">${sm.promo}</div><div class="l"><b>準備晉級</b></div></div>
-    <div class="stat" onclick="Stats.show('comp')"><div class="n">${sm.comp}</div><div class="l"><b>比賽選手</b></div></div>
-    <div class="stat"><div class="n">${coaches.length}</div><div class="l">今日可出席教練</div></div>
-  </div>
-  <div class="sect-title">級別 / 段位</div>
-  <div class="grid g4">${BELTS.filter(b=>sm.belt[b]).map(b=>`<div class="stat" onclick="Stats.show('belt','${b}')"><div class="n">${sm.belt[b]}</div><div class="l">${b}</div></div>`).join('')||'<div class="muted">無資料</div>'}</div>
-  <div class="sect-title">專項</div>
-  <div class="grid g4">${SPECIALTIES.filter(sp=>sm.spec[sp]).map(sp=>`<div class="stat" onclick="Stats.show('spec','${sp}')"><div class="n">${sm.spec[sp]}</div><div class="l">${sp}</div></div>`).join('')||'<div class="muted">無資料</div>'}</div>
-  ${App.area==='plan'?`<div class="actionbar"><span class="savehint">確認 ${list.length} 位預計出席</span><span class="sp"></span><button class="btn" onclick="Views.confirmStatsStep()">下一步：分組</button></div>`:''}`;
+  <div class="sect-head"><h3>${confirmed?'實際出席':'預計出席'} 多維度統計</h3><span class="sp" style="flex:1"></span><span class="muted">共 ${statList.length} 人</span></div>
+  <p class="muted" style="margin:0 0 8px">年齡、程度、專項為<b>不同維度</b>，請勿相加當成總人數。點數字看名單。</p>
+  <div class="card" style="margin-bottom:10px"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">年齡</h3></div><div class="grid g3">${AGE_DIMS.map(k=>tile('age',k)).join('')}</div></div>
+  <div class="card" style="margin-bottom:10px"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">程度</h3></div><div class="grid g4">${LEVEL_DIMS.map(k=>tile('level',k)).join('')}</div></div>
+  <div class="card" style="margin-bottom:10px"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">專項</h3></div><div class="grid g3">${SPEC_DIMS.map(k=>tile('spec',k)).join('')}</div></div>
+  <div class="card"><div class="kv"><b>今日可出席教練</b><span>${coaches.length} 位</span></div>
+    <div class="kv"><b>將用於分組的人數（已確認＋臨時）</b><span>${Stats.attendingFor(date,classId).length} 人</span></div></div>
+  ${App.area==='plan'?`<div class="actionbar"><span class="savehint">${confirmed?'已確認出席':'尚未點名（暫用預計名單）'}</span><span class="sp"></span><button class="btn" onclick="Views.confirmStatsStep()">下一步：分組</button></div>`:''}
+  `:'<div class="empty">請先選擇班別</div>'}`;
   $('#stDate').onchange=e=>{State.ctx.date=e.target.value;App.go('stats');};
   $('#stClass').onchange=e=>{State.ctx.classId=e.target.value||null;App.go('stats');};
 };
+Views.attListHtml=function(){
+  const date=State.ctx.date,classId=State.ctx.classId,wd=weekdayOf(date);
+  const roster=Stats.studentsFor(classId,wd);
+  const recs=C('attendance_records').filter(a=>a.date===date&&a.class_id===classId);
+  const rmap={};recs.forEach(a=>rmap[a.student_id]=a.status);
+  const walkins=recs.filter(a=>a.status==='walk_in'&&!roster.some(s=>s.id===a.student_id)).map(a=>C('students').find(s=>s.id===a.student_id)).filter(Boolean);
+  let list=[...roster,...walkins];
+  const q=(Views._attQ||'').trim(),f=Views._attFilter||'all';
+  if(q)list=list.filter(s=>s.name.includes(q));
+  if(f==='confirmed')list=list.filter(s=>rmap[s.id]==='confirmed'||rmap[s.id]==='walk_in');
+  else if(f==='leave')list=list.filter(s=>rmap[s.id]==='leave');
+  else if(f==='unconfirmed')list=list.filter(s=>{const st=rmap[s.id]||'expected';return st!=='confirmed'&&st!=='leave'&&st!=='walk_in';});
+  if(!list.length)return '<div class="muted" style="padding:8px 0">沒有符合的學員</div>';
+  return list.map(s=>{const st=rmap[s.id]||'expected';const isWalk=walkins.some(w=>w.id===s.id);
+    return `<div class="row" style="align-items:center;border-bottom:1px solid var(--line);padding:7px 0;flex-wrap:nowrap">
+      <div style="flex:1;min-width:0"><b>${esc(s.name)}</b>${isWalk?' <span class="tag" style="background:#E0F2FE;color:#0369A1">臨時</span>':''}
+        <div class="muted">${ageDim(s)}・${levelDim(s)}・${specDim(s)}</div></div>
+      <button class="btn xs ${st==='confirmed'||st==='walk_in'?'ok':'g'}" onclick="Views.attSet('${s.id}','${isWalk?'walk_in':'confirmed'}')">到</button>
+      <button class="btn xs ${st==='leave'?'warn':'g'}" onclick="Views.attSet('${s.id}','leave')">假</button>
+      <button class="btn xs ${st==='absent'?'bad':'g'}" onclick="Views.attSet('${s.id}','absent')">未到</button></div>`;}).join('');
+};
+Views.attSet=async function(sid,status){await Attendance.set(State.ctx.date,State.ctx.classId,sid,status);App.go('stats');};
+Views.attAllPresent=async function(){await Attendance.allPresent(State.ctx.date,State.ctx.classId);toast('已將名單標記為出席','ok');App.go('stats');};
+Views.attAddWalkIn=function(){
+  Views._wiQ='';
+  const render=()=>{
+    const excl=new Set(Stats.studentsFor(State.ctx.classId,weekdayOf(State.ctx.date)).map(s=>s.id));
+    C('attendance_records').filter(a=>a.date===State.ctx.date&&a.class_id===State.ctx.classId&&a.status==='walk_in').forEach(a=>excl.add(a.student_id));
+    const q=(Views._wiQ||'').trim();let cand=C('students').filter(s=>s.active&&!excl.has(s.id));if(q)cand=cand.filter(s=>s.name.includes(q));
+    return cand.slice(0,40).map(s=>`<div class="row" style="align-items:center;border-bottom:1px solid var(--line);padding:6px 0"><div style="flex:1"><b>${esc(s.name)}</b> <span class="muted">${ageDim(s)}・${levelDim(s)}</span></div><button class="btn xs ok" onclick="Views.attDoWalkIn('${s.id}')">加入</button></div>`).join('')||'<div class="muted" style="padding:8px 0">找不到學員</div>';};
+  Views._wiRender=render;
+  Modal.open('臨時到課（加入非本班或補登學員）',`<input id="wiQ" placeholder="搜尋學員" oninput="Views._wiQ=this.value;document.getElementById('wiList').innerHTML=Views._wiRender()" style="margin-bottom:10px"><div id="wiList" style="max-height:48vh;overflow:auto">${render()}</div><button class="btn block" style="margin-top:10px" onclick="Modal.close();App.go('stats')">完成</button>`);
+};
+Views.attDoWalkIn=async function(sid){await Attendance.set(State.ctx.date,State.ctx.classId,sid,'walk_in');const roster=new Set(Stats.studentsFor(State.ctx.classId,weekdayOf(State.ctx.date)).map(s=>s.id));C('attendance_records').filter(a=>a.date===State.ctx.date&&a.class_id===State.ctx.classId&&a.status==='walk_in').forEach(a=>roster.add(a.student_id));const el=document.getElementById('wiList');if(el)el.innerHTML=Views._wiRender();toast('已加入臨時到課','ok');};
 Views.confirmStatsStep=async function(){
   if(!State.ctx.classId){toast('請先選擇班別','warn');return;}
   await ensureDaily(State.ctx.date,State.ctx.classId);
@@ -1583,7 +1659,7 @@ Views.confirmStatsStep=async function(){
 };
 Stats.show=function(kind,val){
   const wd=weekdayOf(State.ctx.date);
-  let list=Stats.studentsFor(State.ctx.classId,wd);
+  let list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
   let title='名單';
   if(kind==='age'){list=list.filter(s=>s.age_group===val);title=val;}
   else if(kind==='belt'){list=list.filter(s=>normBelt(s.belt_rank)===val);title=val;}
@@ -1594,6 +1670,14 @@ Stats.show=function(kind,val){
     `<div class="scroll"><table class="tbl"><tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th></tr>
     ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td><span class="tag belt">${normBelt(s.belt_rank)}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')}
     </table></div>`);
+};
+Stats.showDim=function(dim,key){
+  const date=State.ctx.date,classId=State.ctx.classId;
+  const statList=Stats.attendanceConfirmed(date,classId)?Stats.attendingFor(date,classId):Stats.studentsFor(classId,weekdayOf(date));
+  const fn=dim==='age'?ageDim:dim==='level'?levelDim:specDim;
+  const list=statList.filter(s=>fn(s)===key);
+  Modal.open(key+`（${list.length} 人）`,`<div class="scroll"><table class="tbl"><tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th></tr>
+    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td><span class="tag belt">${normBelt(s.belt_rank)}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')||'<tr><td colspan=4 class="muted">無</td></tr>'}</table></div>`);
 };
 function ensureClassCtx(){if(State.ctx.classId&&!C('classes').find(c=>c.id===State.ctx.classId&&c.active))State.ctx.classId=null;}
 
@@ -2042,7 +2126,7 @@ Views.view_groups=function(el){
   const cls=C('classes').filter(c=>c.active);
   if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
   const wd=weekdayOf(State.ctx.date);
-  const list=Stats.studentsFor(State.ctx.classId,wd);
+  const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
   el.innerHTML=`
   <div class="card">
     <div class="row">
@@ -2068,7 +2152,7 @@ Views.view_groups=function(el){
 };
 Views.genGroups=function(){
   const wd=weekdayOf(State.ctx.date);
-  const list=Stats.studentsFor(State.ctx.classId,wd);
+  const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
   if(!list.length){toast('此日無學員','warn');return;}
   const res=Grouping.suggest(list,Views._gMode(),Stats.coachesAvailable(wd).length);
   Views._groupState={groups:res.groups,notes:res.notes};
@@ -2118,12 +2202,12 @@ Views.moveStu=function(sid,toGi){
   Views.reRenderGroups();
 };
 Views.dropStu=function(e,gi){e.preventDefault();if(Views._drag){Views.moveStu(Views._drag,gi);Views._drag=null;}};
-Views.reRenderGroups=function(){const wd=weekdayOf(State.ctx.date);Views.renderGroups(Stats.studentsFor(State.ctx.classId,wd));};
+Views.reRenderGroups=function(){const wd=weekdayOf(State.ctx.date);Views.renderGroups(Stats.attendingFor(State.ctx.date,State.ctx.classId));};
 Views.addGroup=function(){Views._groupState.groups.push({id:uid('g'),name:'新組別',group_type:'基礎',coach_id:'',assistant_id:'',students:[]});Views.reRenderGroups();};
 Views.delGroup=function(gi){Views._groupState.groups.splice(gi,1);Views.reRenderGroups();};
 Views.saveGroups=async function(next){
   const wd=weekdayOf(State.ctx.date);
-  const list=Stats.studentsFor(State.ctx.classId,wd);
+  const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
   let dp=findDaily(State.ctx.date,State.ctx.classId);
   const val=Grouping.validate(Views._groupState.groups,list,dp);
   const team=Grouping.coachTeam(Views._groupState.groups,dp);
@@ -2284,7 +2368,7 @@ Views.renderPlan=function(){
   const dp=findDaily(State.ctx.date,State.ctx.classId);
   const body=$('#planBody');
   const wd=weekdayOf(State.ctx.date);
-  const list=Stats.studentsFor(State.ctx.classId,wd);
+  const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
   if(!dp){
     body.innerHTML=`<div class="empty"><div class="ic">📝</div>此日尚未建立備課<br><br>
       <button class="btn" onclick="Views.createPlan()">建立今日備課（${list.length} 人）</button></div>
