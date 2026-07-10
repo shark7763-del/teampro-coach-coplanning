@@ -376,12 +376,14 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const DB_NAME='teampro_planner', DB_VER=1;
+const APP_VERSION='1.1.0-internal';
+const DB_NAME='teampro_planner', DB_VER=2;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
 const DEFAULT_SYNC_URL='https://script.google.com/macros/s/AKfycbyPf7Qd2LuIsx-P0z-kdrAMxrsqpvonswGHXHnHrrLaT22EWjXXQYOQGUd29SlNc7Lt/exec';
-const STORES=['settings','profiles','students','classes','weekly_plans','daily_plans',
+const DATA_STORES=['settings','profiles','students','classes','weekly_plans','daily_plans',
   'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs'];
+const STORES=[...DATA_STORES,'backups'];
 
 const AGE_GROUPS=['幼兒','國小','國中','成人'];
 const BELTS=['白帶','黃帶','黃藍帶','藍帶','藍紅帶','紅帶','紅黑帶','一段','二段','三段','四段以上'];
@@ -458,15 +460,80 @@ function settings(){return C('settings')[0]||DEFAULT_SETTINGS();}
 function DEFAULT_SETTINGS(){return{id:'app',dojo:'雄麒跆拳道館',logo:'🥋',cycle:'',
   limits:{幼兒:8,基礎:10,品勢:12,對練:10,default:12},
   tiers:{初階:['白帶','黃帶','黃藍帶'],中階:['藍帶','藍紅帶','紅帶'],高階:['紅黑帶','一段','二段','三段','四段以上']}};}
+function dataCounts(){
+  const counts={};let total=0;
+  DATA_STORES.forEach(s=>{counts[s]=C(s).length;total+=counts[s];});
+  return {counts,total};
+}
+function adminOnlyWarn(){
+  toast('僅管理者可以執行此操作','warn');
+  return false;
+}
+function requireAdminRole(){
+  return !!(State.user&&State.user.role==='admin')||adminOnlyWarn();
+}
+const BackupManager={
+  async create(reason){
+    try{
+      const data={};const counts={};let total=0;
+      for(const st of DATA_STORES){
+        data[st]=await DB.all(st);
+        counts[st]=data[st].length;
+        total+=counts[st];
+      }
+      const b={id:uid('bk'),version:APP_VERSION,created_at:Date.now(),reason:reason||'手動備份',
+        dojo_name:settings().dojo,created_by:State.user?{id:State.user.id,name:State.user.name,role:State.user.role}:null,
+        data,counts,total_count:total};
+      await DB.put('backups',b);await reload('backups');await BackupManager.cleanup();
+      return b;
+    }catch(e){
+      toast('備份失敗，已停止危險操作','bad');
+      throw e;
+    }
+  },
+  list(){return C('backups').slice().sort((a,b)=>b.created_at-a.created_at);},
+  download(id){
+    const b=C('backups').find(x=>x.id===id);if(!b){toast('找不到備份','bad');return;}
+    const blob=new Blob([JSON.stringify(b,null,2)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TeamPro備份_'+new Date(b.created_at).toISOString().slice(0,19).replace(/[:T]/g,'-')+'.json';a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  },
+  async restore(id){
+    if(!requireAdminRole())return;
+    const b=C('backups').find(x=>x.id===id);if(!b){toast('找不到備份','bad');return;}
+    await App.requireAdminPin({actionName:'還原備份',impact:`將以 ${new Date(b.created_at).toLocaleString('zh-TW')} 的備份覆蓋目前本機資料。`,confirmText:'確認還原',
+      backupReason:'還原前自動備份',onConfirm:async()=>{
+        for(const st of DATA_STORES)await DB.clear(st);
+        for(const st of DATA_STORES){if(b.data&&b.data[st])await DB.bulk(st,b.data[st]);}
+        await reloadAll();toast('已還原備份','ok');Modal.close();App.go('settings','more');
+      }});
+  },
+  async remove(id){
+    if(!requireAdminRole())return;
+    const b=C('backups').find(x=>x.id===id);if(!b){toast('找不到備份','bad');return;}
+    await App.requireAdminPin({actionName:'刪除備份',impact:'只會刪除此份本機備份，不會刪除正式資料。',confirmText:'確認刪除',
+      onConfirm:async()=>{await DB.del('backups',id);await reload('backups');toast('已刪除備份','ok');Modal.close();App.go('settings','more');}});
+  },
+  async cleanup(){
+    const list=(await DB.all('backups')).sort((a,b)=>b.created_at-a.created_at);
+    for(const b of list.slice(10))await DB.del('backups',b.id);
+    await reload('backups');
+  }
+};
 
 /* =========================================================================
    SYNC —— GAS 雲端同步層（多裝置各自手機共用同一份資料）
    push: 每次存檔即時上傳(佇列合批)  pull: 定時/切頁把雲端變更拉回  LWW by _u
    ========================================================================= */
+const SYNC_REPLACE_TOKEN=Symbol('replaceAllSafeToken');
 const SYNC={
   status:'—',
+  lastSuccess:+(localStorage.getItem('tp_sync_success')||0),
+  lastError:'',
+  _replacing:false,
   url(){try{return (settings().syncUrl||DEFAULT_SYNC_URL||'').trim();}catch(e){return (DEFAULT_SYNC_URL||'').trim();}},
   enabled(){return !!SYNC.url();},
+  pendingCount(){return SYNC._q.length;},
   lastPull(){return +(localStorage.getItem('tp_lastpull')||0);},
   setLastPull(v){localStorage.setItem('tp_lastpull',v);},
   async post(payload){
@@ -474,20 +541,26 @@ const SYNC={
     return await res.json();
   },
   _q:[], _busy:false,
-  push(store,obj){if(!SYNC.enabled())return;SYNC._q.push({store,id:obj.id,json:JSON.stringify(obj),deleted:false});SYNC._flush();},
-  pushDelete(store,id){if(!SYNC.enabled())return;SYNC._q.push({store,id,json:'',deleted:true});SYNC._flush();},
+  push(store,obj){if(store==='backups'||!SYNC.enabled())return;SYNC._q.push({store,id:obj.id,json:JSON.stringify(obj),deleted:false});SYNC._flush();App.updateSyncPill?.();},
+  pushDelete(store,id){if(store==='backups'||!SYNC.enabled())return;SYNC._q.push({store,id,json:'',deleted:true});SYNC._flush();App.updateSyncPill?.();},
   async _flush(){
     if(SYNC._busy||!SYNC._q.length||!SYNC.enabled())return;
+    if(navigator.onLine===false){SYNC.status='網路離線';App.updateSyncPill?.();return;}
     SYNC._busy=true;
+    SYNC.status='同步中';
+    App.updateSyncPill?.();
     const batch=SYNC._q.splice(0,SYNC._q.length);
-    try{await SYNC.post({action:'push',records:batch});SYNC.status='已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});}
-    catch(e){SYNC._q.unshift(...batch);SYNC.status='上傳失敗，稍後重試';setTimeout(()=>SYNC._flush(),4000);}
+    try{await SYNC.post({action:'push',records:batch});SYNC.lastSuccess=Date.now();localStorage.setItem('tp_sync_success',SYNC.lastSuccess);SYNC.lastError='';SYNC.status='已同步 '+new Date(SYNC.lastSuccess).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});}
+    catch(e){SYNC._q.unshift(...batch);SYNC.lastError=e.message||String(e);SYNC.status='同步失敗';toast('同步失敗：'+SYNC.lastError,'warn');setTimeout(()=>SYNC._flush(),4000);}
     SYNC._busy=false;
+    App.updateSyncPill?.();
     if(SYNC._q.length)setTimeout(()=>SYNC._flush(),1500);
   },
   async pull(){
     if(!SYNC.enabled())return{changed:0};
-    let r;try{r=await SYNC.post({action:'pull',since:SYNC.lastPull()});}catch(e){SYNC.status='連線失敗';return{changed:0,err:e.message};}
+    if(navigator.onLine===false){SYNC.status='網路離線';App.updateSyncPill?.();return{changed:0,err:'offline'};}
+    let r;try{SYNC.status='同步中';App.updateSyncPill?.();r=await SYNC.post({action:'pull',since:SYNC.lastPull()});}
+    catch(e){SYNC.lastError=e.message||String(e);SYNC.status='同步失敗';toast('同步失敗：'+SYNC.lastError,'warn');App.updateSyncPill?.();return{changed:0,err:e.message};}
     if(!r||!r.ok)return{changed:0};
     let changed=0;
     for(const rec of r.records){
@@ -498,17 +571,39 @@ const SYNC={
     }
     if(changed)await reloadAll();
     SYNC.setLastPull(r.maxSrv||r.srv||SYNC.lastPull());
-    SYNC.status='已更新 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    SYNC.lastSuccess=Date.now();localStorage.setItem('tp_sync_success',SYNC.lastSuccess);SYNC.lastError='';
+    SYNC.status='已同步 '+new Date(SYNC.lastSuccess).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    App.updateSyncPill?.();
     return {changed};
   },
   // 主帳號第一次上傳 / 重置雲端：全量覆蓋（會清掉雲端舊資料再寫入目前本機）
-  async replaceAll(){
+  async _replaceAllUnsafe(token){
+    if(token!==SYNC_REPLACE_TOKEN)throw new Error('未通過安全驗證');
     if(!SYNC.enabled())throw new Error('尚未設定同步網址');
     const recs=[];
-    for(const s of STORES)for(const o of C(s))recs.push({store:s,id:o.id,json:JSON.stringify(o),deleted:false});
+    for(const s of DATA_STORES)for(const o of C(s))recs.push({store:s,id:o.id,json:JSON.stringify(o),deleted:false});
     const r=await SYNC.post({action:'replaceAll',records:recs});
     SYNC.setLastPull(0); // 之後 pull 會重新對齊
+    SYNC.lastSuccess=Date.now();localStorage.setItem('tp_sync_success',SYNC.lastSuccess);SYNC.lastError='';
     return r;
+  },
+  async replaceAll(){
+    if(!State.user)return toast('請先登入','warn');
+    if(!requireAdminRole())return;
+    if(SYNC._replacing)return;
+    const {total}=dataCounts();
+    await App.requireAdminPin({actionName:'本機資料覆蓋雲端',impact:`這會以本機資料覆蓋雲端，目前本機共有 ${total} 筆資料。`,confirmText:'確認覆蓋雲端',
+      backupReason:'覆蓋雲端前自動備份',onConfirm:async()=>{
+        SYNC._replacing=true;
+        try{
+          const r=await SYNC._replaceAllUnsafe(SYNC_REPLACE_TOKEN);
+          const count=r.count??total;
+          SYNC.status='已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+          toast('雲端覆蓋完成：'+count+' 筆，'+new Date().toLocaleString('zh-TW'),'ok');
+          Modal.close();
+        }catch(e){SYNC.lastError=e.message||String(e);SYNC.status='同步失敗';toast('上傳失敗：'+SYNC.lastError,'bad');}
+        finally{SYNC._replacing=false;App.updateSyncPill?.();}
+      }});
   },
   _timer:null,
   startAuto(){
@@ -520,6 +615,17 @@ const SYNC={
       if(changed)App.refresh();
     },15000);
   },
+  async immediate(){
+    if(SYNC._busy)return;
+    await SYNC._flush();
+    const r=await SYNC.pull();
+    if(r.changed)App.refresh();
+  },
+  bindNetwork(){
+    if(SYNC._netBound)return;SYNC._netBound=true;
+    window.addEventListener('offline',()=>{SYNC.status='網路離線';App.updateSyncPill?.();});
+    window.addEventListener('online',async()=>{SYNC.status='同步中';App.updateSyncPill?.();await SYNC._flush();const r=await SYNC.pull();if(r.changed)App.refresh();});
+  }
 };
 
 /* =========================================================================
@@ -779,7 +885,7 @@ async function seedDemo(){
   await reloadAll();
 }
 async function wipeData(reloadAfter=true){
-  for(const s of STORES) await DB.clear(s);
+  for(const s of DATA_STORES) await DB.clear(s);
   if(reloadAfter)await reloadAll();
 }
 </script>
@@ -837,11 +943,10 @@ const App={
   async boot(){
     this.brandMarks();
     await DB.open(); await reloadAll();
-    if(SYNC.enabled()){$('#loginList')&&($('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>連線雲端同步中…</div>');try{await SYNC.pull();}catch(e){}}
+    SYNC.bindNetwork();
+    if(SYNC.enabled()){$('#loginList')&&($('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>連線雲端同步中…</div>');try{await SYNC.pull();}catch(e){SYNC.lastError=e.message||String(e);}}
     this.renderLogin();
     SYNC.startAuto();
-    const saved=localStorage.getItem('tp_user');
-    if(saved){const u=C('profiles').find(p=>p.id===saved&&p.active);if(u){this.enter(u);return;}}
   },
   brandMarks(){['loginMark','sideMark'].forEach(id=>{const e=document.getElementById(id);if(!e)return;
     const size=id==='loginMark'?46:38;
@@ -865,7 +970,7 @@ const App={
       return;
     }
     if(auth)auth.style.display='';
-    const last=localStorage.getItem('tp_user');
+    const last=localStorage.getItem('tp_last_user');
     const card=p=>{const a=p.role==='admin';const isLast=p.id===last;
       return `<button class="acct${a?' admin':''}" onclick="App.pick('${p.id}')" data-id="${p.id}">
         <div class="av">${esc(initials(p.name))}</div>
@@ -886,7 +991,8 @@ const App={
     const pin=$('#pinInput').value.trim();
     if(!pin){this.showPinErr('請輸入 PIN');return;}
     if((u.pin||'1234')!==pin){this.showPinErr('PIN 錯誤，請再試一次');$('#pinInput').value='';return;}
-    localStorage.setItem('tp_user',u.id);
+    localStorage.setItem('tp_last_user',u.id);
+    $('#pinInput').value='';
     if(pe)pe.style.display='none';
     this.enter(u);
   },
@@ -906,13 +1012,27 @@ const App={
     $('#sideAv').textContent=initials(u.name);$('#ctxAv').textContent=initials(u.name);
     this.buildNav();
     this.updateSyncPill();
+    this.startIdleLock();
     if(this._syncTimer)clearInterval(this._syncTimer);
     this._syncTimer=setInterval(()=>this.updateSyncPill(),4000);
     this.goArea('today');
     toast('歡迎回來，'+u.name,'ok');
   },
-  logout(){State.user=null;localStorage.removeItem('tp_user');if(this._syncTimer)clearInterval(this._syncTimer);
-    $('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();},
+  logout(msg){this.stopIdleLock();State.user=null;if(this._syncTimer)clearInterval(this._syncTimer);
+    const pin=$('#pinInput');if(pin)pin.value='';
+    $('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();
+    if(msg)toast(msg,'warn');},
+  startIdleLock(){
+    if(this._idleBound)return this.resetIdleLock();
+    this._idleHandler=()=>this.resetIdleLock();
+    ['click','touchstart','keydown','pointerdown'].forEach(ev=>window.addEventListener(ev,this._idleHandler,{passive:true}));
+    this._idleBound=true;this.resetIdleLock();
+  },
+  resetIdleLock(){if(!State.user)return;if(this._idleTimer)clearTimeout(this._idleTimer);this._idleTimer=setTimeout(()=>this.lockForIdle(),30*60*1000);},
+  stopIdleLock(){if(this._idleTimer)clearTimeout(this._idleTimer);this._idleTimer=null;
+    if(this._idleBound&&this._idleHandler){['click','touchstart','keydown','pointerdown'].forEach(ev=>window.removeEventListener(ev,this._idleHandler));}
+    this._idleBound=false;this._idleHandler=null;},
+  lockForIdle(){this.logout('系統已因閒置30分鐘自動鎖定，請重新輸入 PIN。');},
   buildNav(){
     const r=State.user.role;
     const areas=this.AREAS.filter(a=>a.roles.includes(r));
@@ -933,27 +1053,81 @@ const App={
     if(this.area==='plan'&&['stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v);
   },
   /* ----- sync pill ----- */
-  syncText(){if(!SYNC.enabled())return['off','離線（單機）'];const s=SYNC.status||'';
-    if(/失敗/.test(s))return['bad','同步失敗'];if(/中…|上傳中|下載中/.test(s))return['busy','同步中'];
-    if(/已同步|已更新/.test(s))return['ok',s];return['ok','雲端已連線'];},
+  syncText(){if(navigator.onLine===false)return['bad','網路離線'];if(!SYNC.enabled())return['off','離線・單機模式'];
+    const p=SYNC.pendingCount();if(p)return['busy','待同步 '+p+' 筆'];
+    const s=SYNC.status||'';if(/失敗/.test(s))return['bad','同步失敗'];if(/中|上傳|下載/.test(s))return['busy','同步中'];
+    if(SYNC.lastSuccess)return['ok','已同步 '+new Date(SYNC.lastSuccess).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})];
+    return['ok','雲端已連線'];},
   updateSyncPill(){const [cls,txt]=this.syncText();['ctxPill','sidePill'].forEach(id=>{const e=document.getElementById(id);if(e){e.className='sync-pill '+cls;e.innerHTML='<span class="d"></span><span>'+esc(txt)+'</span>';}});},
+  hasFormalData(){return DATA_STORES.filter(s=>s!=='settings'&&s!=='audit_logs').some(s=>C(s).length>0);},
+  async requireAdminPin(options){
+    const opt=options||{};
+    if(!State.user||State.user.role!=='admin'){adminOnlyWarn();return false;}
+    const admin=C('profiles').find(p=>p.id===State.user.id&&p.role==='admin'&&p.active);
+    if(!admin){adminOnlyWarn();return false;}
+    return new Promise(resolve=>{
+      const id=uid('pin');
+      Modal.open('管理者安全驗證',`
+        <div class="warnbox" style="margin-top:0"><b>${esc(opt.actionName||'危險操作')}</b><br>${esc(opt.impact||'此操作可能覆蓋或刪除資料。')}</div>
+        ${opt.confirmText?`<div class="field"><label>文字確認</label><input id="${id}_txt" autocomplete="off" placeholder="${esc(opt.confirmText)}"><div class="help">請輸入「${esc(opt.confirmText)}」</div></div>`:''}
+        <div class="field"><label>管理者 PIN</label><input id="${id}_pin" type="password" inputmode="numeric" autocomplete="off"><div class="err" id="${id}_err" style="display:none">管理者 PIN 錯誤，未執行任何操作。</div></div>
+        <div class="row"><button class="btn secondary grow" id="${id}_cancel">取消</button><button class="btn danger grow" id="${id}_ok">確認執行</button></div>`,()=>{
+          const cancel=$('#'+id+'_cancel'), ok=$('#'+id+'_ok'), pinEl=$('#'+id+'_pin'), txtEl=$('#'+id+'_txt'), err=$('#'+id+'_err');
+          const doCancel=()=>{if(pinEl)pinEl.value='';Modal.close();resolve(false);};
+          cancel.onclick=doCancel;
+          const m=$('#modal');if(m){m.onclick=e=>{if(e.target===m)doCancel();};const x=m.querySelector('.x');if(x)x.onclick=doCancel;}
+          ok.onclick=async()=>{
+            if(ok.disabled)return;err.style.display='none';
+            if(opt.confirmText&&(!txtEl||txtEl.value.trim()!==opt.confirmText)){err.textContent='文字確認不一致，未執行任何操作。';err.style.display='block';return;}
+            if(!pinEl||pinEl.value.trim()!==(admin.pin||'1234')){if(pinEl)pinEl.value='';err.textContent='管理者 PIN 錯誤，未執行任何操作。';err.style.display='block';return;}
+            ok.disabled=true;
+            try{if(opt.backupReason)await BackupManager.create(opt.backupReason);await opt.onConfirm?.();}
+            finally{if(pinEl)pinEl.value='';ok.disabled=false;}
+            resolve(true);
+          };
+          setTimeout(()=>pinEl&&pinEl.focus(),50);
+        });
+    });
+  },
   /* ----- seed / wipe ----- */
   async seedFromLogin(){
-    const hasData=C('profiles').length>0;
-    if(hasData && !confirm('載入示範資料會清空現有資料，確定？'))return;
+    const hasData=this.hasFormalData();
+    if(hasData&&!State.user){
+      toast('系統已有資料，請由管理者登入後至系統設定操作。','warn');
+      return;
+    }
+    if(hasData&&(!State.user||State.user.role!=='admin')){adminOnlyWarn();return;}
+    if(hasData){
+      try{await BackupManager.create('載入示範資料前自動備份');}catch(e){return;}
+      return this.requireAdminPin({actionName:'載入示範資料',impact:'這會以示範帳號、班別、學員與課程覆蓋目前本機資料。',confirmText:'載入示範',
+        onConfirm:async()=>{
+          $('#loginList')&&($('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>建立示範資料中…</div>');
+          await seedDemo();Modal.close();this.renderLogin();toast('已載入示範資料','ok');
+          if(SYNC.enabled())Modal.open('是否同步到雲端',`<p class="muted">示範資料已載入本機。若要以本機資料覆蓋雲端，下一步仍會要求管理者 PIN 與文字確認。</p><div class="row"><button class="btn secondary grow" onclick="Modal.close()">暫不同步</button><button class="btn grow" onclick="SYNC.replaceAll()">同步到雲端</button></div>`);
+        }});
+    }
     $('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>建立示範資料中…</div>';
     try{
       await seedDemo();
       const n=C('profiles').length;
       if(!n) throw new Error('建立完成但找不到帳號（profiles=0）');
-      if(SYNC.enabled()){try{await SYNC.replaceAll();}catch(e){toast('雲端上傳失敗：'+e.message,'warn');}}
       this.renderLogin();
-      toast('已載入 '+n+' 個帳號'+(SYNC.enabled()?'並上傳雲端':'')+'，請選教練登入','ok');
+      toast('已載入 '+n+' 個帳號，請選教練登入','ok');
     }catch(err){
       $('#loginList').innerHTML='<div class="warnbox" style="text-align:left">載入示範資料失敗：<br><b>'+esc(err.message)+'</b></div><button class="btn ok block" onclick="App.seedFromLogin()">再試一次</button>';
     }
   },
-  async wipeAll(){if(!confirm('確定清空全部資料？此動作無法復原。'))return;await wipeData();this.renderLogin();toast('已清空','ok');},
+  async wipeAll(){
+    if(!requireAdminRole())return;
+    try{await BackupManager.create('清空全部資料前自動備份');}catch(e){return;}
+    await this.requireAdminPin({actionName:'清空全部資料',impact:'將清空設定以外的所有正式資料，此動作無法復原。',confirmText:'確認清空',
+      onConfirm:async()=>{
+        if(SYNC._timer)clearInterval(SYNC._timer);SYNC._timer=null;
+        await wipeData();this.stopIdleLock();State.user=null;
+        const pin=$('#pinInput');if(pin)pin.value='';
+        Modal.close();$('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();toast('已清空全部資料','ok');
+      }});
+  },
 };
 
 /* ---------- modal helper ---------- */
@@ -1191,6 +1365,7 @@ Views.view_more=function(el){
     ['settings','系統設定','同步、備份與資料管理',svg('settings',22),admin],
   ].filter(x=>x[4]);
   el.innerHTML=`<div class="sect-head"><h3>更多功能</h3></div>
+  <div class="card"><div class="kv"><b>版本</b><span>${APP_VERSION}</span></div><div class="kv"><b>同步狀態</b><span>${esc(App.syncText()[1])}</span></div><div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div><div class="kv"><b>最後錯誤</b><span>${esc(SYNC.lastError||'—')}</span></div></div>
   <div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}','more')"><span>${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span>${svg('chevron',18)}</span></button>`).join('')}</div>`;
 };
 Views.view_confirm=function(el){
@@ -1349,7 +1524,7 @@ Views.saveStudent=async function(id){
   await save('students',obj); await audit(id?'update':'create','students',obj.id,old,obj);
   Modal.close();toast('已儲存','ok');App.go('students');
 };
-Views.delStudent=async function(id){if(!can('*')){toast('無權限','bad');return;}if(!confirm('確定刪除？'))return;await remove('students',id);await audit('delete','students',id);Modal.close();toast('已刪除','ok');App.go('students');};
+Views.delStudent=async function(id){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'刪除學員',impact:'將刪除此學員資料。',confirmText:'確認刪除',onConfirm:async()=>{await remove('students',id);await audit('delete','students',id);Modal.close();toast('已刪除','ok');App.go('students');}});};
 </script>
 
 <script>
@@ -1491,7 +1666,7 @@ Views.saveClass=async function(id){
   await save('classes',Object.assign({},old||{},{id:id||uid('cl'),name,start_time:$('#ec_s').value,end_time:$('#ec_e').value,weekdays:wd,active:$('#ec_act').classList.contains('on')}));
   Modal.close();toast('已儲存','ok');App.go('classes');
 };
-Views.delClass=async function(id){if(!confirm('刪除班別不會刪學員，確定？'))return;await remove('classes',id);Modal.close();App.go('classes');};
+Views.delClass=async function(id){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'刪除班別',impact:'刪除班別不會刪除學員，但會影響班別選單。',confirmText:'確認刪除',onConfirm:async()=>{await remove('classes',id);Modal.close();App.go('classes');}});};
 
 /* ---------- COACHES ---------- */
 Views.view_coaches=function(el){
@@ -1529,7 +1704,7 @@ Views.saveCoach=async function(id){
     active:$('#ph_act').classList.contains('on')}));
   Modal.close();toast('已儲存','ok');App.go('coaches');
 };
-Views.delCoach=async function(id){if(!confirm('確定刪除帳號？'))return;await remove('profiles',id);Modal.close();App.go('coaches');};
+Views.delCoach=async function(id){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'刪除教練帳號',impact:'將刪除此教練帳號。',confirmText:'確認刪除',onConfirm:async()=>{await remove('profiles',id);Modal.close();App.go('coaches');}});};
 </script>
 
 <script>
@@ -1790,7 +1965,7 @@ Views.applyWarmup=async function(dpId){
 };
 Views.setStatus=async function(dpId,st){const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status=st;await save('daily_plans',dp);await audit('status','daily_plans',dpId,old,dp);toast('狀態：'+statusMeta(st)[1]);};
 Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');if($('#planBody'))Views.renderPlan();else App.go(App.view,App.area);};
-Views.lockPlan=async function(dpId){if(!confirm('鎖定後只有管理者可修改，確定？'))return;const dp=C('daily_plans').find(d=>d.id===dpId);dp.status='lock';await save('daily_plans',dp);await audit('lock','daily_plans',dpId);toast('已鎖定 🔒');Views.renderPlan();};
+Views.lockPlan=async function(dpId){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'鎖定課程',impact:'鎖定後只有管理者可修改此課程。',confirmText:'確認鎖定',onConfirm:async()=>{const dp=C('daily_plans').find(d=>d.id===dpId);dp.status='lock';await save('daily_plans',dp);await audit('lock','daily_plans',dpId);Modal.close();toast('已鎖定 🔒');Views.renderPlan();}});};
 Views.copyPrev=async function(){
   // 找同班別上一個有備課的日期
   const prev=C('daily_plans').filter(d=>d.class_id===State.ctx.classId&&d.date<State.ctx.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
@@ -2069,7 +2244,7 @@ Views.editTpl=function(id){
 Views.saveTpl=async function(id){const name=$('#tp_name').value.trim();if(!name){toast('名稱必填','bad');return;}
   await save('course_templates',{id:id||uid('tp'),name,category:$('#tp_cat').value,duration:+$('#tp_dur').value,content:$('#tp_content').value.trim(),goal:$('#tp_goal').value.trim(),equipment:$('#tp_eq').value.trim(),age_groups:[],belt_ranks:[]});
   Modal.close();toast('已儲存','ok');App.go('templates');};
-Views.delTpl=async function(id){if(!confirm('刪除模板？'))return;await remove('course_templates',id);Modal.close();App.go('templates');};
+Views.delTpl=async function(id){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'刪除課程模板',impact:'將刪除此課程模板。',confirmText:'確認刪除',onConfirm:async()=>{await remove('course_templates',id);Modal.close();App.go('templates');}});};
 </script>
 
 <script>
@@ -2154,7 +2329,11 @@ Views.buildPDF=function(){
 /* ---------- SETTINGS ---------- */
 Views.view_settings=function(el){
   const s=settings();
+  const counts=dataCounts();
+  const backups=BackupManager.list();
+  const syncLast=SYNC.lastSuccess?new Date(SYNC.lastSuccess).toLocaleString('zh-TW'):'—';
   el.innerHTML=`<div class="card"><h3>⚙️ 系統設定</h3>
+    <div class="kv"><b>版本</b><span>${APP_VERSION}</span></div>
     <div class="row"><div class="grow field"><label class="sm">道館名稱</label><input id="se_dojo" value="${esc(s.dojo)}"></div>
       <div class="grow field"><label class="sm">Logo（emoji）</label><input id="se_logo" value="${esc(s.logo)}"></div></div>
     <div class="sect-title">分組人數上限（每位教練）</div>
@@ -2172,9 +2351,15 @@ Views.view_settings=function(el){
     <p class="muted">各教練各自手機共用同一份資料時使用。先依 <b>apps-script/Code.gs</b> 部署後端，取得 /exec 網址貼在下方。（建議直接寫進程式碼的 <b>DEFAULT_SYNC_URL</b> 再上架，這樣每支手機打開同一網址即自動同步。）</p>
     <div class="field"><label class="sm">同步後端網址（GAS /exec）</label><input id="se_sync" value="${esc(s.syncUrl||'')}" placeholder="https://script.google.com/macros/s/.../exec"></div>
     <div class="row"><button class="btn sm" onclick="Views.saveSyncUrl()">儲存並測試連線</button>
+      <button class="btn sm g" id="syncNowBtn" onclick="Views.syncNow()">立即同步</button>
       <button class="btn sm ok" onclick="Views.cloudUpload()">⬆️ 上傳本機到雲端（主帳號首次）</button>
       <button class="btn sm g" onclick="Views.cloudDownload()">⬇️ 從雲端下載到本機</button></div>
-    <p class="muted" id="syncStat" style="margin-top:8px">狀態：${SYNC.enabled()?'已啟用（'+esc(SYNC.status)+'）':'未啟用（單機）'}</p>
+    <div class="grid g2" style="margin-top:10px">
+      <div class="kv"><b>狀態</b><span id="syncStat">${esc(App.syncText()[1])}</span></div>
+      <div class="kv"><b>最後成功同步</b><span>${esc(syncLast)}</span></div>
+      <div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div>
+      <div class="kv"><b>最後錯誤</b><span>${esc(SYNC.lastError||'—')}</span></div>
+    </div>
   </div>
   <div class="card"><h3>資料管理</h3>
     <div class="row"><button class="btn g sm" onclick="Views.exportData()">⬇️ 匯出備份(JSON)</button>
@@ -2183,12 +2368,20 @@ Views.view_settings=function(el){
       <button class="btn bad sm" onclick="App.wipeAll()">清空全部</button></div>
     <p class="muted" style="margin-top:8px">學員 ${C('students').length}・帳號 ${C('profiles').length}・班別 ${C('classes').length}・週計畫 ${C('weekly_plans').length}・稽核 ${C('audit_logs').length}</p>
   </div>
+  <div class="card"><h3>備份與還原</h3>
+    <p class="muted">最多保留最近 10 份本機備份。危險操作前會自動建立備份。</p>
+    <div class="kv"><b>正式資料總筆數</b><span>${counts.total}</span></div>
+    <div class="scroll"><table class="tbl"><tr><th>時間</th><th>原因</th><th>建立者</th><th>筆數</th><th>操作</th></tr>
+      ${backups.map(b=>`<tr><td class="muted">${new Date(b.created_at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td>${esc(b.reason)}</td><td>${esc(b.created_by?.name||'—')}</td><td>${b.total_count||0}</td><td><button class="btn xs g" onclick="BackupManager.download('${b.id}')">下載</button> <button class="btn xs warn" onclick="BackupManager.restore('${b.id}')">還原</button> <button class="btn xs bad" onclick="BackupManager.remove('${b.id}')">刪除</button></td></tr>`).join('')||'<tr><td colspan=5 class="muted">尚無備份</td></tr>'}
+    </table></div>
+  </div>
   <div class="card"><h3>稽核紀錄（最近 20 筆）</h3><div class="scroll"><table class="tbl"><tr><th>時間</th><th>使用者</th><th>動作</th><th>表</th></tr>
     ${C('audit_logs').sort((a,b)=>b.created_at-a.created_at).slice(0,20).map(a=>`<tr><td class="muted">${new Date(a.created_at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td>${esc(a.user_name||'')}</td><td>${esc(a.action)}</td><td>${esc(a.table_name||'')}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">無</td></tr>'}
   </table></div></div>`;
   $('#impBackup').onchange=Views.importData;
 };
 Views.saveSettings=async function(){
+  if(!requireAdminRole())return;
   const s=settings();
   s.dojo=$('#se_dojo').value.trim()||'道館';s.logo=$('#se_logo').value.trim()||'🥋';
   s.limits={幼兒:+$('#lim_kid').value,基礎:+$('#lim_base').value,品勢:+$('#lim_poom').value,對練:+$('#lim_spar').value,default:12};
@@ -2196,6 +2389,7 @@ Views.saveSettings=async function(){
   s.id='app';await save('settings',s);toast('設定已儲存','ok');
 };
 Views.saveSyncUrl=async function(){
+  if(!requireAdminRole())return;
   const s=settings();s.syncUrl=$('#se_sync').value.trim();s.id='app';await save('settings',s);
   if(!SYNC.enabled()){$('#syncStat').textContent='狀態：未啟用（單機）';toast('已清除同步網址','ok');return;}
   $('#syncStat').textContent='狀態：測試連線中…';
@@ -2206,10 +2400,15 @@ Views.saveSyncUrl=async function(){
 };
 Views.cloudUpload=async function(){
   if(!SYNC.enabled()){toast('請先儲存同步網址','warn');return;}
-  if(!confirm('會把「雲端資料整個覆蓋成這台裝置目前的資料」，第一次由主帳號做即可。確定？'))return;
   $('#syncStat').textContent='狀態：上傳中…';
-  try{const r=await SYNC.replaceAll();$('#syncStat').textContent='狀態：✅ 已上傳 '+r.count+' 筆到雲端';toast('已上傳雲端','ok');}
+  try{await SYNC.replaceAll();$('#syncStat').textContent='狀態：'+App.syncText()[1];}
   catch(e){$('#syncStat').textContent='狀態：❌ 上傳失敗（'+esc(e.message)+'）';toast('上傳失敗','bad');}
+};
+Views.syncNow=async function(){
+  if(!SYNC.enabled()){toast('請先儲存同步網址','warn');return;}
+  const btn=$('#syncNowBtn');if(btn&&btn.disabled)return;if(btn)btn.disabled=true;
+  try{await SYNC.immediate();toast('同步完成','ok');App.go('settings','more');}
+  finally{if(btn)btn.disabled=false;}
 };
 Views.cloudDownload=async function(){
   if(!SYNC.enabled()){toast('請先儲存同步網址','warn');return;}
@@ -2219,7 +2418,7 @@ Views.cloudDownload=async function(){
   catch(e){$('#syncStat').textContent='狀態：❌ 下載失敗（'+esc(e.message)+'）';toast('下載失敗','bad');}
 };
 Views.exportData=async function(){
-  const data={};for(const st of STORES)data[st]=C(st);
+  const data={version:APP_VERSION,exported_at:Date.now(),stores:{}};for(const st of DATA_STORES)data.stores[st]=C(st);
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TeamPro備課備份_'+todayStr()+'.json';a.click();
   toast('已匯出備份','ok');
@@ -2227,10 +2426,14 @@ Views.exportData=async function(){
 Views.importData=function(e){
   const f=e.target.files[0];if(!f)return;const r=new FileReader();
   r.onload=async ev=>{try{const data=JSON.parse(ev.target.result);
-    if(!confirm('匯入將覆蓋現有資料，確定？'))return;
-    await wipeData(false);
-    for(const st of STORES){if(data[st])await DB.bulk(st,data[st]);}
-    await reloadAll();toast('已匯入備份','ok');App.go('settings');
+    if(!requireAdminRole())return;
+    const stores=data.stores||data;
+    await App.requireAdminPin({actionName:'匯入 JSON 覆蓋資料',impact:'將以選取的 JSON 檔覆蓋目前本機正式資料。',confirmText:'確認匯入',
+      backupReason:'JSON 匯入前自動備份',onConfirm:async()=>{
+        await wipeData(false);
+        for(const st of DATA_STORES){if(stores[st])await DB.bulk(st,stores[st]);}
+        await reloadAll();Modal.close();toast('已匯入備份','ok');App.go('settings','more');
+      }});
   }catch(err){toast('匯入失敗：'+err.message,'bad');}};
   r.readAsText(f);
 };
