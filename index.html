@@ -231,10 +231,11 @@ textarea{resize:vertical;min-height:60px}
 .stepper-m .now b{font-size:15px}.stepper-m .now span{font-size:12px;color:var(--sub)}
 @media(min-width:768px){.stepper{display:flex}.stepper-m{display:none}}
 /* sticky action bar */
-.actionbar{position:sticky;bottom:0;background:var(--color-surface);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;margin:16px -16px -96px;box-shadow:0 -6px 18px rgba(11,31,51,.06);z-index:20;align-items:center}
+.actionbar{position:sticky;bottom:calc(68px + env(safe-area-inset-bottom));background:var(--color-surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:10px 14px;display:flex;gap:8px;margin:16px 0 4px;box-shadow:var(--shadow-floating);z-index:44;align-items:center;flex-wrap:wrap}
 .actionbar .sp{flex:1}
 .actionbar .savehint{font-size:12px;color:var(--sub)}
-@media(min-width:1024px){.actionbar{margin:18px 0 0;border:1px solid var(--line);border-radius:var(--radius-lg)}}
+.actionbar .btn{min-height:44px}
+@media(min-width:1024px){.actionbar{margin:18px 0 0;bottom:0;box-shadow:var(--shadow-card)}}
 /* today course card */
 .course-card{background:linear-gradient(150deg,var(--color-primary-900),var(--color-primary-800));color:#fff;border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-card)}
 .course-card .cc-top{display:flex;align-items:center;gap:14px}
@@ -377,7 +378,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.2.0-internal';
+const APP_VERSION='1.3.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
