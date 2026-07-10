@@ -2,65 +2,113 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="theme-color" content="#0f172a">
 <title>TeamPro 教練共同備課系統</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./共同備課logo.png">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
-  --bg:#0f172a; --bg2:#1e293b; --card:#ffffff; --ink:#0f172a; --sub:#64748b;
-  --line:#e2e8f0; --brand:#4f46e5; --brand2:#6366f1; --ok:#16a34a; --warn:#d97706;
-  --bad:#dc2626; --amber:#f59e0b; --green:#22c55e; --red:#ef4444; --pagew:1080px;
-  --sh:0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.04);
+  /* ---- design tokens ---- */
+  --color-primary-900:#0B1F33; --color-primary-800:#12304A;
+  --color-brand-600:#0EA5C6; --color-brand-500:#19B5D1; --color-accent-500:#F97316;
+  --color-success:#16A36A; --color-warning:#F59E0B; --color-danger:#DC4C4C; --color-info:#2563EB;
+  --color-bg:#F4F7FA; --color-surface:#FFFFFF; --color-surface-soft:#EDF3F7; --color-border:#DCE5EC;
+  --color-text:#17212B; --color-text-secondary:#64748B; --color-text-disabled:#94A3B8;
+  --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:22px;
+  --shadow-card:0 8px 28px rgba(11,31,51,.08); --shadow-floating:0 14px 40px rgba(11,31,51,.14);
+  /* ---- aliases so existing components inherit the new system ---- */
+  --bg:var(--color-bg); --bg2:var(--color-primary-800); --card:var(--color-surface); --ink:var(--color-text);
+  --sub:var(--color-text-secondary); --line:var(--color-border); --brand:var(--color-brand-600); --brand2:var(--color-brand-500);
+  --ok:var(--color-success); --warn:var(--color-warning); --bad:var(--color-danger); --amber:var(--color-warning);
+  --green:var(--color-success); --red:var(--color-danger); --info:var(--color-info); --accent:var(--color-accent-500);
+  --pagew:1440px; --sh:var(--shadow-card); --side-w:248px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
-body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  background:#f1f5f9;color:var(--ink);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:var(--color-bg);color:var(--ink);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
+svg{display:inline-block;vertical-align:middle}
 button,input,select,textarea{font-family:inherit;font-size:15px}
 button{cursor:pointer;border:none;background:none}
 a{color:var(--brand);text-decoration:none}
 .hide{display:none!important}
 /* ---------- login ---------- */
-#login{position:fixed;inset:0;background:linear-gradient(160deg,#1e293b,#4f46e5);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
-#login .box{background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
-#login h1{margin:0 0 4px;font-size:22px}
-#login .sub{color:var(--sub);margin:0 0 20px;font-size:13px}
+#login{position:fixed;inset:0;background:radial-gradient(1100px 600px at 82% -12%,#12304A,#0B1F33 62%);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100;overflow:auto}
+#login .box{background:var(--color-surface);border-radius:var(--radius-xl);padding:26px 22px calc(20px + env(safe-area-inset-bottom));width:100%;max-width:440px;box-shadow:var(--shadow-floating)}
+#login .brand{display:flex;align-items:center;gap:12px}
+#login .brand .mark{width:46px;height:46px;border-radius:13px;background:linear-gradient(140deg,var(--color-brand-600),var(--color-primary-800));display:flex;align-items:center;justify-content:center;color:#fff;flex:0 0 auto}
+#login .brand .mark img,#side .side-brand .mark img{width:100%;height:100%;object-fit:contain;border-radius:inherit;display:block;background:#fff}
+#login h1{margin:0;font-size:20px;letter-spacing:.3px}
+#login .sub{color:var(--sub);margin:3px 0 16px;font-size:13px}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#334155}
-.field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;outline:none}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px;border-radius:10px;font-weight:600;background:var(--brand);color:#fff;transition:.15s;white-space:nowrap}
-.btn:active{transform:scale(.98)}
+.field .req{color:var(--color-danger)}.field .opt{color:var(--color-text-disabled);font-weight:500;font-size:12px}
+.field .help{font-size:12px;color:var(--sub);margin-top:5px}
+.field .err{font-size:12px;color:var(--color-danger);margin-top:5px}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;outline:none;color:var(--ink)}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(14,165,198,.18)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px;border-radius:var(--radius-md);font-weight:600;background:var(--color-brand-600);color:#fff;transition:.15s;white-space:nowrap;min-height:44px;border:1px solid transparent}
+.btn:hover{filter:brightness(1.05)}
+.btn:active{transform:scale(.985)}
 .btn.block{width:100%}
-.btn.g{background:#f1f5f9;color:#334155;border:1px solid var(--line)}
-.btn.ok{background:var(--ok)}.btn.bad{background:var(--bad)}.btn.warn{background:var(--warn)}
-.btn.sm{padding:7px 11px;font-size:13px;border-radius:8px}
-.btn.xs{padding:4px 9px;font-size:12px;border-radius:7px}
-.pinrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.pinrow .who{flex:1;min-width:130px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:left;background:#fff}
-.pinrow .who b{display:block;font-size:14px}
-.pinrow .who span{font-size:11px;color:var(--sub)}
-.pinrow .who.admin{flex:0 0 100%;background:linear-gradient(135deg,#4f46e5,#6366f1);border:2px solid #4f46e5;color:#fff;padding:16px 16px;box-shadow:0 6px 18px rgba(79,70,229,.35)}
-.pinrow .who.admin b{font-size:19px}
-.pinrow .who.admin span{font-size:12px;color:rgba(255,255,255,.85)}
-.pinrow .who.admin.sel{outline:3px solid #c7d2fe}
-/* ---------- shell ---------- */
-#shell{max-width:var(--pagew);margin:0 auto;padding:0 0 88px}
-#top{position:sticky;top:0;z-index:40;background:rgba(15,23,42,.98);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px}
-#top .logo{font-weight:800;font-size:16px;letter-spacing:.5px}
-#top .logo small{font-weight:500;opacity:.7;font-size:11px;display:block;letter-spacing:0}
-#top .sp{flex:1}
-#top .u{font-size:12px;text-align:right;line-height:1.3}
-#top .u b{font-size:13px}
-.rolechip{display:inline-block;font-size:10px;background:var(--brand2);padding:1px 7px;border-radius:20px;margin-top:2px}
-#nav{display:flex;gap:4px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:6px 8px;position:sticky;top:47px;z-index:35;scrollbar-width:none}
-#nav::-webkit-scrollbar{display:none}
-#nav button{padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--sub);white-space:nowrap}
-#nav button.on{background:var(--brand);color:#fff}
-#view{padding:14px}
-/* bottom nav (mobile quick) */
-#bnav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;z-index:45;max-width:var(--pagew);margin:0 auto}
-#bnav button{flex:1;padding:8px 2px 6px;font-size:10px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px}
+.btn.g,.btn.secondary{background:var(--color-surface-soft);color:var(--color-primary-800);border:1px solid var(--line)}
+.btn.ghost{background:transparent;color:var(--color-brand-600);border:1px solid transparent}
+.btn.ok{background:var(--ok)}.btn.bad,.btn.danger{background:var(--bad)}.btn.warn{background:var(--warn);color:#3a2a00}
+.btn.lg{min-height:52px;font-size:16px}
+.btn.sm{padding:7px 11px;font-size:13px;border-radius:var(--radius-sm);min-height:36px}
+.btn.xs{padding:4px 9px;font-size:12px;border-radius:8px;min-height:0}
+.btn[disabled],.btn.disabled{opacity:.5;pointer-events:none}
+.btn:focus-visible,.acct:focus-visible,.chip:focus-visible,.nav-item:focus-visible,#bnav button:focus-visible,.iconbtn:focus-visible{outline:3px solid #7DD3E8;outline-offset:2px}
+.acct-list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.acct{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:var(--radius-md);padding:10px 12px;text-align:left;background:#fff;width:100%;min-height:56px;transition:.15s;cursor:pointer}
+.acct:hover{border-color:var(--color-brand-500)}
+.acct .av{width:38px;height:38px;border-radius:10px;background:var(--color-surface-soft);color:var(--color-primary-800);font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:15px}
+.acct .meta{flex:1;min-width:0}
+.acct .meta b{display:block;font-size:15px}
+.acct .meta span{font-size:12px;color:var(--sub)}
+.acct .recent{font-size:11px;background:#E0F2FE;color:#0369A1;padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:600}
+.acct.sel{border-color:var(--brand);box-shadow:0 0 0 3px rgba(14,165,198,.15)}
+.acct.admin .av{background:linear-gradient(140deg,var(--color-brand-600),var(--color-primary-800));color:#fff}
+.pin-input{width:100%;text-align:center;font-size:26px;letter-spacing:14px;font-weight:700;padding:12px;border:1px solid var(--line);border-radius:var(--radius-md)}
+.login-status{display:flex;align-items:center;gap:8px;justify-content:center;font-size:12px;color:var(--sub);margin-top:14px}
+/* ---------- app shell (desktop sidebar + mobile bottom nav) ---------- */
+#shell{display:flex;min-height:100vh}
+#side{width:var(--side-w);flex:0 0 var(--side-w);background:var(--color-primary-900);color:#cbd5e1;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:14px 12px;gap:8px}
+#side .side-brand{display:flex;align-items:center;gap:10px;padding:6px 8px 10px}
+#side .side-brand .mark{width:38px;height:38px;border-radius:11px;background:linear-gradient(140deg,var(--color-brand-600),var(--color-primary-800));display:flex;align-items:center;justify-content:center;color:#fff;flex:0 0 auto}
+#side .side-brand b{color:#fff;font-size:15px;display:block;line-height:1.15}
+#side .side-brand small{font-size:11px;color:#8aa0b6}
+#sidenav{display:flex;flex-direction:column;gap:4px;overflow-y:auto;flex:1;margin-top:4px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:var(--radius-md);color:#cbd5e1;font-weight:600;font-size:14px;min-height:46px;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.on{background:var(--color-brand-600);color:#fff}
+.nav-item svg{flex:0 0 auto;stroke:currentColor}
+#side .side-foot{border-top:1px solid rgba(255,255,255,.08);padding-top:10px;display:flex;flex-direction:column;gap:10px}
+#side .side-foot .who{display:flex;align-items:center;gap:10px;color:#e2e8f0;font-size:13px}
+.av{width:34px;height:34px;border-radius:9px;background:var(--color-brand-600);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 auto}
+.rolechip{display:inline-block;font-size:10px;background:rgba(255,255,255,.14);padding:1px 7px;border-radius:20px;margin-top:2px;color:#cbd5e1}
+#main{flex:1;min-width:0;display:flex;flex-direction:column}
+#ctxbar{position:sticky;top:0;z-index:40;background:rgba(11,31,51,.98);color:#fff;display:flex;align-items:center;gap:10px;padding:10px 14px}
+#ctxbar .ct-title{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ctxbar .sp{flex:1}
+#ctxbar .av{width:32px;height:32px}
+#view{padding:16px 16px 96px;max-width:1440px;width:100%;margin:0 auto}
+/* sync pill */
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:20px;background:var(--color-surface-soft);color:var(--color-text-secondary);border:1px solid var(--line);cursor:pointer}
+.sync-pill .d{width:8px;height:8px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.sync-pill.ok{background:#E6F6EE;color:#0F7A50;border-color:#B7E4CD}
+.sync-pill.bad{background:#FCE9E9;color:#B23636;border-color:#F3C6C6}
+.sync-pill.off{background:#EEF2F6;color:#64748B}
+.sync-pill.busy{background:#E7F4F8;color:#0E7490}
+#ctxbar .sync-pill,#side .sync-pill{background:rgba(255,255,255,.12);color:#cbd5e1;border-color:transparent}
+/* bottom nav (mobile) */
+#bnav{position:fixed;bottom:0;left:0;right:0;background:var(--color-surface);border-top:1px solid var(--line);display:flex;z-index:45;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 20px rgba(11,31,51,.06)}
+#bnav button{flex:1;min-height:68px;padding:8px 2px;font-size:11px;color:var(--sub);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-weight:600}
+#bnav button svg{stroke:var(--sub)}
 #bnav button.on{color:var(--brand)}
-#bnav .ic{font-size:18px;line-height:1}
+#bnav button.on svg{stroke:var(--brand)}
+@media(min-width:1024px){#bnav,#ctxbar{display:none!important}#view{padding:28px 32px 44px}}
+@media(max-width:1023px){#side{display:none}#shell{display:block}}
+@media(min-width:768px) and (max-width:1023px){#view{padding:22px 24px 96px}}
 /* cards */
 .grid{display:grid;gap:12px}
 .g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
@@ -159,6 +207,97 @@ textarea{resize:vertical;min-height:60px}
 .spin{width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:var(--brand);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto 8px}
 @keyframes sp{to{transform:rotate(360deg)}}
 @media(max-width:560px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
+/* ---------- components v2 ---------- */
+.iconbtn{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:var(--radius-md);background:var(--color-surface-soft);color:var(--color-text);flex:0 0 auto}
+.iconbtn svg{stroke:currentColor}
+.sect-head{display:flex;align-items:center;gap:8px;margin:18px 2px 8px}
+.sect-head h3{margin:0;font-size:15px}
+.sect-head .sp{flex:1}
+/* context bar (in-page, for pickers) */
+.ctxrow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:var(--color-surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:12px;box-shadow:var(--sh)}
+/* stepper */
+.stepper{display:none;gap:6px;background:var(--color-surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:10px;box-shadow:var(--sh);overflow-x:auto;margin-bottom:14px}
+.stepper .stp{flex:1;min-width:92px;display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center;padding:6px;border-radius:var(--radius-md);cursor:pointer}
+.stepper .stp .num{width:30px;height:30px;border-radius:50%;background:var(--color-surface-soft);color:var(--sub);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.stepper .stp.on .num{background:var(--color-brand-600);color:#fff}
+.stepper .stp.done .num{background:var(--color-success);color:#fff}
+.stepper .stp.warn .num{background:var(--color-warning);color:#fff}
+.stepper .stp .lbl{font-size:12px;font-weight:600;color:var(--sub)}
+.stepper .stp.on .lbl{color:var(--ink)}
+.stepper-m{display:flex;align-items:center;gap:12px;background:var(--color-surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:12px;box-shadow:var(--sh);margin-bottom:14px}
+.ring{width:48px;height:48px;border-radius:50%;background:conic-gradient(var(--color-brand-600) calc(var(--p,0)*1%),var(--color-surface-soft) 0);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.ring i{width:37px;height:37px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-style:normal}
+.stepper-m .now b{font-size:15px}.stepper-m .now span{font-size:12px;color:var(--sub)}
+@media(min-width:768px){.stepper{display:flex}.stepper-m{display:none}}
+/* sticky action bar */
+.actionbar{position:sticky;bottom:0;background:var(--color-surface);border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;margin:16px -16px -96px;box-shadow:0 -6px 18px rgba(11,31,51,.06);z-index:20;align-items:center}
+.actionbar .sp{flex:1}
+.actionbar .savehint{font-size:12px;color:var(--sub)}
+@media(min-width:1024px){.actionbar{margin:18px 0 0;border:1px solid var(--line);border-radius:var(--radius-lg)}}
+/* today course card */
+.course-card{background:linear-gradient(150deg,var(--color-primary-900),var(--color-primary-800));color:#fff;border-radius:var(--radius-xl);padding:18px;box-shadow:var(--shadow-card)}
+.course-card .cc-top{display:flex;align-items:center;gap:14px}
+.course-card .cc-top .info{flex:1;min-width:0}
+.course-card .cc-top .info h2{margin:0;font-size:18px}
+.course-card .cc-top .info p{margin:2px 0 0;font-size:13px;color:#9fb3c8}
+.ring-big{width:66px;height:66px;border-radius:50%;background:conic-gradient(var(--color-brand-500) calc(var(--p,0)*1%),rgba(255,255,255,.12) 0);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.ring-big i{width:52px;height:52px;border-radius:50%;background:var(--color-primary-900);display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;font-weight:800;font-size:16px;color:#fff}
+.course-card .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 4px}
+.course-card .metric{background:rgba(255,255,255,.08);border-radius:var(--radius-md);padding:10px 8px}
+.course-card .metric .n{font-size:20px;font-weight:800}
+.course-card .metric .l{font-size:11px;color:#9fb3c8;margin-top:2px}
+@media(max-width:440px){.course-card .metrics{grid-template-columns:repeat(2,1fr)}}
+/* todo list */
+.todo{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:var(--radius-md);background:#fff;margin-bottom:8px}
+.todo .tc{flex:0 0 auto;margin-top:1px}
+.todo.block{border-left:4px solid var(--color-danger)}
+.todo.warn{border-left:4px solid var(--color-warning)}
+.todo.info{border-left:4px solid var(--color-info)}
+.todo.ok{border-left:4px solid var(--color-success)}
+.todo .body{flex:1;min-width:0}.todo .body .t{font-weight:600;font-size:14px}.todo .body .s{font-size:12px;color:var(--sub)}
+/* timeline (90-min) */
+.tcard{border:1px solid var(--line);border-radius:var(--radius-md);margin-bottom:10px;background:#fff;overflow:hidden}
+.tcard .th{display:flex;align-items:center;gap:10px;padding:12px;cursor:pointer}
+.tcard .th .time{font-weight:800;font-size:13px;color:var(--color-brand-600);min-width:52px}
+.tcard .th .nm{font-weight:700;font-size:14px}
+.tcard .th .sub{font-size:12px;color:var(--sub)}
+.tcard .th .st{margin-left:auto;font-size:12px}
+.tcard .tb{padding:12px;border-top:1px solid var(--line)}
+.tcard.done{border-color:#B7E4CD}.tcard.done .th{background:#F0FaF5}
+/* live mode */
+.live{background:var(--color-primary-900);color:#fff;border-radius:var(--radius-lg);padding:18px;text-align:center}
+.live .stage{font-size:22px;font-weight:800;margin:2px 0}
+.live .clock{font-size:38px;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums}
+.live .nxt{font-size:13px;color:#9fb3c8;margin-top:4px}
+.live-btns{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+.live-btns .btn{min-height:56px;font-size:16px}
+/* tabs */
+.tabs{display:flex;gap:4px;background:var(--color-surface-soft);border-radius:var(--radius-md);padding:4px;overflow-x:auto;margin-bottom:12px}
+.tabs button{flex:1;min-width:max-content;padding:9px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;color:var(--sub);white-space:nowrap;min-height:40px}
+.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
+/* menu (更多) */
+.menu{display:grid;gap:8px}
+.menu .mrow{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:var(--radius-md);background:#fff;min-height:58px;text-align:left;width:100%}
+.menu .mrow:hover{border-color:var(--color-brand-500)}
+.menu .mrow .mi{flex:0 0 auto;color:var(--color-brand-600)}
+.menu .mrow .mt{flex:1}.menu .mrow .mt b{font-size:14px;display:block}.menu .mrow .mt span{font-size:12px;color:var(--sub)}
+.menu .mrow .chev{color:var(--color-text-disabled)}
+.danger-zone{border:1px solid #F3C6C6;background:#FEF6F6;border-radius:var(--radius-md);padding:14px;margin-top:8px}
+.danger-zone h4{margin:0 0 4px;color:var(--color-danger);font-size:14px}
+/* confirm/check rows */
+.chk{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);background:#fff;margin-bottom:8px}
+.chk.pass{border-left:4px solid var(--color-success)}
+.chk.block{border-left:4px solid var(--color-danger)}
+.chk.warn{border-left:4px solid var(--color-warning)}
+.confirm-coach{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius-md);background:#fff;margin-bottom:6px}
+.confirm-coach.yes{background:#F0FaF5;border-color:#B7E4CD}
+/* skeleton */
+.skel{background:linear-gradient(90deg,#eef2f6 25%,#e2e8f0 37%,#eef2f6 63%);background-size:400% 100%;animation:shim 1.3s infinite;border-radius:var(--radius-md)}
+@keyframes shim{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@media(prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition:none!important}}
+/* modal → centered on tablet/desktop */
+@media(min-width:768px){#modal{align-items:center}#modal .m{border-radius:var(--radius-lg);max-width:560px}}
+.sheet-title{font-size:12px;color:var(--sub);font-weight:600}
 /* ---------- print / PDF ---------- */
 #print{display:none}
 @media print{
@@ -183,36 +322,51 @@ textarea{resize:vertical;min-height:60px}
 <!-- ============ LOGIN ============ -->
 <div id="login">
   <div class="box">
-    <h1>🥋 TeamPro 共同備課</h1>
-    <p class="sub">道館教練共同備課系統・請選擇身分登入</p>
-    <div id="loginList" class="pinrow"></div>
-    <div id="loginAuth">
-      <div class="field" style="margin-top:16px">
-        <label>PIN 密碼</label>
-        <input id="pinInput" type="password" inputmode="numeric" placeholder="輸入 4 位數 PIN" maxlength="8">
-      </div>
-      <button class="btn block" onclick="App.doLogin()">登入</button>
-      <p class="muted" style="text-align:center;margin-top:14px">
-        預設 PIN 皆為 <b>1234</b>。
-      </p>
+    <div class="brand">
+      <div class="mark" id="loginMark" aria-hidden="true"></div>
+      <div><h1>TeamPro Coach Studio</h1><div class="sub">讓教練團更快完成今天的課</div></div>
     </div>
-    <button class="btn g block sm" style="margin-top:8px" onclick="App.seedFromLogin()">🎁 載入示範資料（40 學員／一週課程）</button>
-    <button class="btn g block sm" style="margin-top:6px" onclick="App.wipeAll()">🗑️ 清空全部資料</button>
+    <div id="loginList"></div>
+    <div id="loginAuth">
+      <div class="field" style="margin-top:14px">
+        <label>PIN 密碼 <span class="req">*</span></label>
+        <input id="pinInput" class="pin-input" type="password" inputmode="numeric" autocomplete="current-password" placeholder="••••" maxlength="8" aria-label="輸入 PIN 密碼">
+        <div class="err" id="pinErr" style="display:none"></div>
+      </div>
+      <button class="btn block lg" onclick="App.doLogin()">登入</button>
+    </div>
+    <div class="login-status" id="loginSync"></div>
+    <div style="text-align:center;margin-top:10px">
+      <button class="btn ghost sm" onclick="App.loginMore()" aria-haspopup="true">首次使用 / 其他選項</button>
+    </div>
   </div>
 </div>
 
 <!-- ============ SHELL ============ -->
 <div id="shell" class="hide">
-  <div id="top">
-    <div class="logo">TeamPro<small>共同備課系統</small></div>
-    <div class="sp"></div>
-    <div class="u"><b id="uName">—</b><br><span class="rolechip" id="uRole">—</span></div>
-    <button class="btn g xs" onclick="App.logout()">登出</button>
+  <aside id="side" aria-label="主導覽">
+    <div class="side-brand">
+      <div class="mark" id="sideMark" aria-hidden="true"></div>
+      <div><b>TeamPro</b><small>Coach Studio</small></div>
+    </div>
+    <nav id="sidenav"></nav>
+    <div class="side-foot">
+      <div class="sync-pill" id="sidePill" onclick="App.go('more')" role="button" tabindex="0"><span class="d"></span><span>離線</span></div>
+      <div class="who"><div class="av" id="sideAv">—</div><div style="flex:1;min-width:0"><b id="uName">—</b><br><span class="rolechip" id="uRole">—</span></div>
+        <button class="iconbtn" style="width:36px;height:36px" onclick="App.logout()" aria-label="登出" title="登出"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button></div>
+    </div>
+  </aside>
+  <div id="main">
+    <header id="ctxbar">
+      <div class="ct-title" id="ctxTitle">今日</div>
+      <div class="sp"></div>
+      <div class="sync-pill" id="ctxPill" onclick="App.go('more')" role="button" tabindex="0"><span class="d"></span><span>離線</span></div>
+      <div class="av" id="ctxAv">—</div>
+    </header>
+    <div id="view"></div>
   </div>
-  <div id="nav"></div>
-  <div id="view"></div>
 </div>
-<div id="bnav" class="hide"></div>
+<nav id="bnav" class="hide" aria-label="底部導覽"></nav>
 
 <div id="print"></div>
 <div id="toast"></div>
@@ -634,60 +788,156 @@ async function wipeData(reloadAfter=true){
 /* =========================================================================
    APP  —  router + views
    ========================================================================= */
+/* ---------- inline SVG icon system ---------- */
+const ICONS={
+  brand:'<path d="M12 2 4 5v6c0 5 3.5 8.4 8 10.8C16.5 19.4 20 16 20 11V5z"/><path d="M7 12c2 1.6 3 1.6 5 0s3-1.6 5 0" stroke-width="1.6"/>',
+  home:'<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.4V21h14V9.4"/>',
+  clipboard:'<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M9 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"/><path d="M8 12h8M8 16h6"/>',
+  calendar:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+  users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13A4 4 0 0 1 16 11"/>',
+  grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  play:'<circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8"/>',
+  layers:'<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  chart:'<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  school:'<path d="M3 21h18"/><path d="M5 21V8l7-4 7 4v13"/><path d="M9 21v-6h6v6"/>',
+  book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/>',
+  printer:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 0 1-4 0v-.2A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.1-2.7H3a2 2 0 0 1 0-4h.2A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 4.6a1.6 1.6 0 0 0 1-1.4V3a2 2 0 0 1 4 0v.2a1.6 1.6 0 0 0 2.7 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.4 1H21a2 2 0 0 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z"/>',
+  database:'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>',
+  alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
+  chevron:'<polyline points="9 18 15 12 9 6"/>',
+  message:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/>',
+};
+function svg(name,size){size=size||22;return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]||''}</svg>`;}
+function initials(name){name=String(name||'').replace(/教練|助教|-/g,'').trim();return name.slice(-2)||name.slice(0,2)||'—';}
+
 const App={
-  view:'home',
+  view:'home', area:'today',
+  AREAS:[
+    {key:'today',label:'今日',icon:'home',roles:['admin','head','assistant']},
+    {key:'plan',label:'備課',icon:'clipboard',roles:['admin','head']},
+    {key:'week',label:'週計畫',icon:'calendar',roles:['admin','head']},
+    {key:'team',label:'團隊',icon:'users',roles:['admin','head','assistant']},
+    {key:'more',label:'更多',icon:'grid',roles:['admin','head','assistant']},
+  ],
+  VIEW_AREA:{home:'today',live:'today',stats:'plan',groups:'plan',plan:'plan',confirm:'plan',publish:'plan',
+    week:'week',pdf:'week',team:'team',mytasks:'team',report:'team',discuss:'team',
+    more:'more',students:'more',classes:'more',coaches:'more',templates:'more',import:'more',settings:'more'},
+  areaDefault(key){
+    if(key==='today')return State.user.role==='assistant'?'mytasks':'home';
+    if(key==='plan')return 'stats'; if(key==='week')return 'week';
+    if(key==='team')return 'team'; return 'more';
+  },
   async boot(){
+    this.brandMarks();
     await DB.open(); await reloadAll();
-    if(SYNC.enabled()){                       // 有雲端就先把資料拉下來再顯示登入
-      $('#loginList')&&($('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>連線雲端同步中…</div>');
-      try{await SYNC.pull();}catch(e){}
-    }
+    if(SYNC.enabled()){$('#loginList')&&($('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>連線雲端同步中…</div>');try{await SYNC.pull();}catch(e){}}
     this.renderLogin();
     SYNC.startAuto();
     const saved=localStorage.getItem('tp_user');
     if(saved){const u=C('profiles').find(p=>p.id===saved&&p.active);if(u){this.enter(u);return;}}
   },
+  brandMarks(){['loginMark','sideMark'].forEach(id=>{const e=document.getElementById(id);if(!e)return;
+    const size=id==='loginMark'?46:38;
+    e.innerHTML=`<img src="./共同備課logo.png" alt="" width="${size}" height="${size}" onerror="this.replaceWith(document.createRange().createContextualFragment('${svg('brand',id==='loginMark'?26:22).replace(/'/g,'&#39;')}'))">`;
+  });},
   refresh(){
-    // 雲端有新資料時重繪目前頁面；正在打字或開著彈窗就先不打斷
     if($('#modal'))return;
     const ae=document.activeElement;
     if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName))return;
-    if(State.user&&this.view)this.go(this.view);
+    if(State.user&&this.view)this.go(this.view,this.area);
   },
+  /* ----- login ----- */
   renderLogin(){
     const ord={admin:0,head:1,assistant:2};
     const ps=C('profiles').filter(p=>p.active).sort((a,b)=>(ord[a.role]??9)-(ord[b.role]??9)||String(a.name).localeCompare(String(b.name),'zh-Hant'));
     const auth=$('#loginAuth');
+    this.updateLoginSync();
     if(!ps.length){
       if(auth)auth.style.display='none';
-      $('#loginList').innerHTML='<div style="width:100%;text-align:center"><p class="muted" style="margin:0 0 10px">👋 第一次使用，請先點下面按鈕建立示範資料<br>（40 位學員＋教練帳號＋一週課程）。</p><button class="btn ok block" onclick="App.seedFromLogin()">🎁 開始：建立示範資料</button></div>';
+      $('#loginList').innerHTML='<div style="text-align:center;padding:8px 0"><p class="muted" style="margin:0 0 12px">第一次使用，請先建立示範資料<br>（含教練帳號、40 位學員、一週課程）。</p><button class="btn ok block lg" onclick="App.seedFromLogin()">開始：建立示範資料</button></div>';
       return;
     }
     if(auth)auth.style.display='';
-    $('#loginList').innerHTML=ps.map(p=>{const a=p.role==='admin';
-      return `<button class="who${a?' admin':''}" onclick="App.pick('${p.id}')" data-id="${p.id}">
-      <b>${a?'👑 ':''}${esc(p.name)}</b><span>${ROLE_LABEL[p.role]}${a?'・點我登入':(p.phone?'・'+esc(p.phone):'')}</span></button>`;}).join('');
-    this._pick=null;
+    const last=localStorage.getItem('tp_user');
+    const card=p=>{const a=p.role==='admin';const isLast=p.id===last;
+      return `<button class="acct${a?' admin':''}" onclick="App.pick('${p.id}')" data-id="${p.id}">
+        <div class="av">${esc(initials(p.name))}</div>
+        <div class="meta"><b>${esc(p.name)}</b><span>${ROLE_LABEL[p.role]}</span></div>
+        ${isLast?'<span class="recent">最近登入</span>':''}</button>`;};
+    const recent=ps.filter(p=>p.id===last), rest=ps.filter(p=>p.id!==last);
+    $('#loginList').innerHTML=`<div class="acct-list">${recent.map(card).join('')}${rest.map(card).join('')}</div>`;
+    this._pick=recent[0]?recent[0].id:null;
+    if(this._pick)setTimeout(()=>this.pick(this._pick),0);
   },
-  pick(id){this._pick=id;document.querySelectorAll('#loginList .who').forEach(b=>{const on=b.dataset.id===id;b.classList.toggle('sel',on);if(!b.classList.contains('admin'))b.style.borderColor=on?'var(--brand)':'var(--line)';});},
+  updateLoginSync(){const e=$('#loginSync');if(!e)return;const on=SYNC.enabled();
+    e.innerHTML=`<span class="sync-pill ${on?'ok':'off'}"><span class="d"></span>${on?'雲端同步已連線':'離線・單機模式'}</span>`;},
+  pick(id){this._pick=id;document.querySelectorAll('#loginList .acct').forEach(b=>b.classList.toggle('sel',b.dataset.id===id));const pe=$('#pinErr');if(pe)pe.style.display='none';const pin=$('#pinInput');if(pin)pin.focus();},
   doLogin(){
-    if(!this._pick){toast('請先選擇身分','warn');return;}
+    const pe=$('#pinErr');
+    if(!this._pick){this.showPinErr('請先選擇教練帳號');return;}
     const u=C('profiles').find(p=>p.id===this._pick);
     const pin=$('#pinInput').value.trim();
-    if((u.pin||'1234')!==pin){toast('PIN 錯誤','bad');return;}
+    if(!pin){this.showPinErr('請輸入 PIN');return;}
+    if((u.pin||'1234')!==pin){this.showPinErr('PIN 錯誤，請再試一次');$('#pinInput').value='';return;}
     localStorage.setItem('tp_user',u.id);
+    if(pe)pe.style.display='none';
     this.enter(u);
   },
+  showPinErr(m){const pe=$('#pinErr');if(pe){pe.textContent=m;pe.style.display='block';}else toast(m,'warn');},
+  loginMore(){
+    Modal.open('首次使用 / 其他選項',`
+      <p class="muted">如果這是新裝置，通常打開就會自動從雲端載入資料，直接選教練登入即可。</p>
+      <button class="btn secondary block" style="margin-bottom:8px" onclick="Modal.close();App.seedFromLogin()">${svg('database',18)} 載入示範資料（會覆蓋現有資料）</button>
+      <p class="muted">「清空全部資料」等危險操作已移至：登入後 → 更多 → 系統設定 → 資料管理。</p>`);
+  },
+  /* ----- enter / nav ----- */
   enter(u){
     State.user=u;
     $('#login').classList.add('hide');
     $('#shell').classList.remove('hide');$('#bnav').classList.remove('hide');
     $('#uName').textContent=u.name;$('#uRole').textContent=ROLE_LABEL[u.role];
+    $('#sideAv').textContent=initials(u.name);$('#ctxAv').textContent=initials(u.name);
     this.buildNav();
-    this.go(u.role==='assistant'?'mytasks':'home');
+    this.updateSyncPill();
+    if(this._syncTimer)clearInterval(this._syncTimer);
+    this._syncTimer=setInterval(()=>this.updateSyncPill(),4000);
+    this.goArea('today');
     toast('歡迎回來，'+u.name,'ok');
   },
-  logout(){State.user=null;localStorage.removeItem('tp_user');$('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();},
+  logout(){State.user=null;localStorage.removeItem('tp_user');if(this._syncTimer)clearInterval(this._syncTimer);
+    $('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();},
+  buildNav(){
+    const r=State.user.role;
+    const areas=this.AREAS.filter(a=>a.roles.includes(r));
+    $('#sidenav').innerHTML=areas.map(a=>`<button class="nav-item" data-area="${a.key}" onclick="App.goArea('${a.key}')">${svg(a.icon,20)}<span>${a.label}</span></button>`).join('');
+    $('#bnav').innerHTML=areas.map(a=>`<button data-area="${a.key}" onclick="App.goArea('${a.key}')" aria-label="${a.label}">${svg(a.icon,22)}<span>${a.label}</span></button>`).join('');
+  },
+  goArea(key){this.area=key;this.go(this.areaDefault(key),key);},
+  go(v,area){
+    if(this._liveTimer){clearInterval(this._liveTimer);this._liveTimer=null;}
+    this.view=v;
+    this.area=area||this.VIEW_AREA[v]||this.area;
+    document.querySelectorAll('#sidenav .nav-item,#bnav button').forEach(b=>b.classList.toggle('on',b.dataset.area===this.area));
+    const a=this.AREAS.find(x=>x.key===this.area);
+    const ct=$('#ctxTitle');if(ct&&a)ct.textContent=a.label;
+    window.scrollTo(0,0);
+    const el=$('#view');const fn='view_'+v;
+    if(Views[fn]){el.innerHTML='';Views[fn](el);}else el.innerHTML='<div class="empty">頁面建置中</div>';
+    if(this.area==='plan'&&['stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v);
+  },
+  /* ----- sync pill ----- */
+  syncText(){if(!SYNC.enabled())return['off','離線（單機）'];const s=SYNC.status||'';
+    if(/失敗/.test(s))return['bad','同步失敗'];if(/中…|上傳中|下載中/.test(s))return['busy','同步中'];
+    if(/已同步|已更新/.test(s))return['ok',s];return['ok','雲端已連線'];},
+  updateSyncPill(){const [cls,txt]=this.syncText();['ctxPill','sidePill'].forEach(id=>{const e=document.getElementById(id);if(e){e.className='sync-pill '+cls;e.innerHTML='<span class="d"></span><span>'+esc(txt)+'</span>';}});},
+  /* ----- seed / wipe ----- */
   async seedFromLogin(){
     const hasData=C('profiles').length>0;
     if(hasData && !confirm('載入示範資料會清空現有資料，確定？'))return;
@@ -698,47 +948,12 @@ const App={
       if(!n) throw new Error('建立完成但找不到帳號（profiles=0）');
       if(SYNC.enabled()){try{await SYNC.replaceAll();}catch(e){toast('雲端上傳失敗：'+e.message,'warn');}}
       this.renderLogin();
-      toast('已載入 '+n+' 個帳號'+(SYNC.enabled()?'並上傳雲端':'')+'，請點上方身分登入','ok');
+      toast('已載入 '+n+' 個帳號'+(SYNC.enabled()?'並上傳雲端':'')+'，請選教練登入','ok');
     }catch(err){
-      $('#loginList').innerHTML='<div style="width:100%"><div class="warnbox" style="text-align:left">❌ 載入示範資料失敗：<br><b>'+esc(err.message)+'</b><br><br>請把這行訊息截圖給我。</div><button class="btn ok block" onclick="App.seedFromLogin()">🔄 再試一次</button></div>';
+      $('#loginList').innerHTML='<div class="warnbox" style="text-align:left">載入示範資料失敗：<br><b>'+esc(err.message)+'</b></div><button class="btn ok block" onclick="App.seedFromLogin()">再試一次</button>';
     }
   },
   async wipeAll(){if(!confirm('確定清空全部資料？此動作無法復原。'))return;await wipeData();this.renderLogin();toast('已清空','ok');},
-
-  NAV:[
-    ['home','🏠 首頁',['admin','head']],
-    ['mytasks','📋 今日任務',['admin','head','assistant']],
-    ['stats','📊 今日人數',['admin','head']],
-    ['students','👥 學員',['admin','head']],
-    ['groups','🧩 分組建議',['admin','head']],
-    ['plan','📝 每日備課',['admin','head','assistant']],
-    ['week','🗓️ 整週計畫',['admin','head']],
-    ['report','✅ 課後紀錄',['admin','head','assistant']],
-    ['import','📥 Excel 匯入',['admin']],
-    ['classes','🏫 班別',['admin']],
-    ['coaches','🧑‍🏫 教練',['admin']],
-    ['templates','📚 課程模板',['admin','head']],
-    ['pdf','🖨️ PDF 輸出',['admin','head']],
-    ['settings','⚙️ 設定',['admin']],
-  ],
-  buildNav(){
-    const r=State.user.role;
-    const items=this.NAV.filter(n=>n[2].includes(r));
-    $('#nav').innerHTML=items.map(n=>`<button data-v="${n[0]}" onclick="App.go('${n[0]}')">${n[1]}</button>`).join('');
-    // bottom nav: 5 primary
-    const prim=r==='assistant'?['mytasks','plan','report']:['home','stats','plan','week','pdf'];
-    $('#bnav').innerHTML=prim.map(v=>{const n=this.NAV.find(x=>x[0]===v);if(!n)return'';const[ic,...t]=n[1].split(' ');
-      return `<button data-b="${v}" onclick="App.go('${v}')"><span class="ic">${ic}</span>${t.join(' ')}</button>`;}).join('');
-  },
-  go(v){
-    if(!can('view')&&v!=='mytasks'){} // baseline
-    this.view=v;
-    document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-    document.querySelectorAll('#bnav button').forEach(b=>b.classList.toggle('on',b.dataset.b===v));
-    window.scrollTo(0,0);
-    const fn='view_'+v;
-    if(Views[fn])Views[fn]($('#view'));else $('#view').innerHTML='<div class="empty">頁面建置中</div>';
-  },
 };
 
 /* ---------- modal helper ---------- */
@@ -760,38 +975,96 @@ const Modal={
 const Views={};
 
 /* ---------- HOME ---------- */
+/* 計算某日某班的備課狀態（五步驟完成度＋待辦） */
+function planStatus(date,classId){
+  const dp=findDaily(date,classId);
+  const wd=weekdayOf(date);
+  const list=Stats.studentsFor(classId,wd);
+  const groups=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];
+  const blocks=dp?C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id):[];
+  const stageFilled=k=>{const b=blocks.find(x=>x.block_type===k&&!x.training_group_id);if(!b)return false;
+    if(k==='review')return !!(b.praise||b.remind||b.homework||b.preview);
+    return !!(b.content&&String(b.content).trim());};
+  let stagesFilled=['warmup','fitness','apply','review'].filter(stageFilled).length;
+  if(groups.length&&blocks.some(b=>b.block_type==='group'&&(b.basic||b.kick||b.goal)))stagesFilled++;
+  const val=Grouping.validate(groups.map(g=>({...g,students:[...(g.students||[])]})),list);
+  const steps={
+    stats:!!dp,
+    groups:groups.length>0&&val.unassigned.length===0,
+    plan:stagesFilled>=5||(!!dp&&stagesFilled>=4),
+    confirm:!!(dp&&(dp.confirms||[]).length>0),
+    publish:!!(dp&&['pub','done','lock'].includes(dp.status)),
+  };
+  const doneCount=Object.values(steps).filter(Boolean).length;
+  return {dp,list,groups,blocks,val,steps,stagesFilled,pct:Math.round(doneCount/5*100)};
+}
+function computeTodos(date,classId){
+  const ps=planStatus(date,classId);const t=[];
+  if(!ps.dp){t.push({level:'block',title:'尚未建立今日課程',sub:'先確認人數並建立當日備課',view:'stats'});return {todos:t,ps};}
+  if(!ps.groups.length)t.push({level:'block',title:'尚未分組',sub:'用智慧分組快速建立組別',view:'groups'});
+  ps.val.issues.forEach(i=>{
+    const map={unassigned:['warn','有學員尚未分組'],nocoach:['warn','組別缺教練'],dup:['block','學員重複分組'],over:['warn','分組人數超過上限'],conflict:['warn','教練時段衝突']};
+    const m=map[i.t]; if(m)t.push({level:m[0],title:m[1],sub:i.msg,view:'groups'});
+  });
+  if(ps.stagesFilled<5)t.push({level:'info',title:'五階段課程尚未完成',sub:`已完成 ${ps.stagesFilled}/5 段`,view:'plan'});
+  if(ps.groups.length&&!ps.steps.confirm)t.push({level:'info',title:'尚有教練未確認',sub:'請教練群共同確認課程',view:'confirm'});
+  if(!ps.steps.publish)t.push({level:'info',title:'課程尚未發布',sub:'完成發布前檢查即可發布',view:'publish'});
+  const rep=C('post_class_reports').find(r=>r.daily_plan_id===ps.dp.id);
+  if(ps.steps.publish&&!rep)t.push({level:'info',title:'課後紀錄未完成',sub:'課後填寫實到與下堂銜接',view:'report'});
+  return {todos:t,ps};
+}
+
+/* ---------- TODAY workspace ---------- */
 Views.view_home=function(el){
   const s=settings();
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
   const wd=weekdayOf(State.ctx.date);
-  const list=Stats.studentsFor(State.ctx.classId,wd);
-  const dp=findDaily(State.ctx.date,State.ctx.classId);
-  const myTasks=countMyTasks();
-  const pending=C('daily_plans').filter(d=>d.status==='wait').length;
+  const cl=C('classes').find(c=>c.id===State.ctx.classId);
+  const {todos,ps}=computeTodos(State.ctx.date,State.ctx.classId);
+  const coaches=Stats.coachesAvailable(wd).length;
+  const sug=ps.list.length&&!ps.groups.length?Grouping.suggest(ps.list,'smart',coaches).groups.length:0;
+  const suggN=ps.groups.length||sug;
+  const status=ps.dp?statusMeta(ps.dp.status)[1]:'未建立';
+  const hour=new Date().getHours(),hi=hour<11?'早安':hour<18?'午安':'晚安';
+  let cta={label:'繼續完成今日備課',view:'stats',area:'plan'};
+  if(ps.dp&&ps.dp.status==='pub')cta={label:'進入現場執行',view:'live',area:'today'};
+  else if(ps.dp&&['done','lock'].includes(ps.dp.status))cta={label:'填寫課後紀錄',view:'report',area:'team'};
   el.innerHTML=`
-  <div class="hero"><h2>${esc(s.logo)} ${esc(s.dojo)}</h2><p>${WEEKDAYS[wd]}・${State.ctx.date}・共同備課戰情室</p></div>
-  <div class="grid g2">
-    <div class="stat" onclick="App.go('stats')"><div class="n">${list.length}</div><div class="l">今日預計人數</div></div>
-    <div class="stat" onclick="App.go('plan')"><div class="n">${dp?statusMeta(dp.status)[1]:'未建立'}</div><div class="l">今日備課狀態</div></div>
-    <div class="stat" onclick="App.go('week')"><div class="n">${C('weekly_plans').length}</div><div class="l">週課程計畫</div></div>
-    <div class="stat" onclick="App.go('mytasks')"><div class="n">${myTasks}</div><div class="l">我的今日任務</div></div>
-    <div class="stat" onclick="App.go('week')"><div class="n">${pending}</div><div class="l">待確認課程</div></div>
-    <div class="stat" onclick="App.go('import')"><div class="n">${C('students').length}</div><div class="l">學員總數</div></div>
+  <div style="margin-bottom:14px"><div style="font-size:13px;color:var(--sub)">${hi}，${esc(State.user.name)}</div>
+    <div style="font-size:20px;font-weight:800">${esc(s.dojo)}</div></div>
+  <div class="ctxrow" style="margin-bottom:14px">
+    <div class="grow" style="min-width:150px"><label class="sm">班別</label><select id="hClass" aria-label="選擇班別">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')||'<option>（尚無班別）</option>'}</select></div>
+    <div class="grow" style="min-width:150px"><label class="sm">日期</label><input type="date" id="hDate" value="${State.ctx.date}" aria-label="選擇日期"></div>
   </div>
-  <div class="sect-title">快速功能</div>
-  <div class="tiles">
-    ${tile('stats','📊','今日人數','各年齡/級別統計')}
-    ${tile('plan','📝','今日備課','90 分鐘五階段')}
-    ${tile('week','🗓️','本週課程','週一至週日')}
-    ${tile('groups','🧩','分組建議','系統智慧分組')}
-    ${tile('import','📥','Excel 匯入','學員名單匯入')}
-    ${tile('pdf','🖨️','PDF 輸出','週課程計畫')}
+  <div class="course-card">
+    <div class="cc-top">
+      <div class="info"><h2>${cl?esc(cl.name):'（未選班別）'}</h2><p>${WEEKDAYS[wd]}・${State.ctx.date}${cl?'・'+cl.start_time+'–'+cl.end_time:''}</p></div>
+      <div class="ring-big" style="--p:${ps.pct}"><i>${ps.pct}%</i></div>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="n">${ps.list.length}</div><div class="l">預計人數</div></div>
+      <div class="metric"><div class="n">${coaches}</div><div class="l">可出席教練</div></div>
+      <div class="metric"><div class="n">${suggN}</div><div class="l">${ps.groups.length?'目前組別':'建議分組'}</div></div>
+      <div class="metric"><div class="n" style="font-size:15px;padding-top:5px">${status}</div><div class="l">課程狀態</div></div>
+    </div>
+    <button class="btn block lg" onclick="App.go('${cta.view}','${cta.area}')">${cta.label}</button>
+    ${ps.dp&&ps.dp._u?`<div style="text-align:center;font-size:11px;color:#8aa0b6;margin-top:8px">最後更新：${new Date(ps.dp._u).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`:''}
   </div>
-  <div class="sect-title">最近討論</div>
+  <div class="sect-head"><h3>待完成事項</h3><span class="sp"></span><span class="muted">${todos.length} 項</span></div>
+  <div>${todos.length?todos.map(t=>`<button class="todo ${t.level}" onclick="App.go('${t.view}')">
+      <span class="tc" style="color:var(--color-${t.level==='block'?'danger':t.level==='warn'?'warning':'info'})">${svg(t.level==='info'?'clock':'alert',20)}</span>
+      <span class="body"><span class="t">${esc(t.title)}</span><span class="s">${esc(t.sub)}</span></span>
+      <span class="tc" style="color:var(--color-text-disabled)">${svg('chevron',18)}</span></button>`).join('')
+    :`<div class="todo ok"><span class="tc" style="color:var(--color-success)">${svg('check',20)}</span><span class="body"><span class="t">今日課程已就緒</span><span class="s">所有必要項目都完成了</span></span></div>`}</div>
+  <div class="sect-head"><h3>最近討論</h3><span class="sp"></span><button class="btn ghost sm" onclick="App.goArea('team')">前往團隊</button></div>
   <div class="card" id="homeDisc"></div>`;
-  const recent=C('discussions').sort((a,b)=>b.created_at-a.created_at).slice(0,4);
-  $('#homeDisc').innerHTML=recent.length?recent.map(d=>`<div class="kv"><b>${esc(d.author_name)}</b><span style="text-align:right;flex:1">${esc(d.message).slice(0,40)}</span></div>`).join(''):'<div class="empty">尚無討論</div>';
+  $('#hClass')&&($('#hClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('home','today');});
+  $('#hDate').onchange=e=>{State.ctx.date=e.target.value;App.go('home','today');};
+  const recent=C('discussions').filter(d=>!d.parent_id).sort((a,b)=>b.created_at-a.created_at).slice(0,4);
+  $('#homeDisc').innerHTML=recent.length?recent.map(d=>`<div class="kv"><b>${esc(d.author_name)}</b><span style="text-align:right;flex:1">${esc(d.message).slice(0,44)}</span></div>`).join(''):'<div class="empty">尚無討論</div>';
 };
-function tile(v,ic,t,sub){return `<button class="tile" onclick="App.go('${v}')"><span class="ic">${ic}</span><span><b>${t}</b><span>${sub}</span></span></button>`;}
 function findDaily(date,classId){return C('daily_plans').find(d=>d.date===date&&(!classId||d.class_id===classId));}
 function countMyTasks(){
   const uid2=State.user.id, td=todayStr();
@@ -800,11 +1073,46 @@ function countMyTasks(){
   dps.forEach(dp=>{C('training_groups').filter(g=>g.daily_plan_id===dp.id&&(g.coach_id===uid2||g.assistant_id===uid2)).forEach(()=>n++);});
   return n;
 }
+function planStepMeta(view){
+  return [
+    ['stats','人數',svg('chart',16)],
+    ['groups','分組',svg('layers',16)],
+    ['plan','備課',svg('clipboard',16)],
+    ['confirm','確認',svg('check',16)],
+    ['publish','發布',svg('play',16)],
+  ].map((s,i)=>({key:s[0],label:s[1],icon:s[2],num:i+1,on:s[0]===view}));
+}
+function decoratePlan(view){
+  const el=$('#view'); if(!el)return;
+  const ps=planStatus(State.ctx.date,State.ctx.classId);
+  const done={stats:ps.steps.stats,groups:ps.steps.groups,plan:ps.steps.plan,confirm:ps.steps.confirm,publish:ps.steps.publish};
+  const steps=planStepMeta(view);
+  const idx=Math.max(0,steps.findIndex(s=>s.on));
+  const desktop=`<div class="stepper">${steps.map(s=>`<button class="stp ${s.on?'on':done[s.key]?'done':''}" onclick="App.go('${s.key}','plan')"><span class="num">${done[s.key]?svg('check',14):s.num}</span><span class="lbl">${s.label}</span></button>`).join('')}</div>`;
+  const mobile=`<div class="stepper-m"><div class="ring" style="--p:${ps.pct}"><i>${ps.pct}%</i></div><div class="now"><b>${steps[idx].label}</b><br><span>步驟 ${idx+1}/5・${State.ctx.date}</span></div><span class="sp"></span><button class="iconbtn" onclick="App.go('home','today')" title="回今日">${svg('home',20)}</button></div>`;
+  el.insertAdjacentHTML('afterbegin',desktop+mobile);
+}
+function stageFilled(blocks,key){
+  const b=blocks.find(x=>x.block_type===key&&!x.training_group_id); if(!b)return false;
+  if(key==='review')return !!(b.praise||b.remind||b.homework||b.preview);
+  return !!(b.content&&String(b.content).trim());
+}
+function publishIssues(dp){
+  if(!dp)return ['尚未建立今日備課'];
+  const ps=planStatus(dp.date,dp.class_id);
+  const out=[];
+  if(!ps.groups.length)out.push('尚未完成分組');
+  ps.val.issues.forEach(i=>out.push(i.msg));
+  ['warmup','fitness','apply','review'].forEach(k=>{if(!stageFilled(ps.blocks,k))out.push((BLOCKS.find(b=>b.key===k)?.name||k)+'尚未填寫');});
+  if(!ps.blocks.some(b=>b.block_type==='group'&&(b.basic||b.kick||b.goal)))out.push('分組訓練內容尚未填寫');
+  return out;
+}
 
 /* ---------- STATS ---------- */
 Views.view_stats=function(el){
   ensureClassCtx();
   const cls=C('classes').filter(c=>c.active);
+  if(App.area==='plan'&&!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
   const wd=weekdayOf(State.ctx.date);
   const list=Stats.studentsFor(State.ctx.classId,wd);
   const sm=Stats.summary(list);
@@ -831,9 +1139,15 @@ Views.view_stats=function(el){
   <div class="sect-title">級別 / 段位</div>
   <div class="grid g4">${BELTS.filter(b=>sm.belt[b]).map(b=>`<div class="stat" onclick="Stats.show('belt','${b}')"><div class="n">${sm.belt[b]}</div><div class="l">${b}</div></div>`).join('')||'<div class="muted">無資料</div>'}</div>
   <div class="sect-title">專項</div>
-  <div class="grid g4">${SPECIALTIES.filter(sp=>sm.spec[sp]).map(sp=>`<div class="stat" onclick="Stats.show('spec','${sp}')"><div class="n">${sm.spec[sp]}</div><div class="l">${sp}</div></div>`).join('')||'<div class="muted">無資料</div>'}</div>`;
+  <div class="grid g4">${SPECIALTIES.filter(sp=>sm.spec[sp]).map(sp=>`<div class="stat" onclick="Stats.show('spec','${sp}')"><div class="n">${sm.spec[sp]}</div><div class="l">${sp}</div></div>`).join('')||'<div class="muted">無資料</div>'}</div>
+  ${App.area==='plan'?`<div class="actionbar"><span class="savehint">確認 ${list.length} 位預計出席</span><span class="sp"></span><button class="btn" onclick="Views.confirmStatsStep()">下一步：分組</button></div>`:''}`;
   $('#stDate').onchange=e=>{State.ctx.date=e.target.value;App.go('stats');};
   $('#stClass').onchange=e=>{State.ctx.classId=e.target.value||null;App.go('stats');};
+};
+Views.confirmStatsStep=async function(){
+  if(!State.ctx.classId){toast('請先選擇班別','warn');return;}
+  await ensureDaily(State.ctx.date,State.ctx.classId);
+  App.go('groups','plan');
 };
 Stats.show=function(kind,val){
   const wd=weekdayOf(State.ctx.date);
@@ -850,6 +1164,103 @@ Stats.show=function(kind,val){
     </table></div>`);
 };
 function ensureClassCtx(){if(State.ctx.classId&&!C('classes').find(c=>c.id===State.ctx.classId&&c.active))State.ctx.classId=null;}
+
+/* ---------- BRIDGE VIEWS FOR NEW NAV ---------- */
+Views.view_team=function(el){
+  const today=todayStr();
+  const plans=C('daily_plans').filter(d=>d.date===today);
+  const unread=C('discussions').filter(m=>!(m.reads||[]).includes(State.user.id)).length;
+  const recent=C('discussions').filter(m=>!m.parent_id).sort((a,b)=>b.created_at-a.created_at).slice(0,8);
+  el.innerHTML=`<div class="sect-head"><h3>團隊協作</h3><span class="sp"></span><span class="muted">今日 ${plans.length} 堂課</span></div>
+  <div class="grid g3">
+    <button class="tile" onclick="App.go('mytasks','team')">${svg('clipboard',24)}<span><b>我的任務</b><span>${countMyTasks()} 個指派項目</span></span></button>
+    <button class="tile" onclick="App.go('report','team')">${svg('edit',24)}<span><b>課後紀錄</b><span>填寫實到與下堂銜接</span></span></button>
+    <button class="tile" onclick="App.go('plan','plan')">${svg('message',24)}<span><b>共同討論</b><span>${unread} 則未讀</span></span></button>
+  </div>
+  <div class="sect-head"><h3>最近討論</h3></div>
+  <div class="card">${recent.length?recent.map(m=>`<div class="kv"><b>${esc(m.author_name)}</b><span style="text-align:right;flex:1">${esc(m.message).slice(0,60)}</span></div>`).join(''):'<div class="empty">尚無討論</div>'}</div>`;
+};
+Views.view_more=function(el){
+  const admin=can('*');
+  const items=[
+    ['students','學員管理','名單、程度、出席日',svg('users',22),admin||can('view')],
+    ['classes','班別設定','上課時段與可出席日',svg('school',22),admin],
+    ['coaches','教練帳號','PIN、角色與權限',svg('user',22),admin],
+    ['templates','課程模板','常用段落與教材庫',svg('book',22),admin||State.user.role==='head'],
+    ['import','Excel 匯入','批次建立或更新學員',svg('upload',22),admin],
+    ['settings','系統設定','同步、備份與資料管理',svg('settings',22),admin],
+  ].filter(x=>x[4]);
+  el.innerHTML=`<div class="sect-head"><h3>更多功能</h3></div>
+  <div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}','more')"><span>${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span>${svg('chevron',18)}</span></button>`).join('')}</div>`;
+};
+Views.view_confirm=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active); if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  el.innerHTML=`<div class="ctxrow" style="margin-bottom:14px">
+    <div class="grow"><label class="sm">日期</label><input type="date" id="cfDate" value="${State.ctx.date}"></div>
+    <div class="grow"><label class="sm">班別</label><select id="cfClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+  </div><div id="confirmBody"></div>`;
+  $('#cfDate').onchange=e=>{State.ctx.date=e.target.value;App.go('confirm','plan');};
+  $('#cfClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('confirm','plan');};
+  const body=$('#confirmBody');
+  if(!dp){body.innerHTML='<div class="empty">尚未建立備課，請先完成前面步驟。</div>';return;}
+  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const ids=[...new Set(groups.flatMap(g=>[g.coach_id,g.assistant_id]).filter(Boolean))];
+  const confirms=dp.confirms||[];
+  body.innerHTML=`<div class="card"><h3>教練確認</h3>
+    <p class="muted">確認後會記錄在此課程，發布前可檢查尚未確認的人員。</p>
+    ${ids.length?ids.map(id=>{const p=C('profiles').find(x=>x.id===id);const on=confirms.some(c=>c.user_id===id);
+      return `<div class="confirm-coach"><div class="av">${esc(initials(p?.name||''))}</div><div class="grow"><b>${esc(p?.name||id)}</b><br><span class="muted">${on?'已確認':'尚未確認'}</span></div>${on?svg('check',20):''}</div>`;}).join(''):'<div class="empty">尚未指派教練，請先完成分組。</div>'}
+    <button class="btn block" onclick="Views.confirmPlan('${dp.id}')">${svg('check',18)} 我已確認</button>
+  </div>
+  <div class="actionbar"><button class="btn secondary" onclick="App.go('plan','plan')">返回備課</button><span class="sp"></span><button class="btn" onclick="App.go('publish','plan')">下一步：發布</button></div>`;
+};
+Views.confirmPlan=async function(dpId){
+  const dp=C('daily_plans').find(d=>d.id===dpId); dp.confirms=dp.confirms||[];
+  if(!dp.confirms.some(c=>c.user_id===State.user.id))dp.confirms.push({user_id:State.user.id,name:State.user.name,at:Date.now()});
+  if(dp.status==='draft')dp.status='wait';
+  await save('daily_plans',dp); toast('已確認','ok'); App.go('confirm','plan');
+};
+Views.view_publish=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active); if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  const issues=publishIssues(dp);
+  el.innerHTML=`<div class="ctxrow" style="margin-bottom:14px">
+    <div class="grow"><label class="sm">日期</label><input type="date" id="pbDate" value="${State.ctx.date}"></div>
+    <div class="grow"><label class="sm">班別</label><select id="pbClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+  </div>
+  <div class="card"><h3>發布前檢查</h3>
+    ${issues.length?issues.map(x=>`<div class="chk">${svg('alert',18)}<span>${esc(x)}</span></div>`).join(''):`<div class="chk">${svg('check',18)}<span>必要項目已完成，可以發布給教練現場使用。</span></div>`}
+    <button class="btn block ${issues.length?'warn':'ok'}" ${!dp?'disabled':''} onclick="Views.publishFromFlow('${dp?.id||''}',${issues.length})">${issues.length?'仍要發布':'發布今日課程'}</button>
+  </div>
+  <div class="actionbar"><button class="btn secondary" onclick="App.go('confirm','plan')">返回確認</button><span class="sp"></span><button class="btn" onclick="App.go('live','today')">進入現場</button></div>`;
+  $('#pbDate').onchange=e=>{State.ctx.date=e.target.value;App.go('publish','plan');};
+  $('#pbClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('publish','plan');};
+};
+Views.publishFromFlow=async function(dpId,hasIssues){
+  if(hasIssues&&!confirm('仍有未完成項目，確定要發布？'))return;
+  await Views.publish(dpId); App.go('publish','plan');
+};
+Views.view_live=function(el){
+  ensureClassCtx();
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  if(!dp){el.innerHTML='<div class="empty">尚未建立今日課程，無法進入現場模式。</div>';return;}
+  const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
+  const start=Date.now();
+  el.innerHTML=`<div class="live"><div class="muted">${State.ctx.date}</div><div class="stage" id="liveStage">準備開始</div><div class="clock" id="liveClock">00:00</div><div class="nxt" id="liveNext"></div>
+    <div class="live-btns"><button class="btn secondary" onclick="App.go('mytasks','team')">查看任務</button><button class="btn ok" onclick="App.go('report','team')">課後回報</button></div></div>
+    <div class="sect-head"><h3>課程時間軸</h3></div>
+    ${BLOCKS.map(bl=>{const b=blocks.find(x=>x.block_type===bl.key&&!x.training_group_id)||{};return `<div class="tcard"><div class="th"><span class="time">${bl.s}-${bl.e}′</span><span><span class="nm">${bl.name}</span><br><span class="sub">${esc(b.content||b.goal||'')}</span></span></div></div>`;}).join('')}`;
+  const tick=()=>{const min=Math.floor((Date.now()-start)/60000), sec=Math.floor((Date.now()-start)/1000)%60;
+    const cur=BLOCKS.find(b=>min>=b.s&&min<b.e)||BLOCKS[BLOCKS.length-1];
+    $('#liveClock').textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+    $('#liveStage').textContent=cur.name;
+    $('#liveNext').textContent=cur.e<90?'下一段：'+(BLOCKS.find(b=>b.s===cur.e)?.name||''):'課程收尾';
+  };
+  tick(); App._liveTimer=setInterval(tick,1000);
+};
 
 /* ---------- STUDENTS ---------- */
 Views.view_students=function(el){
@@ -1188,7 +1599,8 @@ Views.renderGroups=function(list){
       <div>${(g.students||[]).map(sid=>`<span class="stu ${Views._selStu===sid?'sel':''}" draggable="true" ondragstart="Views._drag='${sid}'" onclick="Views.pickStu('${sid}',${gi})">${esc(stName(sid))}</span>`).join('')||'<span class="muted">（空組）</span>'}</div>
     </div>`).join('')}
     ${val.unassigned.length?`<div class="gcard" data-gi="-1" ondragover="event.preventDefault();this.classList.add('drop')" ondragleave="this.classList.remove('drop')" ondrop="Views.dropStu(event,-1)"><div class="gh"><b>未分組</b><span class="muted">${val.unassigned.length}人</span></div>
-      <div class="pool">${val.unassigned.map(s=>`<span class="stu ${Views._selStu===s.id?'sel':''}" draggable="true" ondragstart="Views._drag='${s.id}'" onclick="Views.pickStu('${s.id}',-1)">${esc(s.name)}</span>`).join('')}</div></div>`:''}`;
+      <div class="pool">${val.unassigned.map(s=>`<span class="stu ${Views._selStu===s.id?'sel':''}" draggable="true" ondragstart="Views._drag='${s.id}'" onclick="Views.pickStu('${s.id}',-1)">${esc(s.name)}</span>`).join('')}</div></div>`:''}
+    <div class="actionbar"><button class="btn secondary" onclick="App.go('stats','plan')">返回人數</button><span class="sp"></span><button class="btn" onclick="Views.saveGroups(true)">儲存並進入備課</button></div>`;
 };
 Views._selStu=null;Views._drag=null;
 Views.pickStu=function(sid,gi){
@@ -1207,7 +1619,7 @@ Views.dropStu=function(e,gi){e.preventDefault();if(Views._drag){Views.moveStu(Vi
 Views.reRenderGroups=function(){const wd=weekdayOf(State.ctx.date);Views.renderGroups(Stats.studentsFor(State.ctx.classId,wd));};
 Views.addGroup=function(){Views._groupState.groups.push({id:uid('g'),name:'新組別',group_type:'基礎',coach_id:'',assistant_id:'',students:[]});Views.reRenderGroups();};
 Views.delGroup=function(gi){Views._groupState.groups.splice(gi,1);Views.reRenderGroups();};
-Views.saveGroups=async function(){
+Views.saveGroups=async function(next){
   const wd=weekdayOf(State.ctx.date);
   const list=Stats.studentsFor(State.ctx.classId,wd);
   const val=Grouping.validate(Views._groupState.groups,list);
@@ -1222,6 +1634,7 @@ Views.saveGroups=async function(){
   }
   await audit('save_groups','training_groups',dp.id,null,{count:Views._groupState.groups.length});
   toast(val.issues.length?'已儲存（仍有提醒）':'分組已儲存','ok');
+  if(next)App.go('plan','plan');
 };
 async function ensureDaily(date,classId){
   let dp=findDaily(date,classId);if(dp)return dp;
@@ -1292,7 +1705,8 @@ Views.renderPlan=function(){
         <div class="bd">${Views.blockForm(dp,bl,b,canEdit)}</div></div>`;
     }).join('')}
     <div class="sect-title">💬 教練共同備課討論室</div>
-    <div class="card" id="discBox"></div>`;
+    <div class="card" id="discBox"></div>
+    <div class="actionbar"><button class="btn secondary" onclick="App.go('groups','plan')">返回分組</button><span class="sp"></span><button class="btn" onclick="App.go('confirm','plan')">下一步：教練確認</button></div>`;
   Views.renderDisc(dp);
 };
 Views.renderGroupBlocks=function(dp,groups,blocks,canEdit,stName){
@@ -1375,7 +1789,7 @@ Views.applyWarmup=async function(dpId){
   toast('已套用標準暖身','ok');Views.renderPlan();
 };
 Views.setStatus=async function(dpId,st){const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status=st;await save('daily_plans',dp);await audit('status','daily_plans',dpId,old,dp);toast('狀態：'+statusMeta(st)[1]);};
-Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');Views.renderPlan();};
+Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');if($('#planBody'))Views.renderPlan();else App.go(App.view,App.area);};
 Views.lockPlan=async function(dpId){if(!confirm('鎖定後只有管理者可修改，確定？'))return;const dp=C('daily_plans').find(d=>d.id===dpId);dp.status='lock';await save('daily_plans',dp);await audit('lock','daily_plans',dpId);toast('已鎖定 🔒');Views.renderPlan();};
 Views.copyPrev=async function(){
   // 找同班別上一個有備課的日期
@@ -1393,12 +1807,15 @@ Views.copyPrev=async function(){
 Views.renderDisc=function(dp){
   const box=$('#discBox');if(!box)return;
   const msgs=C('discussions').filter(d=>d.daily_plan_id===dp.id).sort((a,b)=>a.created_at-b.created_at);
-  const top=msgs.filter(m=>!m.parent_id);
-  const coaches=C('profiles').filter(p=>p.active);
+  let top=msgs.filter(m=>!m.parent_id);
+  const f=Views._discFilter||'all';
+  if(f==='mine')top=top.filter(m=>m.author_id===State.user.id||String(m.message||'').includes(State.user.name));
+  else if(f==='unread')top=top.filter(m=>!(m.reads||[]).includes(State.user.id));
   box.innerHTML=`
-    <div class="field"><textarea id="dMsg" placeholder="輸入討論內容，可 @教練姓名…"></textarea>
-      <div class="row" style="margin-top:6px"><select id="dBlk" class="grow"><option value="">整體</option>${BLOCKS.map(b=>`<option value="${b.key}">${b.s}-${b.e}′ ${b.name}</option>`).join('')}</select>
-      <button class="btn sm" onclick="Views.postDisc('${dp.id}',null)">送出</button></div></div>
+    <div class="chips" style="margin-bottom:10px">${[['all','全部'],['unread','未讀'],['mine','與我有關']].map(x=>`<span class="chip ${f===x[0]?'on':''}" onclick="Views._discFilter='${x[0]}';Views.renderDisc(C('daily_plans').find(d=>d.id==='${dp.id}'))">${x[1]}</span>`).join('')}</div>
+    <div class="field"><textarea id="dMsg" placeholder="輸入討論內容，可 @教練姓名…" aria-label="討論內容"></textarea>
+      <div class="row" style="margin-top:6px"><select id="dBlk" class="grow" aria-label="對應階段"><option value="">整體</option>${BLOCKS.map(b=>`<option value="${b.key}">${b.s}-${b.e}′ ${b.name}</option>`).join('')}</select>
+      <button class="btn sm" onclick="Views.postDisc('${dp.id}',null)">${svg('send',16)} 送出</button></div></div>
     ${top.length?top.map(m=>Views.msgHtml(m,msgs)).join(''):'<div class="empty">尚無討論，開始共同備課吧！</div>'}`;
 };
 Views.msgHtml=function(m,all){
@@ -1820,4 +2237,7 @@ Views.importData=function(e){
 
 /* ---------- BOOT ---------- */
 window.addEventListener('DOMContentLoaded',()=>App.boot());
+if('serviceWorker' in navigator && location.protocol!=='file:'){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+}
 </script>

@@ -1,0 +1,19 @@
+{
+  "name": "TeamPro 教練共同備課系統",
+  "short_name": "TeamPro 備課",
+  "description": "TeamPro 教練共同備課、分組、課程發布與課後紀錄系統。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4F7FA",
+  "theme_color": "#0B1F33",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./共同備課logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
