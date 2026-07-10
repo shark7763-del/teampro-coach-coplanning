@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.1.1-internal
+
+- 修正登入頁載入示範資料時，IndexedDB 尚未就緒可能造成 `Cannot read properties of null (reading 'transaction')`。
+- `DB.open()` 改為可重入，並處理 blocked / versionchange / close。
+- 新增 `ensureDbReady()`，在示範資料建立前強制確認 IndexedDB 已開啟。
+- Service Worker cache 升級為 `teampro-coplanning-v3`，避免舊快取持續載入問題版本。
+
 ## 1.1.0-internal
 
 - 取消 `tp_user` 自動登入，改用 `tp_last_user` 只記錄最近登入帳號。
@@ -11,7 +18,7 @@
 - `SYNC.replaceAll()` 改為安全流程，實際 API 呼叫拆為受 token 保護的 `_replaceAllUnsafe()`。
 - 同步狀態新增待同步筆數、最後同步時間、最後錯誤與網路離線顯示。
 - `sw.js` 升級為 `teampro-coplanning-v2`，導覽與 `index.html` 採 Network First，靜態資源採 Cache First。
-- 系統設定與更多頁面顯示 `APP_VERSION = 1.1.0-internal`。
+- 系統設定與更多頁面顯示 `APP_VERSION`。
 
 ## 修改過的主要函式
 

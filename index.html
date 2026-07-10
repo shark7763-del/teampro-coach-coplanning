@@ -376,7 +376,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.1.0-internal';
+const APP_VERSION='1.1.1-internal';
 const DB_NAME='teampro_planner', DB_VER=2;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -404,15 +404,21 @@ const STATUS=[['draft','草稿','b-draft'],['disc','討論中','b-disc'],['wait'
 
 /* ---------------- IndexedDB tiny layer ---------------- */
 const DB={
-  _db:null,
+  _db:null,_openPromise:null,
   open(){return new Promise((res,rej)=>{
+    if(DB._db)return res(DB._db);
+    if(DB._openPromise)return DB._openPromise.then(res,rej);
+    DB._openPromise=new Promise((resolve,reject)=>{
     const rq=indexedDB.open(DB_NAME,DB_VER);
     rq.onupgradeneeded=e=>{const db=e.target.result;
       STORES.forEach(s=>{ if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:'id'}); });};
-    rq.onsuccess=e=>{DB._db=e.target.result;res(DB._db);};
-    rq.onerror=e=>rej(e.target.error);
+    rq.onsuccess=e=>{DB._db=e.target.result;DB._db.onclose=()=>{DB._db=null;DB._openPromise=null;};DB._db.onversionchange=()=>{DB._db.close();DB._db=null;DB._openPromise=null;};resolve(DB._db);};
+    rq.onerror=e=>{DB._openPromise=null;reject(e.target.error);};
+    rq.onblocked=()=>{DB._openPromise=null;reject(new Error('資料庫升級被其他分頁阻擋，請關閉其他 TeamPro 分頁後重新整理。'));};
+    });
+    DB._openPromise.then(res,rej);
   });},
-  _tx(store,mode){return DB._db.transaction(store,mode).objectStore(store);},
+  _tx(store,mode){if(!DB._db)throw new Error('資料庫尚未就緒，請重新整理後再試。');return DB._db.transaction(store,mode).objectStore(store);},
   all(store){return new Promise((res,rej)=>{const r=DB._tx(store,'readonly').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});},
   get(store,id){return new Promise((res,rej)=>{const r=DB._tx(store,'readonly').get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
   put(store,obj){return new Promise((res,rej)=>{const r=DB._tx(store,'readwrite').put(obj);r.onsuccess=()=>res(obj);r.onerror=()=>rej(r.error);});},
@@ -450,6 +456,10 @@ function beltOK(b){return BELTS.includes(b);}
 const State={user:null, cache:{}, ctx:{date:todayStr(),classId:null}};
 async function reload(store){State.cache[store]=await DB.all(store);return State.cache[store];}
 async function reloadAll(){for(const s of STORES) await reload(s);}
+async function ensureDbReady(){
+  if(!DB._db)await DB.open();
+  for(const s of STORES){if(!State.cache[s])State.cache[s]=await DB.all(s);}
+}
 const C=store=>State.cache[store]||[];
 async function save(store,obj){obj.id=obj.id||uid();obj._u=Date.now();await DB.put(store,obj);await reload(store);if(typeof SYNC!=='undefined')SYNC.push(store,obj);return obj;}
 async function remove(store,id){await DB.del(store,id);await reload(store);if(typeof SYNC!=='undefined')SYNC.pushDelete(store,id);}
@@ -783,6 +793,7 @@ const Grouping={
    DEMO SEED
    ========================================================================= */
 async function seedDemo(){
+  await ensureDbReady();
   await wipeData(false);
   const s=DEFAULT_SETTINGS(); await save('settings',s);
   // profiles
@@ -942,7 +953,11 @@ const App={
   },
   async boot(){
     this.brandMarks();
-    await DB.open(); await reloadAll();
+    try{await DB.open(); await reloadAll();}
+    catch(e){
+      $('#loginList').innerHTML='<div class="warnbox" style="text-align:left">資料庫啟動失敗：<br><b>'+esc(e.message||e)+'</b><br><br>請關閉其他分頁後重新整理。</div>';
+      return;
+    }
     SYNC.bindNetwork();
     if(SYNC.enabled()){$('#loginList')&&($('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>連線雲端同步中…</div>');try{await SYNC.pull();}catch(e){SYNC.lastError=e.message||String(e);}}
     this.renderLogin();
@@ -1091,6 +1106,7 @@ const App={
   },
   /* ----- seed / wipe ----- */
   async seedFromLogin(){
+    try{await ensureDbReady();}catch(e){toast('資料庫尚未就緒，請重新整理後再試','bad');return;}
     const hasData=this.hasFormalData();
     if(hasData&&!State.user){
       toast('系統已有資料，請由管理者登入後至系統設定操作。','warn');

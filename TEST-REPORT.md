@@ -1,11 +1,12 @@
 # TEST REPORT
 
-版本：`1.1.0-internal`
+版本：`1.1.1-internal`
 
 ## 已執行檢查
 
 - `node --check` 檢查 `index.html` 內嵌 JavaScript：通過。
 - `node --check sw.js`：通過。
+- `DB.open()` 可重入與 `ensureDbReady()` 已加入，避免示範資料流程在 DB 尚未開啟時寫入。
 - 搜尋 `tp_user`：未再用於自動登入。
 - 搜尋 `confirm(`：僅保留發布未完成課程時的提醒確認，不涉及刪除、清空、匯入、還原或雲端覆蓋。
 - 搜尋 `replaceAll`：UI 對外流程走 `SYNC.replaceAll()`，內部 `_replaceAllUnsafe()` 需要 token。
