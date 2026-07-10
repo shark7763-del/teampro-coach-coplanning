@@ -378,12 +378,12 @@ textarea{resize:vertical;min-height:60px}
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
 const APP_VERSION='1.2.0-internal';
-const DB_NAME='teampro_planner', DB_VER=3;
+const DB_NAME='teampro_planner', DB_VER=4;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
 const DEFAULT_SYNC_URL='https://script.google.com/macros/s/AKfycbyPf7Qd2LuIsx-P0z-kdrAMxrsqpvonswGHXHnHrrLaT22EWjXXQYOQGUd29SlNc7Lt/exec';
 const DATA_STORES=['settings','profiles','students','classes','weekly_plans','daily_plans',
-  'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs','edit_locks'];
+  'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs','edit_locks','warmup_library'];
 const LOCAL_STORES=['backups','sync_outbox','sync_conflicts'];
 const STORES=[...DATA_STORES,...LOCAL_STORES];
 
@@ -969,6 +969,7 @@ function hasBlockingIssues(val){return (val.issues||[]).some(i=>BLOCKING_ISSUE_T
 async function seedDemo(){
   await ensureDbReady();
   await wipeData(false);
+  await ensureWarmupDefaults(); // 熱身資料庫預設項目（清空後重建）
   const s=DEFAULT_SETTINGS(); await save('settings',s);
   // profiles
   const profiles=[
@@ -1119,7 +1120,7 @@ const App={
   ],
   VIEW_AREA:{home:'today',live:'today',quickplan:'plan',stats:'plan',groups:'plan',plan:'plan',confirm:'plan',publish:'plan',
     week:'week',pdf:'week',team:'team',mytasks:'team',report:'team',discuss:'team',
-    more:'more',students:'more',classes:'more',coaches:'more',templates:'more',import:'more',settings:'more'},
+    more:'more',students:'more',classes:'more',coaches:'more',templates:'more',import:'more',settings:'more',warmups:'more'},
   areaDefault(key){
     if(key==='today')return State.user.role==='assistant'?'mytasks':'home';
     if(key==='plan')return 'stats'; if(key==='week')return 'week';
@@ -1127,7 +1128,7 @@ const App={
   },
   async boot(){
     this.brandMarks();
-    try{await DB.open(); await reloadAll();}
+    try{await DB.open(); await reloadAll(); await ensureWarmupDefaults();}
     catch(e){
       $('#loginList').innerHTML='<div class="warnbox" style="text-align:left">資料庫啟動失敗：<br><b>'+esc(e.message||e)+'</b><br><br>請關閉其他分頁後重新整理。</div>';
       return;
@@ -1525,6 +1526,7 @@ function decoratePlan(view){
 function stageFilled(blocks,key){
   const b=blocks.find(x=>x.block_type===key&&!x.training_group_id); if(!b)return false;
   if(key==='review')return !!(b.praise||b.remind||b.homework||b.preview);
+  if(key==='fitness')return !!((b.content&&String(b.content).trim())||(b.warmups&&b.warmups.length));
   return !!(b.content&&String(b.content).trim());
 }
 function publishIssues(dp){
@@ -1617,6 +1619,7 @@ Views.view_more=function(el){
     ['classes','班別設定','上課時段與可出席日',svg('school',22),admin],
     ['coaches','教練帳號','PIN、角色與權限',svg('user',22),admin],
     ['templates','課程模板','常用段落與教材庫',svg('book',22),admin||State.user.role==='head'],
+    ['warmups','熱身資料庫','快選熱身項目與 Tabata',svg('play',22),admin||State.user.role==='head'],
     ['import','Excel 匯入','批次建立或更新學員',svg('upload',22),admin],
     ['settings','系統設定','同步、備份與資料管理',svg('settings',22),admin],
   ].filter(x=>x[4]);
@@ -2353,7 +2356,7 @@ Views.blockForm=function(dp,bl,b,canEdit){
   let extra='';
   if(bl.key==='warmup'){extra=`<button class="btn xs g" style="margin-bottom:6px" onclick="Views.applyWarmup('${dp.id}')">⚡ 一鍵套用標準暖身</button>
     <label class="sm">進行方式</label><select ${set('method')}>${['全體一起','幼兒分開','成人分開','分兩區','自訂'].map(o=>`<option ${b.method===o?'selected':''}>${o}</option>`).join('')}</select>`;}
-  if(bl.key==='fitness'){extra=`<label class="sm">能力標籤（點選）</label><div class="chips" id="fitTags">${ABILITY_TAGS.map(t=>`<span class="chip ${(b.tags||[]).includes(t)?'on':''}" onclick="Views.toggleTag('${dp.id}','${t}')">${t}</span>`).join('')}</div>`;}
+  if(bl.key==='fitness'){extra=`${Views.warmupPanel(dp,b)}<label class="sm">能力標籤（點選）</label><div class="chips" id="fitTags">${ABILITY_TAGS.map(t=>`<span class="chip ${(b.tags||[]).includes(t)?'on':''}" onclick="Views.toggleTag('${dp.id}','${t}')">${t}</span>`).join('')}</div>`;}
   if(bl.key==='apply'){extra=`<label class="sm">課程類型</label><select ${set('applyType')}><option value="">選擇</option>${APPLY_TYPES.map(o=>`<option ${b.applyType===o?'selected':''}>${o}</option>`).join('')}</select>
     <div class="infobox" style="margin-top:6px">💡 銜接 30–60′ 基本動作，例如「前踢接旋踢組合＋踢靶挑戰」。</div>`;}
   if(bl.key==='review'){
@@ -2732,7 +2735,7 @@ Views.buildPDFHtml=function(ver){
       ${ver==='full'?`<div style="font-size:11px;margin-bottom:4px">年齡：幼兒${sm.age.幼兒}／國小${sm.age.國小}／國中${sm.age.國中}／成人${sm.age.成人}　｜　級別：${BELTS.filter(b=>sm.belt[b]).map(b=>b+sm.belt[b]).join(' ')}</div>`:''}
       <table class="ptbl"><tr><th style="width:14%">時段</th><th>內容</th><th style="width:20%">目標/器材</th></tr>
         <tr><td>0–10′ 做操慢跑</td><td>${esc(warm.content||'集合、禮節、做操、慢跑')}</td><td>${esc(warm.goal||'暖身')}</td></tr>
-        <tr><td>10–30′ 熱身體能</td><td>${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
+        <tr><td>10–30′ 熱身體能</td><td>${(fit.warmups&&fit.warmups.length)?esc(fit.warmups.map(w=>w.name+' '+(w.minutes||0)+'分').join('、'))+'　':''}${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
         <tr><td colspan="3" style="background:#eef2ff"><b>30–60′ 分組訓練</b></td></tr>
         ${groupRows||'<tr><td colspan="3">（未分組）</td></tr>'}
         <tr><td>60–85′ 應用挑戰</td><td>${esc(app.applyType?('['+app.applyType+'] '):'')}${esc(app.content||'')}</td><td>${esc(app.equipment||'')}</td></tr>
@@ -2885,6 +2888,175 @@ Views.importData=function(e){
       }});
   }catch(err){toast('匯入失敗：'+err.message,'bad');}};
   r.readAsText(f);
+};
+
+/* ========================================================================
+   WARM-UP LIBRARY  熱身快選資料庫（可持續擴充，存 IndexedDB warmup_library）
+   ======================================================================== */
+const WARMUP_CATEGORIES=['跑動反應','敏捷協調','肌力體能','體能遊戲','跆拳道專項','自訂'];
+const WARMUP_DEFAULTS=[
+  {id:'wl_tabata',name:'Tabata',category:'肌力體能',default_minutes:4,intensity:'高',suitable_class_types:['選手訓練'],equipment:'計時器',instructions:'20秒全力／10秒休息，8輪。',safety_notes:'幼兒/初學者降低強度，優先動作品質。',tabata:{work:20,rest:10,rounds:8,sets:1,rest_between:60,moves:['開合跳','高抬腿','深蹲','登山者']}},
+  {id:'wl_react_run',name:'反應跑',category:'跑動反應',default_minutes:8,intensity:'中',suitable_class_types:['暑期訓練','一般健身','選手訓練'],equipment:'角錐',instructions:'聽/看訊號起跑，訓練啟動反應。'},
+  {id:'wl_relay',name:'接力跑',category:'跑動反應',default_minutes:8,intensity:'中',suitable_class_types:['暑期訓練','週六健身'],equipment:'接力棒',instructions:'分隊接力，強調交接與加速。'},
+  {id:'wl_obstacle',name:'障礙跑',category:'跑動反應',default_minutes:8,intensity:'中',suitable_class_types:['暑期訓練','週六健身'],equipment:'障礙物、角錐',instructions:'穿越障礙循環，敏捷與協調。'},
+  {id:'wl_shuttle',name:'折返跑',category:'跑動反應',default_minutes:6,intensity:'中',suitable_class_types:['暑期訓練','一般健身'],equipment:'角錐',instructions:'定距折返，心肺與變向。'},
+  {id:'wl_ladder',name:'繩梯',category:'敏捷協調',default_minutes:6,intensity:'中',suitable_class_types:['一般健身','選手訓練'],equipment:'敏捷繩梯',instructions:'各式步法通過繩梯，快速腳步。'},
+  {id:'wl_step',name:'台階訓練',category:'肌力體能',default_minutes:6,intensity:'中',suitable_class_types:['一般健身'],equipment:'台階',instructions:'上下台階，下肢肌耐力。'},
+  {id:'wl_agilering',name:'敏捷圈',category:'敏捷協調',default_minutes:6,intensity:'中',suitable_class_types:['一般健身','選手訓練'],equipment:'敏捷圈',instructions:'快速踩點與變換方向。'},
+  {id:'wl_cone_react',name:'角錐反應',category:'敏捷協調',default_minutes:6,intensity:'中',suitable_class_types:['選手訓練'],equipment:'角錐',instructions:'顏色/方向指令觸碰角錐。'},
+  {id:'wl_strength',name:'肌力訓練',category:'肌力體能',default_minutes:8,intensity:'高',suitable_class_types:['選手訓練'],equipment:'',instructions:'自重/器材肌力循環。',safety_notes:'注意姿勢，避免代償。'},
+  {id:'wl_core',name:'核心訓練',category:'肌力體能',default_minutes:6,intensity:'中',suitable_class_types:['選手訓練','黑帶培訓'],equipment:'瑜珈墊',instructions:'棒式/捲腹等核心組合。'},
+  {id:'wl_dynamic',name:'動態伸展',category:'敏捷協調',default_minutes:8,intensity:'低',suitable_class_types:['一般健身','黑帶培訓'],equipment:'',instructions:'大關節動態活動度熱身。'},
+  {id:'wl_power',name:'爆發力訓練',category:'肌力體能',default_minutes:6,intensity:'高',suitable_class_types:['選手訓練'],equipment:'跳箱(選)',instructions:'跳躍/衝刺爆發力。',safety_notes:'落地緩衝，控制次數。'},
+  {id:'wl_fitgame',name:'體能遊戲',category:'體能遊戲',default_minutes:8,intensity:'中',suitable_class_types:['暑期訓練','一般健身'],equipment:'',instructions:'趣味體能遊戲維持專注與活動量。'},
+  {id:'wl_teamgame',name:'團隊競賽',category:'體能遊戲',default_minutes:10,intensity:'中',suitable_class_types:['暑期訓練','週六健身'],equipment:'',instructions:'分隊競賽，合作與秩序。'},
+  {id:'wl_circuit',name:'綜合闖關',category:'體能遊戲',default_minutes:10,intensity:'中',suitable_class_types:['暑期訓練','週六健身'],equipment:'多站器材',instructions:'多站循環闖關。'},
+  {id:'wl_tkd_step',name:'跆拳道步法',category:'跆拳道專項',default_minutes:6,intensity:'中',suitable_class_types:['選手訓練','黑帶培訓'],equipment:'',instructions:'前後滑步、換步、專項移位。'},
+  {id:'wl_quickfoot',name:'快速碎步',category:'跆拳道專項',default_minutes:5,intensity:'中',suitable_class_types:['選手訓練'],equipment:'',instructions:'原地/移動快速碎步，維持節奏。'},
+];
+async function ensureWarmupDefaults(){
+  const have=new Set(C('warmup_library').map(w=>w.id));const now=Date.now();let n=0;
+  for(let i=0;i<WARMUP_DEFAULTS.length;i++){const d=WARMUP_DEFAULTS[i];if(have.has(d.id))continue;
+    await save('warmup_library',Object.assign({category:'自訂',default_minutes:6,min_minutes:3,max_minutes:15,intensity:'中',
+      suitable_age_groups:[],suitable_levels:[],suitable_class_types:[],recommended_group_size:0,equipment:'',space_requirement:'',
+      instructions:'',safety_notes:'',easier_version:'',harder_version:'',coach_cues:'',tabata:null,
+      favorite:false,usage_count:0,last_used_at:0,active:true,sort_order:i,created_by:null,created_at:now,updated_at:now},d));n++;}
+  return n;
+}
+const Warmup={
+  all(){return C('warmup_library').filter(w=>w.active!==false);},
+  byCategory(cat){const a=this.all();return(!cat||cat==='全部')?a:a.filter(w=>w.category===cat);},
+  recommend(ct){return this.all().slice().sort((a,b)=>{
+    const fa=a.favorite?1:0,fb=b.favorite?1:0;if(fa!==fb)return fb-fa;
+    const ta=(a.suitable_class_types||[]).includes(ct)?1:0,tb=(b.suitable_class_types||[]).includes(ct)?1:0;if(ta!==tb)return tb-ta;
+    if((b.last_used_at||0)!==(a.last_used_at||0))return (b.last_used_at||0)-(a.last_used_at||0);
+    if((b.usage_count||0)!==(a.usage_count||0))return (b.usage_count||0)-(a.usage_count||0);
+    return (a.sort_order||0)-(b.sort_order||0);});},
+};
+function getFitBlock(dpId){let b=C('lesson_blocks').find(x=>x.daily_plan_id===dpId&&x.block_type==='fitness'&&!x.training_group_id);
+  return b?{...b,warmups:[...(b.warmups||[])]}:{id:uid('lb'),daily_plan_id:dpId,training_group_id:null,block_type:'fitness',start_minute:10,end_minute:30,warmups:[]};}
+Views.warmupPanel=function(dp,b){
+  const ws=b.warmups||[];const total=ws.reduce((a,w)=>a+(+w.minutes||0),0);const target=(b.end_minute||30)-(b.start_minute||10);
+  const col=total===target?'var(--color-success)':total>target?'var(--color-danger)':'var(--color-warning)';
+  return `<div class="card" style="background:var(--color-surface-soft);margin:6px 0;box-shadow:none">
+    <div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">熱身快選</h3><span class="sp" style="flex:1"></span><b style="font-size:13px;color:${col}">已安排 ${total}/${target} 分鐘</b></div>
+    ${ws.length?ws.map((w,i)=>`<div class="row" style="margin-bottom:6px;align-items:center;flex-wrap:nowrap">
+      <b style="flex:1;min-width:0">${esc(w.name)}${w.tabata?' <span class="tag">Tabata</span>':''}</b>
+      <input type="number" style="width:60px" value="${+w.minutes||0}" min="0" aria-label="分鐘" onchange="Views.wSetMin('${dp.id}',${i},this.value)"><span class="muted">分</span>
+      <button class="btn xs g" onclick="Views.wRemove('${dp.id}',${i})">移除</button></div>`).join(''):'<div class="muted" style="margin-bottom:6px">尚未選擇熱身項目</div>'}
+    <div class="row"><button class="btn sm secondary" onclick="Views.wOpenPicker('${dp.id}')">＋ 熱身快選</button>
+      <button class="btn sm ghost" onclick="Views.wCustom('${dp.id}')">＋ 自訂熱身</button>
+      ${ws.length&&total!==target?`<button class="btn sm ghost" onclick="Views.wAutoBalance('${dp.id}')">平均分配 ${target} 分</button>`:''}</div>
+    ${total>target?`<div class="warnbox" style="margin-top:6px">熱身已超過 ${target} 分鐘，請調整分鐘或延長階段。</div>`:total<target&&ws.length?`<div class="muted" style="margin-top:4px">還差 ${target-total} 分鐘。</div>`:''}</div>`;
+};
+Views.wSetMin=async function(dpId,i,val){const b=getFitBlock(dpId);if(b.warmups[i]){b.warmups[i].minutes=Math.max(0,+val||0);await save('lesson_blocks',b);Views.renderPlan();}};
+Views.wRemove=async function(dpId,i){const b=getFitBlock(dpId);b.warmups.splice(i,1);await save('lesson_blocks',b);Views.renderPlan();};
+Views.wAutoBalance=async function(dpId){const b=getFitBlock(dpId);const ws=b.warmups;if(!ws.length)return;const target=(b.end_minute||30)-(b.start_minute||10);const each=Math.max(1,Math.floor(target/ws.length));let rem=target-each*ws.length;ws.forEach((w,i)=>w.minutes=each+(i<rem?1:0));await save('lesson_blocks',b);Views.renderPlan();};
+Views.wOpenPicker=function(dpId){Views._wDp=dpId;Views._wCat='全部';Views._wSearch='';Views.wRenderPicker();};
+Views.wListHtml=function(dpId){
+  const cls=C('classes').find(c=>c.id===State.ctx.classId);const ct=cls?.class_type||'';const cat=Views._wCat||'全部';const q=Views._wSearch||'';
+  let items;
+  if(cat==='常用')items=Warmup.recommend(ct).filter(w=>w.favorite);
+  else if(cat==='最近使用')items=Warmup.recommend(ct).filter(w=>w.last_used_at).slice(0,15);
+  else items=(cat==='全部'?Warmup.recommend(ct):Warmup.byCategory(cat));
+  if(q)items=items.filter(w=>w.name.includes(q));
+  const b=getFitBlock(dpId);const chosen=new Set((b.warmups||[]).map(w=>w.wid));
+  return items.map(w=>`<div class="row" style="align-items:center;border-bottom:1px solid var(--line);padding:7px 0;flex-wrap:nowrap">
+    <div style="flex:1;min-width:0"><b>${esc(w.name)}</b>${w.favorite?' ★':''}${(w.suitable_class_types||[]).includes(ct)?' <span class="tag spec">適合本班</span>':''}
+      <div class="muted">${esc(w.category)}・${w.default_minutes}分・強度${esc(w.intensity||'中')}${w.usage_count?'・用過'+w.usage_count+'次':''}</div></div>
+    <button class="btn xs ${chosen.has(w.id)?'g':''}" onclick="Views.wAdd('${dpId}','${w.id}')">${chosen.has(w.id)?'再加':'加入'}</button></div>`).join('')||'<div class="empty">無符合項目</div>';
+};
+Views.wRenderPicker=function(){
+  const dpId=Views._wDp;const cats=['全部','常用','最近使用',...WARMUP_CATEGORIES];const cat=Views._wCat||'全部';
+  Modal.open('熱身快選',`
+    <div class="tabs" style="margin-bottom:10px">${cats.map(c=>`<button class="${c===cat?'on':''}" onclick="Views._wCat='${c}';Views.wRenderPicker()">${c}</button>`).join('')}</div>
+    <input id="wSearch" placeholder="搜尋熱身…" value="${esc(Views._wSearch||'')}" oninput="Views._wSearch=this.value;document.getElementById('wList').innerHTML=Views.wListHtml('${dpId}')" style="margin-bottom:8px">
+    <div id="wList" style="max-height:48vh;overflow:auto">${Views.wListHtml(dpId)}</div>
+    <button class="btn block ghost" style="margin-top:10px" onclick="Views.wCustom('${dpId}')">＋ 新增自訂熱身</button>
+    <button class="btn block" style="margin-top:6px" onclick="Modal.close();Views.renderPlan()">完成</button>`);
+};
+Views.wAdd=async function(dpId,wid){
+  const w=C('warmup_library').find(x=>x.id===wid);if(!w)return;
+  const b=getFitBlock(dpId);
+  b.warmups.push({wid:w.id,name:w.name,category:w.category,minutes:w.default_minutes||6,intensity:w.intensity||'中',equipment:w.equipment||'',instructions:w.instructions||'',safety_notes:w.safety_notes||'',tabata:w.tabata||null});
+  await save('lesson_blocks',b);
+  const lw={...w,usage_count:(w.usage_count||0)+1,last_used_at:Date.now()};await save('warmup_library',lw);
+  if($('#wList'))Views.wRenderPicker();
+};
+Views.wCustom=function(dpId){
+  Modal.open('新增自訂熱身',`
+    <div class="field"><label>名稱 <span class="req">*</span></label><input id="wc_name"></div>
+    <div class="row"><div class="grow field"><label>分類</label><select id="wc_cat">${WARMUP_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="grow field"><label>預設分鐘</label><input type="number" id="wc_min" value="6"></div>
+      <div class="grow field"><label>強度</label><select id="wc_int">${['低','中','高'].map(x=>`<option ${x==='中'?'selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div class="field"><label>進行方式 / 說明</label><textarea id="wc_desc"></textarea></div>
+    <div class="row"><div class="grow field"><label>器材</label><input id="wc_eq"></div><div class="grow field"><label>安全提醒</label><input id="wc_safe"></div></div>
+    <label class="chip" id="wc_fav">設為常用</label>
+    <button class="btn block" style="margin-top:10px" onclick="Views.wSaveCustom('${dpId}')">儲存並加入</button>`,
+    m=>{$('#wc_fav').onclick=()=>$('#wc_fav').classList.toggle('on');setTimeout(()=>$('#wc_name')&&$('#wc_name').focus(),0);});
+};
+Views.wSaveCustom=async function(dpId){
+  const name=$('#wc_name').value.trim();if(!name){toast('名稱必填','bad');return;}
+  const w=await save('warmup_library',{id:uid('wl'),name,category:$('#wc_cat').value,default_minutes:+$('#wc_min').value||6,min_minutes:1,max_minutes:20,intensity:$('#wc_int').value,
+    instructions:$('#wc_desc').value.trim(),equipment:$('#wc_eq').value.trim(),safety_notes:$('#wc_safe').value.trim(),
+    suitable_class_types:[],suitable_age_groups:[],suitable_levels:[],tabata:null,favorite:$('#wc_fav').classList.contains('on'),
+    usage_count:0,last_used_at:0,active:true,sort_order:999,created_by:State.user.id,created_at:Date.now(),updated_at:Date.now()});
+  toast('已新增自訂熱身','ok');
+  if(dpId&&dpId!=='__manage__'){await Views.wAdd(dpId,w.id);}
+  else{Modal.close();App.go('warmups');}
+};
+/* ---- 熱身資料庫管理 ---- */
+Views.view_warmups=function(el){
+  const cats=['全部',...WARMUP_CATEGORIES];const cat=Views._wmCat||'全部';
+  let list=cat==='全部'?C('warmup_library'):C('warmup_library').filter(w=>w.category===cat);
+  list=list.slice().sort((a,b)=>(a.active===false?1:0)-(b.active===false?1:0)||(a.sort_order||0)-(b.sort_order||0)||String(a.name).localeCompare(String(b.name),'zh-Hant'));
+  el.innerHTML=`<div class="card"><div class="row"><h3 style="margin:0">熱身資料庫</h3><span class="sp" style="flex:1"></span>
+    <button class="btn sm" onclick="Views.wCustom('__manage__')">＋ 新增熱身</button></div>
+    <p class="muted" style="margin:8px 0 0">用過的熱身只能停用、不可永久刪除；歷史課程會保留當時的熱身快照，不受此處修改影響。</p>
+    <div class="tabs" style="margin-top:10px">${cats.map(c=>`<button class="${c===cat?'on':''}" onclick="Views._wmCat='${c}';App.go('warmups')">${c}</button>`).join('')}</div></div>
+  <div class="grid g2" style="margin-top:12px">${list.map(w=>`<div class="card"><h3>${esc(w.name)} ${w.favorite?'★':''}${w.active===false?'<span class="badge b-lock">停用</span>':''}</h3>
+    <div class="kv"><b>分類</b><span>${esc(w.category)}</span></div>
+    <div class="kv"><b>預設</b><span>${w.default_minutes}分・強度${esc(w.intensity||'中')}</span></div>
+    ${w.tabata?`<div class="kv"><b>Tabata</b><span>${w.tabata.work}秒/${w.tabata.rest}秒×${w.tabata.rounds}輪×${w.tabata.sets||1}組</span></div>`:''}
+    <div class="kv"><b>使用次數</b><span>${w.usage_count||0}</span></div>
+    <div class="row" style="margin-top:6px;flex-wrap:wrap"><button class="btn xs g" onclick="Views.wEdit('${w.id}')">編輯</button>
+      <button class="btn xs g" onclick="Views.wToggleFav('${w.id}')">${w.favorite?'取消常用':'設常用'}</button>
+      <button class="btn xs g" onclick="Views.wDuplicate('${w.id}')">複製</button>
+      <button class="btn xs ${w.active===false?'ok':'warn'}" onclick="Views.wToggleActive('${w.id}')">${w.active===false?'啟用':'停用'}</button></div>
+  </div>`).join('')||'<div class="empty">尚無熱身項目</div>'}</div>`;
+};
+Views.wToggleFav=async function(id){const w=C('warmup_library').find(x=>x.id===id);if(w){await save('warmup_library',{...w,favorite:!w.favorite,updated_at:Date.now()});App.go('warmups');}};
+Views.wToggleActive=async function(id){const w=C('warmup_library').find(x=>x.id===id);if(w){await save('warmup_library',{...w,active:w.active===false,updated_at:Date.now()});App.go('warmups');}};
+Views.wDuplicate=async function(id){const w=C('warmup_library').find(x=>x.id===id);if(!w)return;await save('warmup_library',{...w,id:uid('wl'),name:w.name+'（複製）',usage_count:0,last_used_at:0,favorite:false,sort_order:999,created_at:Date.now(),updated_at:Date.now()});App.go('warmups');};
+Views.wEdit=function(id){
+  const w=C('warmup_library').find(x=>x.id===id);if(!w)return;const tb=w.tabata||null;
+  Modal.open('編輯熱身',`
+    <div class="field"><label>名稱 <span class="req">*</span></label><input id="we_name" value="${esc(w.name)}"></div>
+    <div class="row"><div class="grow field"><label>分類</label><select id="we_cat">${WARMUP_CATEGORIES.map(c=>`<option ${c===w.category?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div class="grow field"><label>預設分鐘</label><input type="number" id="we_min" value="${w.default_minutes||6}"></div>
+      <div class="grow field"><label>強度</label><select id="we_int">${['低','中','高'].map(x=>`<option ${x===(w.intensity||'中')?'selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div class="field"><label>適合班別</label><div class="chips" id="we_ct">${CLASS_TYPES.map(t=>`<span class="chip ${(w.suitable_class_types||[]).includes(t)?'on':''}" data-t="${t}">${t}</span>`).join('')}</div></div>
+    <div class="field"><label>進行方式 / 說明</label><textarea id="we_desc">${esc(w.instructions||'')}</textarea></div>
+    <div class="row"><div class="grow field"><label>器材</label><input id="we_eq" value="${esc(w.equipment||'')}"></div><div class="grow field"><label>安全提醒</label><input id="we_safe" value="${esc(w.safety_notes||'')}"></div></div>
+    ${tb?`<div class="danger-zone" style="background:#F0F6FA;border-color:var(--line)"><h4 style="color:var(--color-brand-600)">Tabata 設定</h4>
+      <div class="row"><div class="grow field"><label>動作秒</label><input type="number" id="tb_work" value="${tb.work}"></div>
+        <div class="grow field"><label>休息秒</label><input type="number" id="tb_rest" value="${tb.rest}"></div>
+        <div class="grow field"><label>輪數</label><input type="number" id="tb_rounds" value="${tb.rounds}"></div></div>
+      <div class="row"><div class="grow field"><label>組數</label><input type="number" id="tb_sets" value="${tb.sets||1}"></div>
+        <div class="grow field"><label>組間休息秒</label><input type="number" id="tb_rb" value="${tb.rest_between||60}"></div></div>
+      <div class="field"><label>動作清單（逗號分隔）</label><input id="tb_moves" value="${esc((tb.moves||[]).join('、'))}"></div></div>`:''}
+    <label class="chip ${w.favorite?'on':''}" id="we_fav">設為常用</label>
+    <button class="btn block" style="margin-top:10px" onclick="Views.wSaveEdit('${id}',${tb?'true':'false'})">儲存</button>`,
+    m=>{m.querySelectorAll('#we_ct .chip').forEach(x=>x.onclick=()=>x.classList.toggle('on'));$('#we_fav').onclick=()=>$('#we_fav').classList.toggle('on');});
+};
+Views.wSaveEdit=async function(id,hasTb){
+  const w=C('warmup_library').find(x=>x.id===id);if(!w)return;
+  const upd={...w,name:$('#we_name').value.trim()||w.name,category:$('#we_cat').value,default_minutes:+$('#we_min').value||6,intensity:$('#we_int').value,
+    suitable_class_types:[...document.querySelectorAll('#we_ct .chip.on')].map(x=>x.dataset.t),
+    instructions:$('#we_desc').value.trim(),equipment:$('#we_eq').value.trim(),safety_notes:$('#we_safe').value.trim(),
+    favorite:$('#we_fav').classList.contains('on'),updated_at:Date.now()};
+  if(hasTb){upd.tabata={work:+$('#tb_work').value||20,rest:+$('#tb_rest').value||10,rounds:+$('#tb_rounds').value||8,sets:+$('#tb_sets').value||1,rest_between:+$('#tb_rb').value||60,moves:$('#tb_moves').value.split(/[、,，]/).map(s=>s.trim()).filter(Boolean)};}
+  await save('warmup_library',upd);Modal.close();toast('已儲存','ok');App.go('warmups');
 };
 
 /* ---------- BOOT ---------- */
