@@ -376,7 +376,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.1.1-internal';
+const APP_VERSION='1.1.2-internal';
 const DB_NAME='teampro_planner', DB_VER=2;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -386,7 +386,8 @@ const DATA_STORES=['settings','profiles','students','classes','weekly_plans','da
 const STORES=[...DATA_STORES,'backups'];
 
 const AGE_GROUPS=['幼兒','國小','國中','成人'];
-const BELTS=['白帶','黃帶','黃藍帶','藍帶','藍紅帶','紅帶','紅黑帶','一段','二段','三段','四段以上'];
+const BELTS=['白帶','黃帶','黃藍帶','藍帶','藍紅帶','紅帶','紅一線','紅二線','黑頭','一段','兩段','三段','四段'];
+const BELT_ALIASES={'紅黑帶':'黑頭','二段':'兩段','四段以上':'四段'};
 const SPECIALTIES=['基礎','品勢','對練','健身','黑帶','比賽選手','尚未分類'];
 const WEEKDAYS=['星期一','星期二','星期三','星期四','星期五','星期六','星期日'];
 const WD_SHORT=['一','二','三','四','五','六','日'];
@@ -450,7 +451,8 @@ function normWeekdays(raw){
   return [...out].sort((a,b)=>a-b).map(i=>WEEKDAYS[i]);
 }
 function ageOK(a){return AGE_GROUPS.includes(a);}
-function beltOK(b){return BELTS.includes(b);}
+function normBelt(b){b=String(b||'').trim();return BELT_ALIASES[b]||b;}
+function beltOK(b){return BELTS.includes(normBelt(b));}
 
 /* ---------------- global state ---------------- */
 const State={user:null, cache:{}, ctx:{date:todayStr(),classId:null}};
@@ -469,7 +471,7 @@ async function audit(action,table,recId,before,after){
 function settings(){return C('settings')[0]||DEFAULT_SETTINGS();}
 function DEFAULT_SETTINGS(){return{id:'app',dojo:'雄麒跆拳道館',logo:'🥋',cycle:'',
   limits:{幼兒:8,基礎:10,品勢:12,對練:10,default:12},
-  tiers:{初階:['白帶','黃帶','黃藍帶'],中階:['藍帶','藍紅帶','紅帶'],高階:['紅黑帶','一段','二段','三段','四段以上']}};}
+  tiers:{初階:['白帶','黃帶','黃藍帶'],中階:['藍帶','藍紅帶','紅帶'],高階:['紅一線','紅二線','黑頭','一段','兩段','三段','四段']}};}
 function dataCounts(){
   const counts={};let total=0;
   DATA_STORES.forEach(s=>{counts[s]=C(s).length;total+=counts[s];});
@@ -676,7 +678,7 @@ const Stats={
     AGE_GROUPS.forEach(a=>r.age[a]=0); BELTS.forEach(b=>r.belt[b]=0); SPECIALTIES.forEach(s=>r.spec[s]=0);
     list.forEach(s=>{
       if(r.age[s.age_group]!=null)r.age[s.age_group]++;
-      if(r.belt[s.belt_rank]!=null)r.belt[s.belt_rank]++;
+      const belt=normBelt(s.belt_rank);if(r.belt[belt]!=null)r.belt[belt]++;
       if(r.spec[s.specialty]!=null)r.spec[s.specialty]++;
       if(s.promotion_status)r.promo++;
       if(s.competition_athlete)r.comp++;
@@ -694,7 +696,7 @@ const Stats={
    ========================================================================= */
 const Grouping={
   limit(type){const l=settings().limits;return l[type]||l.default||12;},
-  tierOf(belt){const t=settings().tiers;for(const k in t){if(t[k].includes(belt))return k;}return '初階';},
+  tierOf(belt){belt=normBelt(belt);const t=settings().tiers;for(const k in t){if(t[k].map(normBelt).includes(belt))return k;}return '初階';},
   suggest(list,mode,coachCount){
     // 回傳 {groups:[{name,type,students:[],reason,coachNeed}], notes:[]}
     const notes=[]; let groups=[];
@@ -705,7 +707,7 @@ const Grouping={
       const m=byKey(list,s=>s.age_group);
       AGE_GROUPS.forEach(a=>{if(m[a]&&m[a].length)groups.push(mk(a+'組','基礎',m[a],`${a}共有 ${m[a].length} 人，依年齡層獨立成組。`));});
     }else if(mode==='belt'){
-      const m=byKey(list,s=>s.belt_rank);
+      const m=byKey(list,s=>normBelt(s.belt_rank));
       BELTS.forEach(b=>{if(m[b]&&m[b].length)groups.push(mk(b+'組','基礎',m[b],`${b}共有 ${m[b].length} 人。`));});
     }else if(mode==='poomsae_spar'){
       const p=list.filter(s=>['品勢','黑帶'].includes(s.specialty));
@@ -821,7 +823,7 @@ async function seedDemo(){
   const clIds=['cl_mon','cl_tue','cl_sat'];
   const students=names.map((nm,i)=>{
     const age=AGE_GROUPS[i<6?0 : i<20?1 : i<32?2 : 3];
-    const belt=BELTS[Math.min(BELTS.length-1, Math.floor((i%11)))];
+    const belt=BELTS[i%BELTS.length];
     let spec='尚未分類';
     if(age==='幼兒')spec='基礎';
     else if(i%5===0)spec='品勢'; else if(i%5===1)spec='對練'; else if(i%7===0)spec='比賽選手';
@@ -829,8 +831,8 @@ async function seedDemo(){
     const cl=clIds[i%3];
     const wd=classes.find(c=>c.id===cl).weekdays;
     const bi=BELTS.indexOf(belt);
-    const poom=age==='幼兒'?'':(bi<3?'太極一章':bi<6?'太極三章':bi<7?'太極八章':'高麗');
-    const tech=age==='幼兒'?'基本站姿、前踢':(bi>=6?'旋踢、後踢、下壁踢':bi>=3?'前踢、橫踢、旋踢':'前踢、橫踢');
+    const poom=age==='幼兒'?'':(bi<3?'太極一章':bi<6?'太極三章':bi<9?'太極八章':'高麗');
+    const tech=age==='幼兒'?'基本站姿、前踢':(bi>=9?'旋踢、後踢、下壁踢':bi>=3?'前踢、橫踢、旋踢':'前踢、橫踢');
     return {id:'st_'+i,name:nm,age_group:age,belt_rank:belt,specialty:spec,current_progress:poom,tech,
       notes:'', promotion_status:i%9===0, competition_athlete:spec==='比賽選手',
       class_id:cl, weekdays:wd, active:true, demo:true};
@@ -1344,13 +1346,13 @@ Stats.show=function(kind,val){
   let list=Stats.studentsFor(State.ctx.classId,wd);
   let title='名單';
   if(kind==='age'){list=list.filter(s=>s.age_group===val);title=val;}
-  else if(kind==='belt'){list=list.filter(s=>s.belt_rank===val);title=val;}
+  else if(kind==='belt'){list=list.filter(s=>normBelt(s.belt_rank)===val);title=val;}
   else if(kind==='spec'){list=list.filter(s=>s.specialty===val);title=val;}
   else if(kind==='promo'){list=list.filter(s=>s.promotion_status);title='準備晉級';}
   else if(kind==='comp'){list=list.filter(s=>s.competition_athlete);title='比賽選手';}
   Modal.open(title+`（${list.length} 人）`,
     `<div class="scroll"><table class="tbl"><tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th></tr>
-    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td><span class="tag belt">${s.belt_rank}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')}
+    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td><span class="tag belt">${normBelt(s.belt_rank)}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')}
     </table></div>`);
 };
 function ensureClassCtx(){if(State.ctx.classId&&!C('classes').find(c=>c.id===State.ctx.classId&&c.active))State.ctx.classId=null;}
@@ -1475,7 +1477,7 @@ Views.view_students=function(el){
     let list=C('students').filter(s=>s.active);
     if(q)list=list.filter(s=>(s.name+s.notes).includes(q));
     if(fa)list=list.filter(s=>s.age_group===fa);
-    if(fb)list=list.filter(s=>s.belt_rank===fb);
+    if(fb)list=list.filter(s=>normBelt(s.belt_rank)===fb);
     if(fs)list=list.filter(s=>s.specialty===fs);
     if(fc)list=list.filter(s=>s.class_id===fc);
     if(fw!=='')list=list.filter(s=>(s.weekdays||[]).includes(WEEKDAYS[+fw]));
@@ -1484,7 +1486,7 @@ Views.view_students=function(el){
       ${list.map(s=>`<tr>
         <td><b>${esc(s.name)}</b>${s.promotion_status?' 🎯':''}${s.competition_athlete?' 🏅':''}</td>
         <td><span class="tag age">${s.age_group}</span></td>
-        <td><span class="tag belt">${s.belt_rank}</span></td>
+        <td><span class="tag belt">${normBelt(s.belt_rank)}</span></td>
         <td><span class="tag spec">${s.specialty}</span></td>
         <td class="muted" style="font-size:11px">${[s.current_progress&&('品勢:'+esc(s.current_progress)),s.tech&&('技術:'+esc(s.tech))].filter(Boolean).join('<br>')||'—'}</td>
         <td class="muted">${(s.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')}</td>
@@ -1501,7 +1503,7 @@ Views.editStudent=function(id){
     <div class="field"><label>姓名 *</label><input id="es_name" value="${esc(s.name||'')}"></div>
     <div class="row">
       <div class="grow field"><label>年齡層 *</label><select id="es_age">${AGE_GROUPS.map(a=>`<option ${a===s.age_group?'selected':''}>${a}</option>`).join('')}</select></div>
-      <div class="grow field"><label>級別段位 *</label><select id="es_belt">${BELTS.map(b=>`<option ${b===s.belt_rank?'selected':''}>${b}</option>`).join('')}</select></div>
+      <div class="grow field"><label>級別段位 *</label><select id="es_belt">${BELTS.map(b=>`<option ${b===normBelt(s.belt_rank)?'selected':''}>${b}</option>`).join('')}</select></div>
     </div>
     <div class="row">
       <div class="grow field"><label>專項</label><select id="es_spec">${SPECIALTIES.map(x=>`<option ${x===s.specialty?'selected':''}>${x}</option>`).join('')}</select></div>
@@ -1597,7 +1599,7 @@ Views.validateImport=function(rows){
     const r=rows[i]; if(r.every(c=>String(c).trim()===''))continue;
     const errs=[]; const g=k=>ci[k]>=0?String(r[ci[k]]).trim():'';
     const name=g('name');
-    let age=g('age'),belt=g('belt'),spec=g('spec')||'尚未分類',wdRaw=g('wd'),clsName=g('cls');
+    let age=g('age'),belt=normBelt(g('belt')),spec=g('spec')||'尚未分類',wdRaw=g('wd'),clsName=g('cls');
     if(!name)errs.push('姓名空白');
     if(age&&!ageOK(age))errs.push('年齡層不正確（限幼兒/國小/國中/成人）');
     if(!age)errs.push('年齡層缺漏');

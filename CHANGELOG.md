@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.1.2-internal
+
+- 更新級別/段位清單：白帶、黃帶、黃藍帶、藍帶、藍紅帶、紅帶、紅一線、紅二線、黑頭、一段、兩段、三段、四段。
+- 匯入時相容舊名稱：`紅黑帶` 轉為 `黑頭`，`二段` 轉為 `兩段`，`四段以上` 轉為 `四段`。
+- 更新預設能力分層與學員名單 CSV 範本。
+- Service Worker cache 升級為 `teampro-coplanning-v4`。
+
 ## 1.1.1-internal
 
 - 修正登入頁載入示範資料時，IndexedDB 尚未就緒可能造成 `Cannot read properties of null (reading 'transaction')`。

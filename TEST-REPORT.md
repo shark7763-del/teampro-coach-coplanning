@@ -1,12 +1,13 @@
 # TEST REPORT
 
-版本：`1.1.1-internal`
+版本：`1.1.2-internal`
 
 ## 已執行檢查
 
 - `node --check` 檢查 `index.html` 內嵌 JavaScript：通過。
 - `node --check sw.js`：通過。
 - `DB.open()` 可重入與 `ensureDbReady()` 已加入，避免示範資料流程在 DB 尚未開啟時寫入。
+- 匯入級別測試：`紅二線`、`黑頭`、`兩段` 均在 `BELTS` 清單內；舊值 `紅黑帶`、`二段`、`四段以上` 會自動轉換。
 - 搜尋 `tp_user`：未再用於自動登入。
 - 搜尋 `confirm(`：僅保留發布未完成課程時的提醒確認，不涉及刪除、清空、匯入、還原或雲端覆蓋。
 - 搜尋 `replaceAll`：UI 對外流程走 `SYNC.replaceAll()`，內部 `_replaceAllUnsafe()` 需要 token。
