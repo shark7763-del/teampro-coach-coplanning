@@ -1,0 +1,1823 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<title>TeamPro 教練共同備課系統</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0f172a; --bg2:#1e293b; --card:#ffffff; --ink:#0f172a; --sub:#64748b;
+  --line:#e2e8f0; --brand:#4f46e5; --brand2:#6366f1; --ok:#16a34a; --warn:#d97706;
+  --bad:#dc2626; --amber:#f59e0b; --green:#22c55e; --red:#ef4444; --pagew:1080px;
+  --sh:0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.04);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:#f1f5f9;color:var(--ink);font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+button,input,select,textarea{font-family:inherit;font-size:15px}
+button{cursor:pointer;border:none;background:none}
+a{color:var(--brand);text-decoration:none}
+.hide{display:none!important}
+/* ---------- login ---------- */
+#login{position:fixed;inset:0;background:linear-gradient(160deg,#1e293b,#4f46e5);display:flex;align-items:center;justify-content:center;padding:20px;z-index:100}
+#login .box{background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+#login h1{margin:0 0 4px;font-size:22px}
+#login .sub{color:var(--sub);margin:0 0 20px;font-size:13px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#334155}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 16px;border-radius:10px;font-weight:600;background:var(--brand);color:#fff;transition:.15s;white-space:nowrap}
+.btn:active{transform:scale(.98)}
+.btn.block{width:100%}
+.btn.g{background:#f1f5f9;color:#334155;border:1px solid var(--line)}
+.btn.ok{background:var(--ok)}.btn.bad{background:var(--bad)}.btn.warn{background:var(--warn)}
+.btn.sm{padding:7px 11px;font-size:13px;border-radius:8px}
+.btn.xs{padding:4px 9px;font-size:12px;border-radius:7px}
+.pinrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.pinrow .who{flex:1;min-width:130px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;text-align:left;background:#fff}
+.pinrow .who b{display:block;font-size:14px}
+.pinrow .who span{font-size:11px;color:var(--sub)}
+.pinrow .who.admin{flex:0 0 100%;background:linear-gradient(135deg,#4f46e5,#6366f1);border:2px solid #4f46e5;color:#fff;padding:16px 16px;box-shadow:0 6px 18px rgba(79,70,229,.35)}
+.pinrow .who.admin b{font-size:19px}
+.pinrow .who.admin span{font-size:12px;color:rgba(255,255,255,.85)}
+.pinrow .who.admin.sel{outline:3px solid #c7d2fe}
+/* ---------- shell ---------- */
+#shell{max-width:var(--pagew);margin:0 auto;padding:0 0 88px}
+#top{position:sticky;top:0;z-index:40;background:rgba(15,23,42,.98);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px}
+#top .logo{font-weight:800;font-size:16px;letter-spacing:.5px}
+#top .logo small{font-weight:500;opacity:.7;font-size:11px;display:block;letter-spacing:0}
+#top .sp{flex:1}
+#top .u{font-size:12px;text-align:right;line-height:1.3}
+#top .u b{font-size:13px}
+.rolechip{display:inline-block;font-size:10px;background:var(--brand2);padding:1px 7px;border-radius:20px;margin-top:2px}
+#nav{display:flex;gap:4px;overflow-x:auto;background:#fff;border-bottom:1px solid var(--line);padding:6px 8px;position:sticky;top:47px;z-index:35;scrollbar-width:none}
+#nav::-webkit-scrollbar{display:none}
+#nav button{padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;color:var(--sub);white-space:nowrap}
+#nav button.on{background:var(--brand);color:#fff}
+#view{padding:14px}
+/* bottom nav (mobile quick) */
+#bnav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;z-index:45;max-width:var(--pagew);margin:0 auto}
+#bnav button{flex:1;padding:8px 2px 6px;font-size:10px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px}
+#bnav button.on{color:var(--brand)}
+#bnav .ic{font-size:18px;line-height:1}
+/* cards */
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--sh)}
+.card h3{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--sh);cursor:pointer;transition:.15s}
+.stat:active{transform:scale(.98)}
+.stat .n{font-size:26px;font-weight:800;line-height:1}
+.stat .l{font-size:12px;color:var(--sub);margin-top:4px}
+.stat .l b{color:var(--brand)}
+.sect-title{font-size:13px;font-weight:700;color:var(--sub);margin:18px 2px 8px;text-transform:none}
+.hero{background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;border-radius:16px;padding:16px;margin-bottom:14px}
+.hero h2{margin:0 0 2px;font-size:18px}
+.hero p{margin:0;opacity:.85;font-size:13px}
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tile{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 12px;text-align:left;box-shadow:var(--sh);display:flex;gap:10px;align-items:center}
+.tile .ic{font-size:22px}
+.tile b{display:block;font-size:14px}
+.tile span{font-size:11px;color:var(--sub)}
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{padding:8px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+.tbl th{color:var(--sub);font-weight:600;font-size:12px;background:#f8fafc;position:sticky;top:0}
+.tbl tr:active{background:#f8fafc}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* chips / tags */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);background:#fff;color:#475569;cursor:pointer;user-select:none}
+.chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.tag{font-size:11px;padding:2px 8px;border-radius:6px;background:#eef2ff;color:#4338ca;font-weight:600}
+.tag.age{background:#ecfeff;color:#0e7490}
+.tag.belt{background:#fef3c7;color:#92400e}
+.tag.spec{background:#f0fdf4;color:#15803d}
+.badge{font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700}
+.b-draft{background:#f1f5f9;color:#475569}.b-disc{background:#dbeafe;color:#1d4ed8}
+.b-wait{background:#fef3c7;color:#92400e}.b-pub{background:#dcfce7;color:#15803d}
+.b-done{background:#e0e7ff;color:#4338ca}.b-lock{background:#fee2e2;color:#991b1b}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.d-g{background:var(--green)}.d-y{background:var(--amber)}.d-r{background:var(--red)}
+/* forms */
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row>.grow{flex:1;min-width:120px}
+label.sm{font-size:12px;color:var(--sub);font-weight:600;display:block;margin-bottom:4px}
+textarea{resize:vertical;min-height:60px}
+.muted{color:var(--sub);font-size:12px}
+.empty{text-align:center;padding:30px 16px;color:var(--sub)}
+.empty .ic{font-size:36px;opacity:.5}
+/* toast */
+#toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;pointer-events:none;width:90%;max-width:360px}
+.tst{background:#0f172a;color:#fff;padding:11px 14px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25);animation:pop .2s}
+.tst.ok{background:var(--ok)}.tst.bad{background:var(--bad)}.tst.warn{background:var(--warn)}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}}
+/* modal */
+#modal{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:150;display:flex;align-items:flex-end;justify-content:center;padding:0}
+#modal .m{background:#fff;border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:90vh;overflow:auto;padding:18px}
+#modal .m h3{margin:0 0 12px;display:flex;align-items:center}
+#modal .m h3 .x{margin-left:auto;font-size:22px;color:var(--sub);cursor:pointer;line-height:1}
+/* lesson blocks */
+.blk{border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+.blk .bh{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f8fafc;cursor:pointer}
+.blk .bh .t{font-size:14px;font-weight:700}
+.blk .bh .m{font-size:11px;color:var(--sub)}
+.blk .bh .st{margin-left:auto;font-size:11px}
+.blk .bd{padding:12px;border-top:1px solid var(--line)}
+.blk.done .bh{background:#f0fdf4}
+/* group cards */
+.gcard{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px;background:#fff}
+.gcard.drop{border:2px dashed var(--brand);background:#eef2ff}
+.gcard .gh{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.gcard .gh b{font-size:14px}
+.stu{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 9px;border:1px solid var(--line);border-radius:20px;margin:2px;background:#fff;cursor:pointer}
+.stu.sel{background:var(--brand);color:#fff;border-color:var(--brand)}
+.pool{border:1px dashed var(--line);border-radius:12px;padding:10px;background:#fafbff;min-height:44px}
+/* discussion */
+.msg{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff}
+.msg.reply{margin-left:22px;background:#f8fafc}
+.msg .mh{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--sub);margin-bottom:4px}
+.msg .mh b{color:var(--ink);font-size:13px}
+.msg .mb{font-size:14px;white-space:pre-wrap;word-break:break-word}
+/* week */
+.wk{display:grid;gap:10px}
+.wkday{border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px;box-shadow:var(--sh)}
+.wkday .wd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.wkday .wd b{font-size:15px}
+.progress{height:6px;background:#eef2ff;border-radius:20px;overflow:hidden;margin-top:6px}
+.progress i{display:block;height:100%;background:var(--brand)}
+.divider{height:1px;background:var(--line);margin:12px 0}
+.kv{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line);font-size:13px}
+.kv:last-child{border-bottom:none}
+.kv b{color:var(--sub);font-weight:600}
+.warnbox{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px;font-size:13px;color:#92400e;margin:8px 0}
+.okbox{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:10px;font-size:13px;color:#166534;margin:8px 0}
+.infobox{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px;font-size:13px;color:#1e40af;margin:8px 0}
+.loading{text-align:center;padding:30px;color:var(--sub)}
+.spin{width:24px;height:24px;border:3px solid #e2e8f0;border-top-color:var(--brand);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto 8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(max-width:560px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
+/* ---------- print / PDF ---------- */
+#print{display:none}
+@media print{
+  @page{size:A4 portrait;margin:12mm}
+  body{background:#fff;font-size:12px}
+  #shell,#login,#bnav,#toast,#modal{display:none!important}
+  #print{display:block!important}
+  .pg{page-break-after:always}
+  .pg:last-child{page-break-after:auto}
+  .no-break{page-break-inside:avoid}
+  .ptbl{width:100%;border-collapse:collapse;font-size:11px}
+  .ptbl th,.ptbl td{border:1px solid #94a3b8;padding:4px 6px;text-align:left;vertical-align:top}
+  .ptbl th{background:#e2e8f0}
+  .phead{border-bottom:3px solid #4f46e5;padding-bottom:8px;margin-bottom:12px}
+  .phead h1{margin:0;font-size:20px}
+  .phead .meta{font-size:11px;color:#475569;margin-top:4px}
+  .pday{border:1px solid #94a3b8;border-radius:6px;padding:10px;margin-bottom:12px}
+  .pday h2{font-size:14px;margin:0 0 6px;background:#4f46e5;color:#fff;padding:5px 8px;border-radius:4px}
+}
+</style>
+
+<!-- ============ LOGIN ============ -->
+<div id="login">
+  <div class="box">
+    <h1>🥋 TeamPro 共同備課</h1>
+    <p class="sub">道館教練共同備課系統・請選擇身分登入</p>
+    <div id="loginList" class="pinrow"></div>
+    <div id="loginAuth">
+      <div class="field" style="margin-top:16px">
+        <label>PIN 密碼</label>
+        <input id="pinInput" type="password" inputmode="numeric" placeholder="輸入 4 位數 PIN" maxlength="8">
+      </div>
+      <button class="btn block" onclick="App.doLogin()">登入</button>
+      <p class="muted" style="text-align:center;margin-top:14px">
+        預設 PIN 皆為 <b>1234</b>。
+      </p>
+    </div>
+    <button class="btn g block sm" style="margin-top:8px" onclick="App.seedFromLogin()">🎁 載入示範資料（40 學員／一週課程）</button>
+    <button class="btn g block sm" style="margin-top:6px" onclick="App.wipeAll()">🗑️ 清空全部資料</button>
+  </div>
+</div>
+
+<!-- ============ SHELL ============ -->
+<div id="shell" class="hide">
+  <div id="top">
+    <div class="logo">TeamPro<small>共同備課系統</small></div>
+    <div class="sp"></div>
+    <div class="u"><b id="uName">—</b><br><span class="rolechip" id="uRole">—</span></div>
+    <button class="btn g xs" onclick="App.logout()">登出</button>
+  </div>
+  <div id="nav"></div>
+  <div id="view"></div>
+</div>
+<div id="bnav" class="hide"></div>
+
+<div id="print"></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
+   ========================================================================= */
+const DB_NAME='teampro_planner', DB_VER=1;
+/* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
+   （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
+const DEFAULT_SYNC_URL='https://script.google.com/macros/s/AKfycbyPf7Qd2LuIsx-P0z-kdrAMxrsqpvonswGHXHnHrrLaT22EWjXXQYOQGUd29SlNc7Lt/exec';
+const STORES=['settings','profiles','students','classes','weekly_plans','daily_plans',
+  'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs'];
+
+const AGE_GROUPS=['幼兒','國小','國中','成人'];
+const BELTS=['白帶','黃帶','黃藍帶','藍帶','藍紅帶','紅帶','紅黑帶','一段','二段','三段','四段以上'];
+const SPECIALTIES=['基礎','品勢','對練','健身','黑帶','比賽選手','尚未分類'];
+const WEEKDAYS=['星期一','星期二','星期三','星期四','星期五','星期六','星期日'];
+const WD_SHORT=['一','二','三','四','五','六','日'];
+const BLOCKS=[
+  {key:'warmup',  name:'做操、慢跑',        s:0,  e:10},
+  {key:'fitness', name:'熱身、基礎體能、遊戲',s:10, e:30},
+  {key:'group',   name:'分組訓練、基本動作', s:30, e:60},
+  {key:'apply',   name:'應用、組合、挑戰、比賽',s:60, e:85},
+  {key:'review',  name:'課程講評',          s:85, e:90},
+];
+const ABILITY_TAGS=['敏捷','反應','協調','平衡','核心','柔軟度','爆發力','心肺','折返跑','體能遊戲','團隊遊戲','專項暖身'];
+const APPLY_TYPES=['應用','組合','挑戰','闖關','小組競賽','品勢演練','踢靶','攻防反應','條件對練','模擬比賽'];
+const STATUS=[['draft','草稿','b-draft'],['disc','討論中','b-disc'],['wait','待確認','b-wait'],
+  ['pub','已發布','b-pub'],['done','已完成','b-done'],['lock','已鎖定','b-lock']];
+
+/* ---------------- IndexedDB tiny layer ---------------- */
+const DB={
+  _db:null,
+  open(){return new Promise((res,rej)=>{
+    const rq=indexedDB.open(DB_NAME,DB_VER);
+    rq.onupgradeneeded=e=>{const db=e.target.result;
+      STORES.forEach(s=>{ if(!db.objectStoreNames.contains(s)) db.createObjectStore(s,{keyPath:'id'}); });};
+    rq.onsuccess=e=>{DB._db=e.target.result;res(DB._db);};
+    rq.onerror=e=>rej(e.target.error);
+  });},
+  _tx(store,mode){return DB._db.transaction(store,mode).objectStore(store);},
+  all(store){return new Promise((res,rej)=>{const r=DB._tx(store,'readonly').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});},
+  get(store,id){return new Promise((res,rej)=>{const r=DB._tx(store,'readonly').get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
+  put(store,obj){return new Promise((res,rej)=>{const r=DB._tx(store,'readwrite').put(obj);r.onsuccess=()=>res(obj);r.onerror=()=>rej(r.error);});},
+  del(store,id){return new Promise((res,rej)=>{const r=DB._tx(store,'readwrite').delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});},
+  clear(store){return new Promise((res,rej)=>{const r=DB._tx(store,'readwrite').clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});},
+  async bulk(store,arr){for(const o of arr) await DB.put(store,o);},
+};
+
+/* ---------------- utils ---------------- */
+const uid=(p='')=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nl2=s=>esc(s).replace(/\n/g,'<br>');
+function toast(msg,type=''){const t=document.createElement('div');t.className='tst '+type;t.textContent=msg;$('#toast').appendChild(t);setTimeout(()=>t.remove(),2600);}
+function todayStr(d=new Date()){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function weekdayOf(dateStr){const d=new Date(dateStr+'T00:00:00');return (d.getDay()+6)%7;} // 0=Mon
+function addDays(dateStr,n){const d=new Date(dateStr+'T00:00:00');d.setDate(d.getDate()+n);return todayStr(d);}
+function mondayOf(dateStr){return addDays(dateStr,-weekdayOf(dateStr));}
+function statusMeta(s){return STATUS.find(x=>x[0]===s)||STATUS[0];}
+function badge(s){const m=statusMeta(s);return `<span class="badge ${m[2]}">${m[1]}</span>`;}
+// 標準化上課日字串 -> ["星期一",...]
+function normWeekdays(raw){
+  if(!raw) return [];
+  const map={'一':0,'二':1,'三':2,'四':3,'五':4,'六':5,'日':6,'天':6,'1':0,'2':1,'3':2,'4':3,'5':4,'6':5,'7':6};
+  const out=new Set();
+  const parts=String(raw).split(/[、,，\/\s和及]+/).filter(Boolean);
+  parts.forEach(p=>{p=p.replace(/星期|週|周|禮拜|拜/g,'').trim();
+    for(const ch of p){ if(ch in map) out.add(map[ch]); }});
+  return [...out].sort((a,b)=>a-b).map(i=>WEEKDAYS[i]);
+}
+function ageOK(a){return AGE_GROUPS.includes(a);}
+function beltOK(b){return BELTS.includes(b);}
+
+/* ---------------- global state ---------------- */
+const State={user:null, cache:{}, ctx:{date:todayStr(),classId:null}};
+async function reload(store){State.cache[store]=await DB.all(store);return State.cache[store];}
+async function reloadAll(){for(const s of STORES) await reload(s);}
+const C=store=>State.cache[store]||[];
+async function save(store,obj){obj.id=obj.id||uid();obj._u=Date.now();await DB.put(store,obj);await reload(store);if(typeof SYNC!=='undefined')SYNC.push(store,obj);return obj;}
+async function remove(store,id){await DB.del(store,id);await reload(store);if(typeof SYNC!=='undefined')SYNC.pushDelete(store,id);}
+async function audit(action,table,recId,before,after){
+  await save('audit_logs',{id:uid(),user_id:State.user?.id,user_name:State.user?.name,action,table_name:table,record_id:recId,before_data:before?JSON.stringify(before).slice(0,500):'',after_data:after?JSON.stringify(after).slice(0,500):'',created_at:Date.now()});
+}
+function settings(){return C('settings')[0]||DEFAULT_SETTINGS();}
+function DEFAULT_SETTINGS(){return{id:'app',dojo:'雄麒跆拳道館',logo:'🥋',cycle:'',
+  limits:{幼兒:8,基礎:10,品勢:12,對練:10,default:12},
+  tiers:{初階:['白帶','黃帶','黃藍帶'],中階:['藍帶','藍紅帶','紅帶'],高階:['紅黑帶','一段','二段','三段','四段以上']}};}
+
+/* =========================================================================
+   SYNC —— GAS 雲端同步層（多裝置各自手機共用同一份資料）
+   push: 每次存檔即時上傳(佇列合批)  pull: 定時/切頁把雲端變更拉回  LWW by _u
+   ========================================================================= */
+const SYNC={
+  status:'—',
+  url(){try{return (settings().syncUrl||DEFAULT_SYNC_URL||'').trim();}catch(e){return (DEFAULT_SYNC_URL||'').trim();}},
+  enabled(){return !!SYNC.url();},
+  lastPull(){return +(localStorage.getItem('tp_lastpull')||0);},
+  setLastPull(v){localStorage.setItem('tp_lastpull',v);},
+  async post(payload){
+    const res=await fetch(SYNC.url(),{method:'POST',body:JSON.stringify(payload)});
+    return await res.json();
+  },
+  _q:[], _busy:false,
+  push(store,obj){if(!SYNC.enabled())return;SYNC._q.push({store,id:obj.id,json:JSON.stringify(obj),deleted:false});SYNC._flush();},
+  pushDelete(store,id){if(!SYNC.enabled())return;SYNC._q.push({store,id,json:'',deleted:true});SYNC._flush();},
+  async _flush(){
+    if(SYNC._busy||!SYNC._q.length||!SYNC.enabled())return;
+    SYNC._busy=true;
+    const batch=SYNC._q.splice(0,SYNC._q.length);
+    try{await SYNC.post({action:'push',records:batch});SYNC.status='已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});}
+    catch(e){SYNC._q.unshift(...batch);SYNC.status='上傳失敗，稍後重試';setTimeout(()=>SYNC._flush(),4000);}
+    SYNC._busy=false;
+    if(SYNC._q.length)setTimeout(()=>SYNC._flush(),1500);
+  },
+  async pull(){
+    if(!SYNC.enabled())return{changed:0};
+    let r;try{r=await SYNC.post({action:'pull',since:SYNC.lastPull()});}catch(e){SYNC.status='連線失敗';return{changed:0,err:e.message};}
+    if(!r||!r.ok)return{changed:0};
+    let changed=0;
+    for(const rec of r.records){
+      const local=(State.cache[rec.store]||[]).find(x=>x.id===rec.id);
+      if(rec.deleted){if(local){await DB.del(rec.store,rec.id);changed++;}continue;}
+      let obj;try{obj=JSON.parse(rec.json);}catch(e){continue;}
+      if(!local || (obj._u||0)>(local._u||0)){await DB.put(rec.store,obj);changed++;}
+    }
+    if(changed)await reloadAll();
+    SYNC.setLastPull(r.maxSrv||r.srv||SYNC.lastPull());
+    SYNC.status='已更新 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    return {changed};
+  },
+  // 主帳號第一次上傳 / 重置雲端：全量覆蓋（會清掉雲端舊資料再寫入目前本機）
+  async replaceAll(){
+    if(!SYNC.enabled())throw new Error('尚未設定同步網址');
+    const recs=[];
+    for(const s of STORES)for(const o of C(s))recs.push({store:s,id:o.id,json:JSON.stringify(o),deleted:false});
+    const r=await SYNC.post({action:'replaceAll',records:recs});
+    SYNC.setLastPull(0); // 之後 pull 會重新對齊
+    return r;
+  },
+  _timer:null,
+  startAuto(){
+    if(SYNC._timer)clearInterval(SYNC._timer);
+    if(!SYNC.enabled())return;
+    SYNC._timer=setInterval(async()=>{
+      if(!State.user)return;
+      const {changed}=await SYNC.pull();
+      if(changed)App.refresh();
+    },15000);
+  },
+};
+
+/* =========================================================================
+   PERMISSIONS
+   ========================================================================= */
+const ROLE_LABEL={admin:'管理者',head:'主教練',assistant:'助教'};
+function can(action){
+  const r=State.user?.role;
+  const P={
+    admin:['*'],
+    head:['view','stats','group','plan','discuss','publish','report','assign','template','pdf'],
+    assistant:['view','discuss','report','mytasks'],
+  };
+  const list=P[r]||[];
+  return list.includes('*')||list.includes(action);
+}
+</script>
+
+<script>
+/* =========================================================================
+   STATS ENGINE
+   ========================================================================= */
+const Stats={
+  // 某班別 某星期(0-6) 的學員
+  studentsFor(classId,weekdayIdx){
+    return C('students').filter(s=>{
+      if(!s.active) return false;
+      if(classId && s.class_id!==classId) return false;
+      if(weekdayIdx!=null){
+        const wds=(s.weekdays||[]);
+        if(!wds.includes(WEEKDAYS[weekdayIdx])) return false;
+      }
+      return true;
+    });
+  },
+  summary(list){
+    const r={total:list.length,age:{},belt:{},spec:{},promo:0,comp:0};
+    AGE_GROUPS.forEach(a=>r.age[a]=0); BELTS.forEach(b=>r.belt[b]=0); SPECIALTIES.forEach(s=>r.spec[s]=0);
+    list.forEach(s=>{
+      if(r.age[s.age_group]!=null)r.age[s.age_group]++;
+      if(r.belt[s.belt_rank]!=null)r.belt[s.belt_rank]++;
+      if(r.spec[s.specialty]!=null)r.spec[s.specialty]++;
+      if(s.promotion_status)r.promo++;
+      if(s.competition_athlete)r.comp++;
+    });
+    return r;
+  },
+  coachesAvailable(weekdayIdx){
+    return C('profiles').filter(p=>p.active&&(p.role==='head'||p.role==='assistant')&&
+      (!p.available_weekdays||!p.available_weekdays.length||p.available_weekdays.includes(WEEKDAYS[weekdayIdx])));
+  }
+};
+
+/* =========================================================================
+   GROUPING ENGINE  —  產生分組建議
+   ========================================================================= */
+const Grouping={
+  limit(type){const l=settings().limits;return l[type]||l.default||12;},
+  tierOf(belt){const t=settings().tiers;for(const k in t){if(t[k].includes(belt))return k;}return '初階';},
+  suggest(list,mode,coachCount){
+    // 回傳 {groups:[{name,type,students:[],reason,coachNeed}], notes:[]}
+    const notes=[]; let groups=[];
+    const mk=(name,type,students,reason)=>({id:uid('g'),name,group_type:type,students:students.map(s=>s.id),
+      reason, coachNeed:Math.max(1,Math.ceil(students.length/this.limit(type)))});
+    const byKey=(arr,fn)=>{const m={};arr.forEach(s=>{const k=fn(s);(m[k]=m[k]||[]).push(s);});return m;};
+    if(mode==='age'){
+      const m=byKey(list,s=>s.age_group);
+      AGE_GROUPS.forEach(a=>{if(m[a]&&m[a].length)groups.push(mk(a+'組','基礎',m[a],`${a}共有 ${m[a].length} 人，依年齡層獨立成組。`));});
+    }else if(mode==='belt'){
+      const m=byKey(list,s=>s.belt_rank);
+      BELTS.forEach(b=>{if(m[b]&&m[b].length)groups.push(mk(b+'組','基礎',m[b],`${b}共有 ${m[b].length} 人。`));});
+    }else if(mode==='poomsae_spar'){
+      const p=list.filter(s=>['品勢','黑帶'].includes(s.specialty));
+      const sp=list.filter(s=>['對練','比賽選手'].includes(s.specialty));
+      const other=list.filter(s=>!['品勢','黑帶','對練','比賽選手'].includes(s.specialty));
+      if(p.length)groups.push(mk('品勢組','品勢',p,`品勢／黑帶共 ${p.length} 人。`));
+      if(sp.length)groups.push(mk('對練組','對練',sp,`對練／比賽選手共 ${sp.length} 人。`));
+      if(other.length)groups.push(mk('基礎組','基礎',other,`其餘 ${other.length} 人歸基礎組。`));
+    }else if(mode==='level'){
+      const m=byKey(list,s=>this.tierOf(s.belt_rank));
+      ['初階','中階','高階'].forEach(t=>{if(m[t]&&m[t].length)groups.push(mk(t+'組','基礎',m[t],`${t}（${settings().tiers[t].join('、')}）共 ${m[t].length} 人。`));});
+    }else if(mode==='kids'){
+      const kids=list.filter(s=>s.age_group==='幼兒');
+      const rest=list.filter(s=>s.age_group!=='幼兒');
+      if(kids.length)groups.push(mk('幼兒組','幼兒',kids,`幼兒共有 ${kids.length} 人，建議獨立成組，安排專責教練。`));
+      if(rest.length)groups.push(mk('一般組','基礎',rest,`其餘 ${rest.length} 人。`));
+    }else if(mode==='adult'){
+      const ad=list.filter(s=>s.age_group==='成人');
+      const rest=list.filter(s=>s.age_group!=='成人');
+      if(ad.length)groups.push(mk('成人組','健身',ad,`成人共有 ${ad.length} 人，獨立成組。`));
+      if(rest.length)groups.push(mk('青少年組','基礎',rest,`其餘 ${rest.length} 人。`));
+    }else if(mode==='promo'){
+      const pr=list.filter(s=>s.promotion_status);
+      const rest=list.filter(s=>!s.promotion_status);
+      if(pr.length)groups.push(mk('晉級加強組','基礎',pr,`準備晉級共 ${pr.length} 人，集中加強。`));
+      if(rest.length)groups.push(mk('一般組','基礎',rest,`其餘 ${rest.length} 人。`));
+    }else if(mode==='comp'){
+      const cp=list.filter(s=>s.competition_athlete);
+      const rest=list.filter(s=>!s.competition_athlete);
+      if(cp.length)groups.push(mk('比賽選手組','比賽選手',cp,`比賽選手共 ${cp.length} 人，專項強化。`));
+      if(rest.length)groups.push(mk('一般組','基礎',rest,`其餘 ${rest.length} 人。`));
+    }else{ // smart 綜合建議：專項>年齡>級別
+      const spec=byKey(list,s=>{
+        if(['品勢','黑帶'].includes(s.specialty))return '品勢';
+        if(['對練','比賽選手'].includes(s.specialty))return '對練';
+        if(s.age_group==='幼兒')return '幼兒';
+        if(s.age_group==='成人')return '成人';
+        return '基礎';
+      });
+      ['幼兒','基礎','品勢','對練','成人'].forEach(k=>{
+        const arr=spec[k]; if(!arr||!arr.length)return;
+        const type=k==='幼兒'?'幼兒':(k==='成人'?'健身':k);
+        const lim=this.limit(type);
+        if(arr.length>lim && (k==='品勢'||k==='對練'||k==='基礎')){
+          // 依級別拆初階/進階
+          const lo=arr.filter(s=>this.tierOf(s.belt_rank)==='初階');
+          const hi=arr.filter(s=>this.tierOf(s.belt_rank)!=='初階');
+          if(lo.length)groups.push(mk(k+'（初階）',type,lo,`${k}共 ${arr.length} 人超過建議上限 ${lim}，依級別拆為初階 ${lo.length} 人。`));
+          if(hi.length)groups.push(mk(k+'（進階）',type,hi,`${k}進階 ${hi.length} 人。`));
+        }else{
+          groups.push(mk(k+'組',type,arr,`${k}共 ${arr.length} 人${k==='幼兒'?'，建議獨立成組並安排 1 位教練':''}。`));
+        }
+      });
+    }
+    // 教練需求提醒
+    const need=groups.reduce((a,g)=>a+g.coachNeed,0);
+    if(coachCount!=null && need>coachCount) notes.push(`本次分組共需 ${need} 位教練／助教，但今日僅 ${coachCount} 位可出席，請調整分組或課程模式。`);
+    groups.forEach(g=>{if(g.students.length>this.limit(g.group_type))notes.push(`「${g.name}」${g.students.length} 人超過建議上限 ${this.limit(g.group_type)}，建議再拆分。`);});
+    return {groups,notes};
+  },
+  // 驗證目前分組
+  validate(groups,list){
+    const issues=[]; const assigned={};
+    groups.forEach(g=>{
+      (g.students||[]).forEach(sid=>{
+        if(assigned[sid])issues.push({t:'dup',msg:`學員重複出現在「${assigned[sid]}」與「${g.name}」`});
+        assigned[sid]=g.name;
+      });
+      if(!g.coach_id)issues.push({t:'nocoach',msg:`「${g.name}」尚未指派教練`});
+      if((g.students||[]).length>this.limit(g.group_type))issues.push({t:'over',msg:`「${g.name}」人數 ${g.students.length} 超過上限 ${this.limit(g.group_type)}`});
+    });
+    const un=list.filter(s=>!assigned[s.id]);
+    if(un.length)issues.push({t:'unassigned',msg:`有 ${un.length} 位學員尚未分組：${un.slice(0,6).map(s=>s.name).join('、')}${un.length>6?'…':''}`});
+    // 同教練同時段兩組
+    const coachMap={};
+    groups.forEach(g=>{if(g.coach_id){coachMap[g.coach_id]=(coachMap[g.coach_id]||0)+1;}});
+    Object.entries(coachMap).forEach(([cid,n])=>{if(n>1){const c=C('profiles').find(p=>p.id===cid);issues.push({t:'conflict',msg:`教練「${c?.name||''}」同時被指派到 ${n} 組`});}});
+    return {issues,unassigned:un};
+  }
+};
+</script>
+
+<script>
+/* =========================================================================
+   DEMO SEED
+   ========================================================================= */
+async function seedDemo(){
+  await wipeData(false);
+  const s=DEFAULT_SETTINGS(); await save('settings',s);
+  // profiles
+  const profiles=[
+    {id:'u_admin',name:'楊復傑教練',role:'admin',phone:'',pin:'1234',active:true,specialties:['基礎','品勢','對練'],available_weekdays:WEEKDAYS.slice(0,6)},
+    {id:'u_head', name:'林伊辰教練',role:'head',phone:'',pin:'1234',active:true,specialties:['基礎','品勢'],available_weekdays:WEEKDAYS.slice(0,6)},
+    {id:'u_head2',name:'林俊傑教練',role:'head',phone:'',pin:'1234',active:true,specialties:['對練','比賽選手'],available_weekdays:['星期一','星期三','星期五']},
+    {id:'u_c3',   name:'劉品妡教練',role:'head',phone:'',pin:'1234',active:true,specialties:['品勢','健身'],available_weekdays:WEEKDAYS.slice(0,5)},
+    {id:'u_a1',   name:'助教一',role:'assistant',phone:'',pin:'1234',active:true,available_weekdays:WEEKDAYS.slice(0,6)},
+    {id:'u_a2',   name:'助教二',role:'assistant',phone:'',pin:'1234',active:true,available_weekdays:['星期一','星期三','星期五']},
+    {id:'u_a3',   name:'助教三',role:'assistant',phone:'',pin:'1234',active:true,available_weekdays:['星期二','星期四']},
+  ];
+  await DB.bulk('profiles',profiles);
+  // classes
+  const classes=[
+    {id:'cl_mon',name:'週一晚班',start_time:'19:00',end_time:'20:30',weekdays:['星期一','星期三','星期五'],active:true},
+    {id:'cl_tue',name:'週二晚班',start_time:'19:00',end_time:'20:30',weekdays:['星期二','星期四'],active:true},
+    {id:'cl_sat',name:'週六上午班',start_time:'09:00',end_time:'10:30',weekdays:['星期六'],active:true},
+  ];
+  await DB.bulk('classes',classes);
+  // students —— 40 位
+  const first=['宥','子','品','承','宸','語','梓','詠','冠','宇','昱','家','思','若','芯','柏','俊','奕','睿','翊','沛','妍','恩','安','浩','庭','蕎','羽','喬','紹'];
+  const last=['廷','安','妤','翰','希','恩','睿','辰','宏','彤','綺','豪','嘉','瑄','宸','霖','蓉','榕','傑','琪'];
+  const names=[]; for(let i=0;i<40;i++){names.push('學員'+String(i+1).padStart(2,'0')+first[i%first.length]+last[i%last.length]);}
+  const clIds=['cl_mon','cl_tue','cl_sat'];
+  const students=names.map((nm,i)=>{
+    const age=AGE_GROUPS[i<6?0 : i<20?1 : i<32?2 : 3];
+    const belt=BELTS[Math.min(BELTS.length-1, Math.floor((i%11)))];
+    let spec='尚未分類';
+    if(age==='幼兒')spec='基礎';
+    else if(i%5===0)spec='品勢'; else if(i%5===1)spec='對練'; else if(i%7===0)spec='比賽選手';
+    else if(age==='成人')spec='健身'; else spec='基礎';
+    const cl=clIds[i%3];
+    const wd=classes.find(c=>c.id===cl).weekdays;
+    const bi=BELTS.indexOf(belt);
+    const poom=age==='幼兒'?'':(bi<3?'太極一章':bi<6?'太極三章':bi<7?'太極八章':'高麗');
+    const tech=age==='幼兒'?'基本站姿、前踢':(bi>=6?'旋踢、後踢、下壁踢':bi>=3?'前踢、橫踢、旋踢':'前踢、橫踢');
+    return {id:'st_'+i,name:nm,age_group:age,belt_rank:belt,specialty:spec,current_progress:poom,tech,
+      notes:'', promotion_status:i%9===0, competition_athlete:spec==='比賽選手',
+      class_id:cl, weekdays:wd, active:true, demo:true};
+  });
+  await DB.bulk('students',students);
+  await reloadAll(); // 讓 Stats/Grouping 讀得到剛匯入的名單，否則分組會抓不到學員
+  // 一週示範課程（週一晚班）
+  const wkStart=mondayOf(todayStr());
+  const wp=await save('weekly_plans',{id:uid('wp'),week_start:wkStart,week_end:addDays(wkStart,6),
+    class_id:'cl_mon',weekly_goal:'本週主軸：前踢與旋踢的基本動作到組合應用，強化核心與敏捷。',
+    status:'pub',created_by:'u_head',approved_by:'u_admin'});
+  for(const wIdx of [0,2,4]){ // 一三五
+    const date=addDays(wkStart,wIdx);
+    const list=Stats.studentsFor('cl_mon',wIdx);
+    const dp=await save('daily_plans',{id:uid('dp'),weekly_plan_id:wp.id,date,class_id:'cl_mon',
+      expected_count:list.length,actual_count:null,status:wIdx===0?'pub':'draft',revision:1,created_by:'u_head'});
+    // 分組（smart）
+    const sug=Grouping.suggest(list,'smart',6);
+    const coaches=['u_head','u_head2','u_c3'];
+    for(let gi=0;gi<sug.groups.length;gi++){
+      const g=sug.groups[gi];
+      await save('training_groups',{id:g.id,daily_plan_id:dp.id,name:g.name,group_type:g.group_type,
+        coach_id:coaches[gi%coaches.length],assistant_id:gi===0?'u_a1':(gi===1?'u_a2':''),
+        target:'掌握本日基本動作並能完成組合',notes:'',students:g.students});
+    }
+    // 五階段 block（共用課表層級，training_group_id=null 代表全體階段）
+    await save('lesson_blocks',{id:uid('lb'),daily_plan_id:dp.id,training_group_id:null,block_type:'warmup',
+      start_minute:0,end_minute:10,content:'集合、禮節、做操、慢跑 4 圈',goal:'收心、暖身',equipment:'',safety_notes:'注意鞋帶',responsible_coach_id:'u_head',done:false,method:'全體一起'});
+    await save('lesson_blocks',{id:uid('lb'),daily_plan_id:dp.id,training_group_id:null,block_type:'fitness',
+      start_minute:10,end_minute:30,content:'敏捷梯 × 反應遊戲 × 核心棒式',goal:'提升敏捷與核心',equipment:'敏捷梯、標誌桶',safety_notes:'',responsible_coach_id:'u_head',done:false,tags:['敏捷','反應','核心']});
+    await save('lesson_blocks',{id:uid('lb'),daily_plan_id:dp.id,training_group_id:null,block_type:'apply',
+      start_minute:60,end_minute:85,content:'前踢接旋踢組合、踢靶準確度挑戰、小組競賽',goal:'將基本動作應用到組合',equipment:'腳靶、護具',safety_notes:'兩人一組保持距離',responsible_coach_id:'u_head2',done:false,applyType:'挑戰'});
+    await save('lesson_blocks',{id:uid('lb'),daily_plan_id:dp.id,training_group_id:null,block_type:'review',
+      start_minute:85,end_minute:90,content:'',goal:'',equipment:'',safety_notes:'',responsible_coach_id:'u_head',done:false,
+      praise:'今日表揚：學員01、學員12 動作確實',remind:'注意旋踢收腿',homework:'回家做棒式 3 組',preview:'下次練後踢',note:''});
+    // 30-60 各組 block
+    const grps=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+    for(const g of grps){
+      await save('lesson_blocks',{id:uid('lb'),daily_plan_id:dp.id,training_group_id:g.id,block_type:'group',
+        start_minute:30,end_minute:60,content:'',goal:'',equipment:'',safety_notes:'',responsible_coach_id:g.coach_id,done:false,
+        basic:'馬步、前踢定位',poomsae:g.group_type==='品勢'?'太極一章':'',kick:'前踢、旋踢',spar:g.group_type==='對練'?'一步對練':'',commonErr:'重心不穩',});
+    }
+    // 討論
+    await save('discussions',{id:uid('ds'),daily_plan_id:dp.id,training_group_id:null,lesson_block_id:null,
+      author_id:'u_head',author_name:'林伊辰教練',message:'幼兒有獨立成組，10–30 分鐘請助教一帶協調遊戲。',parent_id:null,created_at:Date.now()-86400000,reads:['u_admin']});
+    await save('discussions',{id:uid('ds'),daily_plan_id:dp.id,training_group_id:null,lesson_block_id:null,
+      author_id:'u_head2',author_name:'林俊傑教練',message:'對練組週末有比賽，60–85 分鐘改成距離與反擊訓練。',parent_id:null,created_at:Date.now()-3600000,reads:[]});
+  }
+  // 課後紀錄範例（週一）
+  const monDp=C('daily_plans').find(d=>d.date===wkStart);
+  if(monDp){
+    await save('post_class_reports',{id:uid('pr'),daily_plan_id:monDp.id,training_group_id:null,coach_id:'u_head',
+      completion_status:'完成',completion_percentage:90,feedback:'整體反應佳，幼兒組專注度需提升。',
+      next_lesson:'下堂課銜接：旋踢連續踢靶、加入後踢入門。',safety_event:'無',good:'學員05、學員18',weak:'學員22 重心',adjust:'幼兒組減 1 人',created_at:Date.now()});
+  }
+  // 課程模板
+  const tpl=[
+    {id:uid('tp'),name:'標準暖身（0-10）',category:'warmup',age_groups:['全'],belt_ranks:['全'],duration:10,content:'集合、禮節、做操、慢跑',goal:'收心暖身',equipment:''},
+    {id:uid('tp'),name:'敏捷反應體能（10-30）',category:'fitness',age_groups:['國小','國中'],belt_ranks:['全'],duration:20,content:'敏捷梯、反應球、折返跑、核心',goal:'敏捷/核心',equipment:'敏捷梯、反應球'},
+    {id:uid('tp'),name:'前踢旋踢挑戰（60-85）',category:'apply',age_groups:['全'],belt_ranks:['白帶','黃帶','黃藍帶'],duration:25,content:'組合踢、踢靶挑戰、小組競賽',goal:'組合應用',equipment:'腳靶'},
+  ];
+  await DB.bulk('course_templates',tpl);
+  await reloadAll();
+}
+async function wipeData(reloadAfter=true){
+  for(const s of STORES) await DB.clear(s);
+  if(reloadAfter)await reloadAll();
+}
+</script>
+
+<script>
+/* =========================================================================
+   APP  —  router + views
+   ========================================================================= */
+const App={
+  view:'home',
+  async boot(){
+    await DB.open(); await reloadAll();
+    if(SYNC.enabled()){                       // 有雲端就先把資料拉下來再顯示登入
+      $('#loginList')&&($('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>連線雲端同步中…</div>');
+      try{await SYNC.pull();}catch(e){}
+    }
+    this.renderLogin();
+    SYNC.startAuto();
+    const saved=localStorage.getItem('tp_user');
+    if(saved){const u=C('profiles').find(p=>p.id===saved&&p.active);if(u){this.enter(u);return;}}
+  },
+  refresh(){
+    // 雲端有新資料時重繪目前頁面；正在打字或開著彈窗就先不打斷
+    if($('#modal'))return;
+    const ae=document.activeElement;
+    if(ae&&/INPUT|TEXTAREA|SELECT/.test(ae.tagName))return;
+    if(State.user&&this.view)this.go(this.view);
+  },
+  renderLogin(){
+    const ord={admin:0,head:1,assistant:2};
+    const ps=C('profiles').filter(p=>p.active).sort((a,b)=>(ord[a.role]??9)-(ord[b.role]??9)||String(a.name).localeCompare(String(b.name),'zh-Hant'));
+    const auth=$('#loginAuth');
+    if(!ps.length){
+      if(auth)auth.style.display='none';
+      $('#loginList').innerHTML='<div style="width:100%;text-align:center"><p class="muted" style="margin:0 0 10px">👋 第一次使用，請先點下面按鈕建立示範資料<br>（40 位學員＋教練帳號＋一週課程）。</p><button class="btn ok block" onclick="App.seedFromLogin()">🎁 開始：建立示範資料</button></div>';
+      return;
+    }
+    if(auth)auth.style.display='';
+    $('#loginList').innerHTML=ps.map(p=>{const a=p.role==='admin';
+      return `<button class="who${a?' admin':''}" onclick="App.pick('${p.id}')" data-id="${p.id}">
+      <b>${a?'👑 ':''}${esc(p.name)}</b><span>${ROLE_LABEL[p.role]}${a?'・點我登入':(p.phone?'・'+esc(p.phone):'')}</span></button>`;}).join('');
+    this._pick=null;
+  },
+  pick(id){this._pick=id;document.querySelectorAll('#loginList .who').forEach(b=>{const on=b.dataset.id===id;b.classList.toggle('sel',on);if(!b.classList.contains('admin'))b.style.borderColor=on?'var(--brand)':'var(--line)';});},
+  doLogin(){
+    if(!this._pick){toast('請先選擇身分','warn');return;}
+    const u=C('profiles').find(p=>p.id===this._pick);
+    const pin=$('#pinInput').value.trim();
+    if((u.pin||'1234')!==pin){toast('PIN 錯誤','bad');return;}
+    localStorage.setItem('tp_user',u.id);
+    this.enter(u);
+  },
+  enter(u){
+    State.user=u;
+    $('#login').classList.add('hide');
+    $('#shell').classList.remove('hide');$('#bnav').classList.remove('hide');
+    $('#uName').textContent=u.name;$('#uRole').textContent=ROLE_LABEL[u.role];
+    this.buildNav();
+    this.go(u.role==='assistant'?'mytasks':'home');
+    toast('歡迎回來，'+u.name,'ok');
+  },
+  logout(){State.user=null;localStorage.removeItem('tp_user');$('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();},
+  async seedFromLogin(){
+    const hasData=C('profiles').length>0;
+    if(hasData && !confirm('載入示範資料會清空現有資料，確定？'))return;
+    $('#loginList').innerHTML='<div class="loading" style="width:100%"><div class="spin"></div>建立示範資料中…</div>';
+    try{
+      await seedDemo();
+      const n=C('profiles').length;
+      if(!n) throw new Error('建立完成但找不到帳號（profiles=0）');
+      if(SYNC.enabled()){try{await SYNC.replaceAll();}catch(e){toast('雲端上傳失敗：'+e.message,'warn');}}
+      this.renderLogin();
+      toast('已載入 '+n+' 個帳號'+(SYNC.enabled()?'並上傳雲端':'')+'，請點上方身分登入','ok');
+    }catch(err){
+      $('#loginList').innerHTML='<div style="width:100%"><div class="warnbox" style="text-align:left">❌ 載入示範資料失敗：<br><b>'+esc(err.message)+'</b><br><br>請把這行訊息截圖給我。</div><button class="btn ok block" onclick="App.seedFromLogin()">🔄 再試一次</button></div>';
+    }
+  },
+  async wipeAll(){if(!confirm('確定清空全部資料？此動作無法復原。'))return;await wipeData();this.renderLogin();toast('已清空','ok');},
+
+  NAV:[
+    ['home','🏠 首頁',['admin','head']],
+    ['mytasks','📋 今日任務',['admin','head','assistant']],
+    ['stats','📊 今日人數',['admin','head']],
+    ['students','👥 學員',['admin','head']],
+    ['groups','🧩 分組建議',['admin','head']],
+    ['plan','📝 每日備課',['admin','head','assistant']],
+    ['week','🗓️ 整週計畫',['admin','head']],
+    ['report','✅ 課後紀錄',['admin','head','assistant']],
+    ['import','📥 Excel 匯入',['admin']],
+    ['classes','🏫 班別',['admin']],
+    ['coaches','🧑‍🏫 教練',['admin']],
+    ['templates','📚 課程模板',['admin','head']],
+    ['pdf','🖨️ PDF 輸出',['admin','head']],
+    ['settings','⚙️ 設定',['admin']],
+  ],
+  buildNav(){
+    const r=State.user.role;
+    const items=this.NAV.filter(n=>n[2].includes(r));
+    $('#nav').innerHTML=items.map(n=>`<button data-v="${n[0]}" onclick="App.go('${n[0]}')">${n[1]}</button>`).join('');
+    // bottom nav: 5 primary
+    const prim=r==='assistant'?['mytasks','plan','report']:['home','stats','plan','week','pdf'];
+    $('#bnav').innerHTML=prim.map(v=>{const n=this.NAV.find(x=>x[0]===v);if(!n)return'';const[ic,...t]=n[1].split(' ');
+      return `<button data-b="${v}" onclick="App.go('${v}')"><span class="ic">${ic}</span>${t.join(' ')}</button>`;}).join('');
+  },
+  go(v){
+    if(!can('view')&&v!=='mytasks'){} // baseline
+    this.view=v;
+    document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+    document.querySelectorAll('#bnav button').forEach(b=>b.classList.toggle('on',b.dataset.b===v));
+    window.scrollTo(0,0);
+    const fn='view_'+v;
+    if(Views[fn])Views[fn]($('#view'));else $('#view').innerHTML='<div class="empty">頁面建置中</div>';
+  },
+};
+
+/* ---------- modal helper ---------- */
+const Modal={
+  open(title,html,onOpen){
+    let m=$('#modal'); if(!m){m=document.createElement('div');m.id='modal';document.body.appendChild(m);}
+    m.innerHTML=`<div class="m"><h3>${title}<span class="x" onclick="Modal.close()">×</span></h3>${html}</div>`;
+    m.onclick=e=>{if(e.target===m)Modal.close();};
+    if(onOpen)onOpen(m);
+  },
+  close(){const m=$('#modal');if(m)m.remove();}
+};
+</script>
+
+<script>
+/* =========================================================================
+   VIEWS
+   ========================================================================= */
+const Views={};
+
+/* ---------- HOME ---------- */
+Views.view_home=function(el){
+  const s=settings();
+  const wd=weekdayOf(State.ctx.date);
+  const list=Stats.studentsFor(State.ctx.classId,wd);
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  const myTasks=countMyTasks();
+  const pending=C('daily_plans').filter(d=>d.status==='wait').length;
+  el.innerHTML=`
+  <div class="hero"><h2>${esc(s.logo)} ${esc(s.dojo)}</h2><p>${WEEKDAYS[wd]}・${State.ctx.date}・共同備課戰情室</p></div>
+  <div class="grid g2">
+    <div class="stat" onclick="App.go('stats')"><div class="n">${list.length}</div><div class="l">今日預計人數</div></div>
+    <div class="stat" onclick="App.go('plan')"><div class="n">${dp?statusMeta(dp.status)[1]:'未建立'}</div><div class="l">今日備課狀態</div></div>
+    <div class="stat" onclick="App.go('week')"><div class="n">${C('weekly_plans').length}</div><div class="l">週課程計畫</div></div>
+    <div class="stat" onclick="App.go('mytasks')"><div class="n">${myTasks}</div><div class="l">我的今日任務</div></div>
+    <div class="stat" onclick="App.go('week')"><div class="n">${pending}</div><div class="l">待確認課程</div></div>
+    <div class="stat" onclick="App.go('import')"><div class="n">${C('students').length}</div><div class="l">學員總數</div></div>
+  </div>
+  <div class="sect-title">快速功能</div>
+  <div class="tiles">
+    ${tile('stats','📊','今日人數','各年齡/級別統計')}
+    ${tile('plan','📝','今日備課','90 分鐘五階段')}
+    ${tile('week','🗓️','本週課程','週一至週日')}
+    ${tile('groups','🧩','分組建議','系統智慧分組')}
+    ${tile('import','📥','Excel 匯入','學員名單匯入')}
+    ${tile('pdf','🖨️','PDF 輸出','週課程計畫')}
+  </div>
+  <div class="sect-title">最近討論</div>
+  <div class="card" id="homeDisc"></div>`;
+  const recent=C('discussions').sort((a,b)=>b.created_at-a.created_at).slice(0,4);
+  $('#homeDisc').innerHTML=recent.length?recent.map(d=>`<div class="kv"><b>${esc(d.author_name)}</b><span style="text-align:right;flex:1">${esc(d.message).slice(0,40)}</span></div>`).join(''):'<div class="empty">尚無討論</div>';
+};
+function tile(v,ic,t,sub){return `<button class="tile" onclick="App.go('${v}')"><span class="ic">${ic}</span><span><b>${t}</b><span>${sub}</span></span></button>`;}
+function findDaily(date,classId){return C('daily_plans').find(d=>d.date===date&&(!classId||d.class_id===classId));}
+function countMyTasks(){
+  const uid2=State.user.id, td=todayStr();
+  const dps=C('daily_plans').filter(d=>d.date===td);
+  let n=0;
+  dps.forEach(dp=>{C('training_groups').filter(g=>g.daily_plan_id===dp.id&&(g.coach_id===uid2||g.assistant_id===uid2)).forEach(()=>n++);});
+  return n;
+}
+
+/* ---------- STATS ---------- */
+Views.view_stats=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  const wd=weekdayOf(State.ctx.date);
+  const list=Stats.studentsFor(State.ctx.classId,wd);
+  const sm=Stats.summary(list);
+  const coaches=Stats.coachesAvailable(wd);
+  el.innerHTML=`
+  <div class="card">
+    <div class="row">
+      <div class="grow"><label class="sm">日期</label><input type="date" id="stDate" value="${State.ctx.date}"></div>
+      <div class="grow"><label class="sm">星期</label><input value="${WEEKDAYS[wd]}" disabled></div>
+      <div class="grow"><label class="sm">班別</label><select id="stClass">
+        <option value="">全部班別</option>
+        ${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}
+      </select></div>
+    </div>
+  </div>
+  <div class="sect-title">預計人數（點卡片看名單）</div>
+  <div class="grid g4">
+    <div class="stat" onclick="Stats.show('all')"><div class="n">${sm.total}</div><div class="l">總人數</div></div>
+    ${AGE_GROUPS.map(a=>`<div class="stat" onclick="Stats.show('age','${a}')"><div class="n">${sm.age[a]}</div><div class="l">${a}</div></div>`).join('')}
+    <div class="stat" onclick="Stats.show('promo')"><div class="n">${sm.promo}</div><div class="l"><b>準備晉級</b></div></div>
+    <div class="stat" onclick="Stats.show('comp')"><div class="n">${sm.comp}</div><div class="l"><b>比賽選手</b></div></div>
+    <div class="stat"><div class="n">${coaches.length}</div><div class="l">今日可出席教練</div></div>
+  </div>
+  <div class="sect-title">級別 / 段位</div>
+  <div class="grid g4">${BELTS.filter(b=>sm.belt[b]).map(b=>`<div class="stat" onclick="Stats.show('belt','${b}')"><div class="n">${sm.belt[b]}</div><div class="l">${b}</div></div>`).join('')||'<div class="muted">無資料</div>'}</div>
+  <div class="sect-title">專項</div>
+  <div class="grid g4">${SPECIALTIES.filter(sp=>sm.spec[sp]).map(sp=>`<div class="stat" onclick="Stats.show('spec','${sp}')"><div class="n">${sm.spec[sp]}</div><div class="l">${sp}</div></div>`).join('')||'<div class="muted">無資料</div>'}</div>`;
+  $('#stDate').onchange=e=>{State.ctx.date=e.target.value;App.go('stats');};
+  $('#stClass').onchange=e=>{State.ctx.classId=e.target.value||null;App.go('stats');};
+};
+Stats.show=function(kind,val){
+  const wd=weekdayOf(State.ctx.date);
+  let list=Stats.studentsFor(State.ctx.classId,wd);
+  let title='名單';
+  if(kind==='age'){list=list.filter(s=>s.age_group===val);title=val;}
+  else if(kind==='belt'){list=list.filter(s=>s.belt_rank===val);title=val;}
+  else if(kind==='spec'){list=list.filter(s=>s.specialty===val);title=val;}
+  else if(kind==='promo'){list=list.filter(s=>s.promotion_status);title='準備晉級';}
+  else if(kind==='comp'){list=list.filter(s=>s.competition_athlete);title='比賽選手';}
+  Modal.open(title+`（${list.length} 人）`,
+    `<div class="scroll"><table class="tbl"><tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th></tr>
+    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td><span class="tag belt">${s.belt_rank}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')}
+    </table></div>`);
+};
+function ensureClassCtx(){if(State.ctx.classId&&!C('classes').find(c=>c.id===State.ctx.classId&&c.active))State.ctx.classId=null;}
+
+/* ---------- STUDENTS ---------- */
+Views.view_students=function(el){
+  el.innerHTML=`
+  <div class="card">
+    <div class="row">
+      <input class="grow" id="stuSearch" placeholder="🔍 搜尋姓名/備註">
+      ${can('*')?'<button class="btn sm" onclick="Views.editStudent()">＋ 新增</button>':''}
+    </div>
+    <div class="row" style="margin-top:8px">
+      <select id="fAge"><option value="">全部年齡</option>${AGE_GROUPS.map(a=>`<option>${a}</option>`).join('')}</select>
+      <select id="fBelt"><option value="">全部級別</option>${BELTS.map(b=>`<option>${b}</option>`).join('')}</select>
+      <select id="fSpec"><option value="">全部專項</option>${SPECIALTIES.map(s=>`<option>${s}</option>`).join('')}</select>
+      <select id="fClass"><option value="">全部班別</option>${C('classes').map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+      <select id="fWd"><option value="">全部上課日</option>${WEEKDAYS.map((w,i)=>`<option value="${i}">${w}</option>`).join('')}</select>
+    </div>
+  </div>
+  <div id="stuList"></div>`;
+  const render=()=>{
+    const q=$('#stuSearch').value.trim(), fa=$('#fAge').value,fb=$('#fBelt').value,fs=$('#fSpec').value,fc=$('#fClass').value,fw=$('#fWd').value;
+    let list=C('students').filter(s=>s.active);
+    if(q)list=list.filter(s=>(s.name+s.notes).includes(q));
+    if(fa)list=list.filter(s=>s.age_group===fa);
+    if(fb)list=list.filter(s=>s.belt_rank===fb);
+    if(fs)list=list.filter(s=>s.specialty===fs);
+    if(fc)list=list.filter(s=>s.class_id===fc);
+    if(fw!=='')list=list.filter(s=>(s.weekdays||[]).includes(WEEKDAYS[+fw]));
+    $('#stuList').innerHTML=list.length?`<div class="card" style="margin-top:12px"><div class="scroll"><table class="tbl">
+      <tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th><th>進度</th><th>上課日</th><th></th></tr>
+      ${list.map(s=>`<tr>
+        <td><b>${esc(s.name)}</b>${s.promotion_status?' 🎯':''}${s.competition_athlete?' 🏅':''}</td>
+        <td><span class="tag age">${s.age_group}</span></td>
+        <td><span class="tag belt">${s.belt_rank}</span></td>
+        <td><span class="tag spec">${s.specialty}</span></td>
+        <td class="muted" style="font-size:11px">${[s.current_progress&&('品勢:'+esc(s.current_progress)),s.tech&&('技術:'+esc(s.tech))].filter(Boolean).join('<br>')||'—'}</td>
+        <td class="muted">${(s.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')}</td>
+        <td>${can('*')?`<button class="btn xs g" onclick="Views.editStudent('${s.id}')">編輯</button>`:''}</td>
+      </tr>`).join('')}
+    </table></div><div class="muted" style="margin-top:8px">共 ${list.length} 人</div></div>`:'<div class="empty"><div class="ic">👥</div>沒有符合的學員</div>';
+  };
+  ['stuSearch','fAge','fBelt','fSpec','fClass','fWd'].forEach(id=>{const e=$('#'+id);e.oninput=render;e.onchange=render;});
+  render();
+};
+Views.editStudent=function(id){
+  const s=id?C('students').find(x=>x.id===id):{age_group:'國小',belt_rank:'白帶',specialty:'基礎',weekdays:[]};
+  Modal.open(id?'編輯學員':'新增學員',`
+    <div class="field"><label>姓名 *</label><input id="es_name" value="${esc(s.name||'')}"></div>
+    <div class="row">
+      <div class="grow field"><label>年齡層 *</label><select id="es_age">${AGE_GROUPS.map(a=>`<option ${a===s.age_group?'selected':''}>${a}</option>`).join('')}</select></div>
+      <div class="grow field"><label>級別段位 *</label><select id="es_belt">${BELTS.map(b=>`<option ${b===s.belt_rank?'selected':''}>${b}</option>`).join('')}</select></div>
+    </div>
+    <div class="row">
+      <div class="grow field"><label>專項</label><select id="es_spec">${SPECIALTIES.map(x=>`<option ${x===s.specialty?'selected':''}>${x}</option>`).join('')}</select></div>
+      <div class="grow field"><label>班別</label><select id="es_class"><option value="">未指定</option>${C('classes').map(c=>`<option value="${c.id}" ${c.id===s.class_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><label>固定上課日</label><div class="chips" id="es_wd">${WEEKDAYS.map(w=>`<span class="chip ${(s.weekdays||[]).includes(w)?'on':''}" data-w="${w}">${w}</span>`).join('')}</div></div>
+    <div class="row">
+      <label class="chip ${s.promotion_status?'on':''}" id="es_promo">🎯 準備晉級</label>
+      <label class="chip ${s.competition_athlete?'on':''}" id="es_comp">🏅 比賽選手</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow field"><label>品勢進度</label><input id="es_prog" value="${esc(s.current_progress||'')}" placeholder="例：太極一章"></div>
+      <div class="grow field"><label>技術動作</label><input id="es_tech" value="${esc(s.tech||'')}" placeholder="例：前踢、旋踢"></div>
+    </div>
+    <div class="field"><label>備註</label><textarea id="es_notes">${esc(s.notes||'')}</textarea></div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn block" onclick="Views.saveStudent('${id||''}')">儲存</button>
+      ${id?`<button class="btn bad sm" onclick="Views.delStudent('${id}')">刪除</button>`:''}
+    </div>`,
+    m=>{m.querySelectorAll('#es_wd .chip').forEach(c=>c.onclick=()=>c.classList.toggle('on'));
+        ['es_promo','es_comp'].forEach(i=>{$('#'+i).onclick=()=>$('#'+i).classList.toggle('on');});});
+};
+Views.saveStudent=async function(id){
+  const name=$('#es_name').value.trim();
+  if(!name){toast('姓名必填','bad');return;}
+  const wd=[...document.querySelectorAll('#es_wd .chip.on')].map(c=>c.dataset.w);
+  const clId=$('#es_class').value;
+  const old=id?C('students').find(x=>x.id===id):null;
+  const obj=Object.assign({},old||{active:true},{
+    id:id||uid('st'),name,age_group:$('#es_age').value,belt_rank:$('#es_belt').value,
+    specialty:$('#es_spec').value,class_id:clId,weekdays:wd,
+    current_progress:$('#es_prog').value.trim(),tech:$('#es_tech').value.trim(),
+    notes:$('#es_notes').value.trim(),
+    promotion_status:$('#es_promo').classList.contains('on'),
+    competition_athlete:$('#es_comp').classList.contains('on'),active:true});
+  await save('students',obj); await audit(id?'update':'create','students',obj.id,old,obj);
+  Modal.close();toast('已儲存','ok');App.go('students');
+};
+Views.delStudent=async function(id){if(!can('*')){toast('無權限','bad');return;}if(!confirm('確定刪除？'))return;await remove('students',id);await audit('delete','students',id);Modal.close();toast('已刪除','ok');App.go('students');};
+</script>
+
+<script>
+/* ---------- IMPORT (Excel) ---------- */
+Views.view_import=function(el){
+  el.innerHTML=`
+  <div class="card">
+    <h3>📥 Excel / CSV 學員匯入</h3>
+    <p class="muted">必要欄位：姓名、年齡層、級別段位、專項、固定上課日、班別。選填：品勢進度、技術動作、備註、是否準備晉級、是否為比賽選手、狀態。</p>
+    <div class="row" style="margin-top:8px">
+      <button class="btn g sm" onclick="Views.dlTemplate()">⬇️ 下載 Excel 範本</button>
+      <label class="btn sm">📁 選擇檔案<input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none"></label>
+    </div>
+  </div>
+  <div id="impPreview"></div>`;
+  $('#impFile').onchange=Views.parseImport;
+};
+Views.dlTemplate=function(){
+  const rows=[['姓名','年齡層','級別段位','專項','固定上課日','班別','品勢進度','技術動作','備註','是否準備晉級','是否為比賽選手','狀態'],
+    ['王小明','國小','黃帶','基礎','一、三、五','週一晚班','太極一章','前踢、旋踢','認真','否','否','啟用'],
+    ['陳大華','國中','藍帶','品勢','星期二、星期四','週二晚班','太極三章','橫踢、後踢','','是','否','啟用'],
+    ['林阿成','幼兒','白帶','基礎','週六','週六上午班','','基本站姿、前踢','需家長陪同','否','否','啟用']];
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'學員名單');
+  XLSX.writeFile(wb,'學員名單範本.xlsx');
+  toast('範本已下載','ok');
+};
+Views._imp=null;
+Views.parseImport=function(e){
+  const f=e.target.files[0]; if(!f)return;
+  const reader=new FileReader();
+  $('#impPreview').innerHTML='<div class="loading"><div class="spin"></div>解析中…</div>';
+  reader.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      Views.validateImport(rows);
+    }catch(err){$('#impPreview').innerHTML=`<div class="warnbox">解析失敗：${esc(err.message)}</div>`;}
+  };
+  reader.readAsBinaryString(f);
+};
+Views.validateImport=function(rows){
+  if(!rows.length){$('#impPreview').innerHTML='<div class="warnbox">檔案為空</div>';return;}
+  const header=rows[0].map(h=>String(h).trim());
+  const idx=n=>header.findIndex(h=>h.includes(n));
+  const ci={name:idx('姓名'),age:idx('年齡'),belt:idx('級別'),spec:idx('專項'),wd:idx('上課日'),cls:idx('班別'),
+    prog:idx('進度'),tech:idx('技術'),note:idx('備註'),promo:idx('晉級'),comp:idx('比賽'),st:idx('狀態')};
+  if(ci.name<0){$('#impPreview').innerHTML='<div class="warnbox">找不到「姓名」欄位，請使用範本格式。</div>';return;}
+  const classes=C('classes');
+  const existing=C('students');
+  const parsed=[]; let nNew=0,nUpd=0,nDup=0,nErr=0;
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i]; if(r.every(c=>String(c).trim()===''))continue;
+    const errs=[]; const g=k=>ci[k]>=0?String(r[ci[k]]).trim():'';
+    const name=g('name');
+    let age=g('age'),belt=g('belt'),spec=g('spec')||'尚未分類',wdRaw=g('wd'),clsName=g('cls');
+    if(!name)errs.push('姓名空白');
+    if(age&&!ageOK(age))errs.push('年齡層不正確（限幼兒/國小/國中/成人）');
+    if(!age)errs.push('年齡層缺漏');
+    if(belt&&!beltOK(belt))errs.push('級別段位不存在');
+    if(!belt)errs.push('級別段位缺漏');
+    if(spec&&!SPECIALTIES.includes(spec))errs.push('無法辨識的專項');
+    const wd=normWeekdays(wdRaw);
+    if(wdRaw&&!wd.length)errs.push('上課日格式錯誤');
+    let clsId='';
+    if(clsName){const c=classes.find(c=>c.name===clsName);if(c)clsId=c.id;else errs.push('班別不存在：'+clsName);}
+    // 重複（同名同班）
+    const dup=existing.find(s=>s.name===name&&s.class_id===clsId&&s.active);
+    const obj={id:dup?dup.id:uid('st'),name,age_group:age,belt_rank:belt,specialty:spec,class_id:clsId,
+      weekdays:wd,current_progress:g('prog'),tech:g('tech'),notes:g('note'),
+      promotion_status:/是|Y|yes|1|✓/i.test(g('promo')),
+      competition_athlete:/是|Y|yes|1|✓/i.test(g('comp')),
+      active:!/停|停用|0|inactive/i.test(g('st')),demo:false};
+    let kind='new';
+    if(errs.length){kind='err';nErr++;}
+    else if(dup){kind='dup';nDup++;nUpd++;}
+    else nNew++;
+    parsed.push({row:i+1,obj,errs,kind});
+  }
+  Views._imp=parsed;
+  $('#impPreview').innerHTML=`
+  <div class="card">
+    <div class="row">
+      <div class="stat" style="cursor:default"><div class="n" style="color:var(--ok)">${nNew}</div><div class="l">新增</div></div>
+      <div class="stat" style="cursor:default"><div class="n" style="color:var(--brand)">${nUpd}</div><div class="l">更新/重複</div></div>
+      <div class="stat" style="cursor:default"><div class="n" style="color:var(--bad)">${nErr}</div><div class="l">錯誤</div></div>
+    </div>
+    ${nErr?'<div class="warnbox">有 '+nErr+' 筆錯誤資料，這些將不會匯入。請修正 Excel 後重新上傳。</div>':'<div class="okbox">資料檢查通過，可確認匯入。</div>'}
+    <div class="scroll" style="max-height:340px;overflow:auto;margin-top:8px"><table class="tbl">
+      <tr><th>列</th><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th><th>上課日</th><th>結果</th></tr>
+      ${parsed.map(p=>`<tr style="${p.kind==='err'?'background:#fef2f2':''}">
+        <td>${p.row}</td><td>${esc(p.obj.name)}</td><td>${esc(p.obj.age_group)}</td><td>${esc(p.obj.belt_rank)}</td>
+        <td>${esc(p.obj.specialty)}</td><td class="muted">${(p.obj.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')}</td>
+        <td>${p.kind==='err'?'<span style="color:var(--bad)">'+esc(p.errs.join('；'))+'</span>':p.kind==='dup'?'<span class="tag">更新</span>':'<span class="tag spec">新增</span>'}</td>
+      </tr>`).join('')}
+    </table></div>
+    <button class="btn block ${nErr&&nNew+nUpd===0?'':''}" style="margin-top:10px" onclick="Views.commitImport()">✅ 確認匯入 ${nNew+nUpd} 筆（略過 ${nErr} 筆錯誤）</button>
+  </div>`;
+};
+Views.commitImport=async function(){
+  const ok=Views._imp.filter(p=>p.kind!=='err');
+  if(!ok.length){toast('沒有可匯入的資料','warn');return;}
+  for(const p of ok)await save('students',p.obj);
+  await audit('import','students',null,null,{count:ok.length});
+  toast('已匯入 '+ok.length+' 筆','ok');
+  $('#impPreview').innerHTML='<div class="okbox">✅ 匯入完成，共 '+ok.length+' 筆。</div>';
+  Views._imp=null;
+};
+</script>
+
+<script>
+/* ---------- CLASSES ---------- */
+Views.view_classes=function(el){
+  const cs=C('classes');
+  el.innerHTML=`<div class="card"><div class="row"><h3 style="margin:0">🏫 班別管理</h3><div class="sp" style="flex:1"></div><button class="btn sm" onclick="Views.editClass()">＋ 新增班別</button></div></div>
+  <div class="grid g2" style="margin-top:12px">${cs.map(c=>`<div class="card"><h3>${esc(c.name)} ${c.active?'':'<span class="badge b-lock">停用</span>'}</h3>
+    <div class="kv"><b>時間</b><span>${c.start_time}–${c.end_time}</span></div>
+    <div class="kv"><b>上課日</b><span>${(c.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('、')}</span></div>
+    <div class="kv"><b>學員數</b><span>${C('students').filter(s=>s.class_id===c.id&&s.active).length} 人</span></div>
+    <button class="btn g sm" style="margin-top:8px" onclick="Views.editClass('${c.id}')">編輯</button></div>`).join('')||'<div class="empty">尚無班別</div>'}</div>`;
+};
+Views.editClass=function(id){
+  const c=id?C('classes').find(x=>x.id===id):{start_time:'19:00',end_time:'20:30',weekdays:[],active:true};
+  Modal.open(id?'編輯班別':'新增班別',`
+    <div class="field"><label>班別名稱 *</label><input id="ec_name" value="${esc(c.name||'')}"></div>
+    <div class="row"><div class="grow field"><label>開始</label><input type="time" id="ec_s" value="${c.start_time}"></div>
+      <div class="grow field"><label>結束</label><input type="time" id="ec_e" value="${c.end_time}"></div></div>
+    <div class="field"><label>上課日</label><div class="chips" id="ec_wd">${WEEKDAYS.map(w=>`<span class="chip ${(c.weekdays||[]).includes(w)?'on':''}" data-w="${w}">${w}</span>`).join('')}</div></div>
+    <label class="chip ${c.active!==false?'on':''}" id="ec_act">啟用中</label>
+    <div class="row" style="margin-top:10px"><button class="btn block" onclick="Views.saveClass('${id||''}')">儲存</button>
+    ${id?`<button class="btn bad sm" onclick="Views.delClass('${id}')">刪除</button>`:''}</div>`,
+    m=>{m.querySelectorAll('#ec_wd .chip').forEach(x=>x.onclick=()=>x.classList.toggle('on'));$('#ec_act').onclick=()=>$('#ec_act').classList.toggle('on');});
+};
+Views.saveClass=async function(id){
+  const name=$('#ec_name').value.trim();if(!name){toast('名稱必填','bad');return;}
+  const wd=[...document.querySelectorAll('#ec_wd .chip.on')].map(x=>x.dataset.w);
+  const old=id?C('classes').find(x=>x.id===id):null;
+  await save('classes',Object.assign({},old||{},{id:id||uid('cl'),name,start_time:$('#ec_s').value,end_time:$('#ec_e').value,weekdays:wd,active:$('#ec_act').classList.contains('on')}));
+  Modal.close();toast('已儲存','ok');App.go('classes');
+};
+Views.delClass=async function(id){if(!confirm('刪除班別不會刪學員，確定？'))return;await remove('classes',id);Modal.close();App.go('classes');};
+
+/* ---------- COACHES ---------- */
+Views.view_coaches=function(el){
+  const ord={admin:0,head:1,assistant:2};
+  const ps=C('profiles').slice().sort((a,b)=>(ord[a.role]??9)-(ord[b.role]??9)||String(a.name).localeCompare(String(b.name),'zh-Hant'));
+  el.innerHTML=`<div class="card"><div class="row"><h3 style="margin:0">🧑‍🏫 教練 / 帳號管理</h3><div style="flex:1"></div><button class="btn sm" onclick="Views.editCoach()">＋ 新增</button></div></div>
+  <div class="grid g2" style="margin-top:12px">${ps.map(p=>`<div class="card"><h3>${esc(p.name)} <span class="rolechip">${ROLE_LABEL[p.role]}</span>${p.active?'':' <span class="badge b-lock">停用</span>'}</h3>
+    <div class="kv"><b>電話</b><span>${esc(p.phone||'—')}</span></div>
+    <div class="kv"><b>PIN</b><span>${esc(p.pin||'1234')}</span></div>
+    ${p.specialties?`<div class="kv"><b>專長</b><span>${(p.specialties||[]).join('、')||'—'}</span></div>`:''}
+    <div class="kv"><b>可出席</b><span>${(p.available_weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')||'不限'}</span></div>
+    <button class="btn g sm" style="margin-top:8px" onclick="Views.editCoach('${p.id}')">編輯</button></div>`).join('')}</div>`;
+};
+Views.editCoach=function(id){
+  const p=id?C('profiles').find(x=>x.id===id):{role:'assistant',pin:'1234',active:true,specialties:[],available_weekdays:[]};
+  Modal.open(id?'編輯帳號':'新增帳號',`
+    <div class="field"><label>姓名 *</label><input id="ph_name" value="${esc(p.name||'')}"></div>
+    <div class="row"><div class="grow field"><label>角色</label><select id="ph_role">${Object.entries(ROLE_LABEL).map(([k,v])=>`<option value="${k}" ${k===p.role?'selected':''}>${v}</option>`).join('')}</select></div>
+      <div class="grow field"><label>電話</label><input id="ph_phone" value="${esc(p.phone||'')}"></div></div>
+    <div class="field"><label>PIN 密碼</label><input id="ph_pin" value="${esc(p.pin||'1234')}"></div>
+    <div class="field"><label>專長</label><div class="chips" id="ph_spec">${SPECIALTIES.concat(['幼兒']).map(s=>`<span class="chip ${(p.specialties||[]).includes(s)?'on':''}" data-s="${s}">${s}</span>`).join('')}</div></div>
+    <div class="field"><label>可出席日</label><div class="chips" id="ph_wd">${WEEKDAYS.map(w=>`<span class="chip ${(p.available_weekdays||[]).includes(w)?'on':''}" data-w="${w}">${w}</span>`).join('')}</div></div>
+    <label class="chip ${p.active!==false?'on':''}" id="ph_act">啟用中</label>
+    <div class="row" style="margin-top:10px"><button class="btn block" onclick="Views.saveCoach('${id||''}')">儲存</button>
+    ${id&&id!==State.user.id?`<button class="btn bad sm" onclick="Views.delCoach('${id}')">刪除</button>`:''}</div>`,
+    m=>{['ph_spec','ph_wd'].forEach(g=>m.querySelectorAll('#'+g+' .chip').forEach(x=>x.onclick=()=>x.classList.toggle('on')));$('#ph_act').onclick=()=>$('#ph_act').classList.toggle('on');});
+};
+Views.saveCoach=async function(id){
+  const name=$('#ph_name').value.trim();if(!name){toast('姓名必填','bad');return;}
+  const old=id?C('profiles').find(x=>x.id===id):null;
+  await save('profiles',Object.assign({},old||{},{id:id||uid('u'),name,role:$('#ph_role').value,phone:$('#ph_phone').value.trim(),
+    pin:$('#ph_pin').value.trim()||'1234',
+    specialties:[...document.querySelectorAll('#ph_spec .chip.on')].map(x=>x.dataset.s),
+    available_weekdays:[...document.querySelectorAll('#ph_wd .chip.on')].map(x=>x.dataset.w),
+    active:$('#ph_act').classList.contains('on')}));
+  Modal.close();toast('已儲存','ok');App.go('coaches');
+};
+Views.delCoach=async function(id){if(!confirm('確定刪除帳號？'))return;await remove('profiles',id);Modal.close();App.go('coaches');};
+</script>
+
+<script>
+/* ---------- GROUPS (分組建議 + 拖曳/點選調整) ---------- */
+Views._groupState=null;
+Views.view_groups=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const wd=weekdayOf(State.ctx.date);
+  const list=Stats.studentsFor(State.ctx.classId,wd);
+  el.innerHTML=`
+  <div class="card">
+    <div class="row">
+      <div class="grow"><label class="sm">日期</label><input type="date" id="gDate" value="${State.ctx.date}"></div>
+      <div class="grow"><label class="sm">班別</label><select id="gClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+    </div>
+    <p class="muted" style="margin:8px 0 0">${WEEKDAYS[wd]}・共 ${list.length} 人・可出席教練 ${Stats.coachesAvailable(wd).length} 位</p>
+    <div class="sect-title" style="margin-top:12px">選擇分組模式</div>
+    <div class="chips" id="gModes">
+      ${[['smart','智慧綜合建議'],['age','依年齡層'],['belt','依級別段位'],['poomsae_spar','品勢/對練'],['level','初中高階'],['kids','幼兒獨立'],['adult','成人獨立'],['promo','晉級加強'],['comp','比賽選手']].map(m=>`<span class="chip" data-m="${m[0]}">${m[1]}</span>`).join('')}
+    </div>
+    <button class="btn block" style="margin-top:10px" onclick="Views.genGroups()">🧩 產生分組建議</button>
+  </div>
+  <div id="gResult"></div>`;
+  $('#gDate').onchange=e=>{State.ctx.date=e.target.value;App.go('groups');};
+  $('#gClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('groups');};
+  let mode='smart';
+  document.querySelectorAll('#gModes .chip').forEach(c=>{if(c.dataset.m==='smart')c.classList.add('on');c.onclick=()=>{document.querySelectorAll('#gModes .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');mode=c.dataset.m;};});
+  Views._gMode=()=>mode;
+  // 若已存在該日分組，載入
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  if(dp){const gs=C('training_groups').filter(g=>g.daily_plan_id===dp.id);if(gs.length){Views._groupState={groups:gs.map(g=>({...g,students:[...(g.students||[])]})),notes:[]};Views.renderGroups(list);}}
+};
+Views.genGroups=function(){
+  const wd=weekdayOf(State.ctx.date);
+  const list=Stats.studentsFor(State.ctx.classId,wd);
+  if(!list.length){toast('此日無學員','warn');return;}
+  const res=Grouping.suggest(list,Views._gMode(),Stats.coachesAvailable(wd).length);
+  Views._groupState={groups:res.groups,notes:res.notes};
+  Views.renderGroups(list);
+  toast('已產生 '+res.groups.length+' 組','ok');
+};
+Views.renderGroups=function(list){
+  const gs=Views._groupState.groups;
+  const val=Grouping.validate(gs,list);
+  const coaches=C('profiles').filter(p=>p.active&&(p.role==='head'||p.role==='assistant'));
+  const stName=id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'?';};
+  const notesHtml=(Views._groupState.notes||[]).map(n=>`<div class="infobox">💡 ${esc(n)}</div>`).join('')
+    +(val.issues.map(i=>`<div class="warnbox">⚠️ ${esc(i.msg)}</div>`).join(''))
+    +(val.issues.length?'':'<div class="okbox">✅ 分組檢查通過</div>');
+  $('#gResult').innerHTML=`<div style="margin-top:12px">${notesHtml}</div>
+    <div class="row" style="margin:8px 0"><button class="btn sm g" onclick="Views.addGroup()">＋ 新增組別</button>
+      <button class="btn sm ok" onclick="Views.saveGroups()">💾 儲存分組到今日備課</button></div>
+    <p class="muted">操作：點學員後再點目標組別即可搬移。</p>
+    ${gs.map((g,gi)=>`<div class="gcard" data-gi="${gi}" ondragover="event.preventDefault();this.classList.add('drop')" ondragleave="this.classList.remove('drop')" ondrop="Views.dropStu(event,${gi})">
+      <div class="gh">
+        <b contenteditable onblur="Views._groupState.groups[${gi}].name=this.textContent">${esc(g.name)}</b>
+        <span class="tag">${g.group_type}</span><span class="muted">${(g.students||[]).length}人</span>
+        <div style="flex:1"></div>
+        <button class="btn xs g" onclick="Views.delGroup(${gi})">✕</button>
+      </div>
+      <div class="row" style="margin-bottom:6px">
+        <select onchange="Views._groupState.groups[${gi}].coach_id=this.value" class="grow"><option value="">選教練</option>${coaches.map(c=>`<option value="${c.id}" ${c.id===g.coach_id?'selected':''}>${esc(c.name)}(${ROLE_LABEL[c.role]})</option>`).join('')}</select>
+        <select onchange="Views._groupState.groups[${gi}].assistant_id=this.value" class="grow"><option value="">選助教</option>${coaches.filter(c=>c.role==='assistant').map(c=>`<option value="${c.id}" ${c.id===g.assistant_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
+      </div>
+      <div>${(g.students||[]).map(sid=>`<span class="stu ${Views._selStu===sid?'sel':''}" draggable="true" ondragstart="Views._drag='${sid}'" onclick="Views.pickStu('${sid}',${gi})">${esc(stName(sid))}</span>`).join('')||'<span class="muted">（空組）</span>'}</div>
+    </div>`).join('')}
+    ${val.unassigned.length?`<div class="gcard" data-gi="-1" ondragover="event.preventDefault();this.classList.add('drop')" ondragleave="this.classList.remove('drop')" ondrop="Views.dropStu(event,-1)"><div class="gh"><b>未分組</b><span class="muted">${val.unassigned.length}人</span></div>
+      <div class="pool">${val.unassigned.map(s=>`<span class="stu ${Views._selStu===s.id?'sel':''}" draggable="true" ondragstart="Views._drag='${s.id}'" onclick="Views.pickStu('${s.id}',-1)">${esc(s.name)}</span>`).join('')}</div></div>`:''}`;
+};
+Views._selStu=null;Views._drag=null;
+Views.pickStu=function(sid,gi){
+  if(Views._selStu===sid){Views._selStu=null;Views.reRenderGroups();return;}
+  if(Views._selStu){ // 已選 -> 搬移到 gi
+    Views.moveStu(Views._selStu,gi);Views._selStu=null;
+  }else{Views._selStu=sid;Views.reRenderGroups();}
+};
+Views.moveStu=function(sid,toGi){
+  const gs=Views._groupState.groups;
+  gs.forEach(g=>{g.students=(g.students||[]).filter(x=>x!==sid);});
+  if(toGi>=0)gs[toGi].students.push(sid);
+  Views.reRenderGroups();
+};
+Views.dropStu=function(e,gi){e.preventDefault();if(Views._drag){Views.moveStu(Views._drag,gi);Views._drag=null;}};
+Views.reRenderGroups=function(){const wd=weekdayOf(State.ctx.date);Views.renderGroups(Stats.studentsFor(State.ctx.classId,wd));};
+Views.addGroup=function(){Views._groupState.groups.push({id:uid('g'),name:'新組別',group_type:'基礎',coach_id:'',assistant_id:'',students:[]});Views.reRenderGroups();};
+Views.delGroup=function(gi){Views._groupState.groups.splice(gi,1);Views.reRenderGroups();};
+Views.saveGroups=async function(){
+  const wd=weekdayOf(State.ctx.date);
+  const list=Stats.studentsFor(State.ctx.classId,wd);
+  const val=Grouping.validate(Views._groupState.groups,list);
+  let dp=findDaily(State.ctx.date,State.ctx.classId);
+  if(!dp)dp=await ensureDaily(State.ctx.date,State.ctx.classId);
+  // 清掉舊 group + 其 group block
+  const oldGs=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  for(const g of oldGs)await remove('training_groups',g.id);
+  for(const g of Views._groupState.groups){
+    await save('training_groups',{id:g.id||uid('g'),daily_plan_id:dp.id,name:g.name,group_type:g.group_type,
+      coach_id:g.coach_id||'',assistant_id:g.assistant_id||'',target:g.target||'',notes:g.notes||'',students:g.students||[]});
+  }
+  await audit('save_groups','training_groups',dp.id,null,{count:Views._groupState.groups.length});
+  toast(val.issues.length?'已儲存（仍有提醒）':'分組已儲存','ok');
+};
+async function ensureDaily(date,classId){
+  let dp=findDaily(date,classId);if(dp)return dp;
+  const wkStart=mondayOf(date);
+  let wp=C('weekly_plans').find(w=>w.week_start===wkStart&&w.class_id===classId);
+  if(!wp)wp=await save('weekly_plans',{id:uid('wp'),week_start:wkStart,week_end:addDays(wkStart,6),class_id:classId,weekly_goal:'',status:'draft',created_by:State.user.id,approved_by:''});
+  const list=Stats.studentsFor(classId,weekdayOf(date));
+  dp=await save('daily_plans',{id:uid('dp'),weekly_plan_id:wp.id,date,class_id:classId,expected_count:list.length,actual_count:null,status:'draft',revision:1,created_by:State.user.id});
+  return dp;
+}
+</script>
+
+<script>
+/* ---------- PLAN (每日備課 90 分鐘 + 討論) ---------- */
+Views.view_plan=async function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const wd=weekdayOf(State.ctx.date);
+  el.innerHTML=`
+  <div class="card">
+    <div class="row">
+      <div class="grow"><label class="sm">日期</label><input type="date" id="pDate" value="${State.ctx.date}"></div>
+      <div class="grow"><label class="sm">班別</label><select id="pClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+    </div>
+  </div>
+  <div id="planBody"></div>`;
+  $('#pDate').onchange=e=>{State.ctx.date=e.target.value;App.go('plan');};
+  $('#pClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('plan');};
+  Views.renderPlan();
+};
+Views.renderPlan=function(){
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  const body=$('#planBody');
+  const wd=weekdayOf(State.ctx.date);
+  const list=Stats.studentsFor(State.ctx.classId,wd);
+  if(!dp){
+    body.innerHTML=`<div class="empty"><div class="ic">📝</div>此日尚未建立備課<br><br>
+      <button class="btn" onclick="Views.createPlan()">建立今日備課（${list.length} 人）</button></div>
+      <div class="sect-title">快速帶入</div>
+      <button class="btn g block sm" onclick="Views.copyPrev()">📋 複製上一堂課</button>`;
+    return;
+  }
+  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
+  const canEdit=dp.status!=='lock'&&(can('plan')||State.user.role==='head'||can('*'));
+  const stName=id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'?';};
+  const getBlk=(type,gid=null)=>blocks.find(b=>b.block_type===type&&(gid?b.training_group_id===gid:!b.training_group_id));
+  body.innerHTML=`
+    <div class="card">
+      <div class="row"><h3 style="margin:0">${WEEKDAYS[wd]} 課程 ${badge(dp.status)}</h3><div style="flex:1"></div>
+        <span class="muted">預計 ${dp.expected_count} 人・${groups.length} 組・修訂 v${dp.revision}</span></div>
+      <div class="row" style="margin-top:8px">
+        ${dp.status==='lock'?'<div class="warnbox" style="margin:0">課程已鎖定，如需修改請由管理者解鎖。</div>':`
+        <button class="btn sm g" onclick="App.go('groups')">🧩 調整分組</button>
+        <button class="btn sm g" onclick="Views.copyPrev()">📋 複製上堂</button>
+        <select class="grow" id="pStatus" onchange="Views.setStatus('${dp.id}',this.value)">${STATUS.filter(s=>s[0]!=='lock').map(s=>`<option value="${s[0]}" ${dp.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select>
+        ${(can('publish')||can('*'))?`<button class="btn sm ok" onclick="Views.publish('${dp.id}')">📢 發布</button>`:''}
+        ${can('*')?`<button class="btn sm bad" onclick="Views.lockPlan('${dp.id}')">🔒 鎖定</button>`:''}`}
+      </div>
+    </div>
+    ${BLOCKS.map(bl=>{
+      if(bl.key==='group')return Views.renderGroupBlocks(dp,groups,blocks,canEdit,stName);
+      const b=getBlk(bl.key)||{};
+      return `<div class="blk ${b.done?'done':''}"><div class="bh" onclick="this.parentNode.querySelector('.bd').classList.toggle('hide')">
+        <span class="t">${bl.s}–${bl.e}′</span><span class="m">${bl.name}</span>
+        <span class="st">${b.done?'✅ 完成':'○'}</span></div>
+        <div class="bd">${Views.blockForm(dp,bl,b,canEdit)}</div></div>`;
+    }).join('')}
+    <div class="sect-title">💬 教練共同備課討論室</div>
+    <div class="card" id="discBox"></div>`;
+  Views.renderDisc(dp);
+};
+Views.renderGroupBlocks=function(dp,groups,blocks,canEdit,stName){
+  return `<div class="blk"><div class="bh" onclick="this.parentNode.querySelector('.bd').classList.toggle('hide')">
+    <span class="t">30–60′</span><span class="m">分組訓練、基本動作</span><span class="st">${groups.length} 組</span></div>
+    <div class="bd">${groups.length?groups.map(g=>{
+      const b=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};
+      const coach=C('profiles').find(p=>p.id===g.coach_id);
+      return `<div class="gcard"><div class="gh"><b>${esc(g.name)}</b><span class="tag">${g.group_type}</span><span class="muted">${(g.students||[]).length}人・${coach?esc(coach.name):'未指派'}</span></div>
+      <div class="muted" style="margin-bottom:6px">${(g.students||[]).map(stName).join('、')||'（空組）'}</div>
+      ${canEdit?`
+      <div class="row"><div class="grow"><label class="sm">基本動作</label><input value="${esc(b.basic||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','basic',this.value)"></div>
+        <div class="grow"><label class="sm">腿法</label><input value="${esc(b.kick||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','kick',this.value)"></div></div>
+      <div class="row" style="margin-top:6px"><div class="grow"><label class="sm">品勢</label><input value="${esc(b.poomsae||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','poomsae',this.value)"></div>
+        <div class="grow"><label class="sm">對練</label><input value="${esc(b.spar||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','spar',this.value)"></div></div>
+      <div class="row" style="margin-top:6px"><div class="grow"><label class="sm">今日目標</label><input value="${esc(b.goal||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','goal',this.value)"></div>
+        <div class="grow"><label class="sm">常見錯誤/注意</label><input value="${esc(b.commonErr||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','commonErr',this.value)"></div></div>
+      `:`<div class="kv"><b>基本動作</b><span>${esc(b.basic||'—')}</span></div><div class="kv"><b>目標</b><span>${esc(b.goal||'—')}</span></div>`}
+      </div>`;
+    }).join(''):'<div class="empty">尚未分組，<a onclick="App.go(\'groups\')">前往分組</a></div>'}
+    </div></div>`;
+};
+Views.blockForm=function(dp,bl,b,canEdit){
+  const set=(f,v)=>`onchange="Views.saveBlockField('${dp.id}','${bl.key}',null,'${f}',this.value)"`;
+  const coaches=C('profiles').filter(p=>p.active&&p.role!=='assistant');
+  if(!canEdit){
+    if(bl.key==='review')return `<div class="kv"><b>表揚</b><span>${esc(b.praise||'—')}</span></div><div class="kv"><b>提醒</b><span>${esc(b.remind||'—')}</span></div><div class="kv"><b>回家練習</b><span>${esc(b.homework||'—')}</span></div><div class="kv"><b>下次預告</b><span>${esc(b.preview||'—')}</span></div>`;
+    return `<div class="kv"><b>內容</b><span>${esc(b.content||'—')}</span></div><div class="kv"><b>目標</b><span>${esc(b.goal||'—')}</span></div><div class="kv"><b>器材</b><span>${esc(b.equipment||'—')}</span></div>`;
+  }
+  let extra='';
+  if(bl.key==='warmup'){extra=`<button class="btn xs g" style="margin-bottom:6px" onclick="Views.applyWarmup('${dp.id}')">⚡ 一鍵套用標準暖身</button>
+    <label class="sm">進行方式</label><select ${set('method')}>${['全體一起','幼兒分開','成人分開','分兩區','自訂'].map(o=>`<option ${b.method===o?'selected':''}>${o}</option>`).join('')}</select>`;}
+  if(bl.key==='fitness'){extra=`<label class="sm">能力標籤（點選）</label><div class="chips" id="fitTags">${ABILITY_TAGS.map(t=>`<span class="chip ${(b.tags||[]).includes(t)?'on':''}" onclick="Views.toggleTag('${dp.id}','${t}')">${t}</span>`).join('')}</div>`;}
+  if(bl.key==='apply'){extra=`<label class="sm">課程類型</label><select ${set('applyType')}><option value="">選擇</option>${APPLY_TYPES.map(o=>`<option ${b.applyType===o?'selected':''}>${o}</option>`).join('')}</select>
+    <div class="infobox" style="margin-top:6px">💡 銜接 30–60′ 基本動作，例如「前踢接旋踢組合＋踢靶挑戰」。</div>`;}
+  if(bl.key==='review'){
+    return `${extra}
+      <div class="field"><label class="sm">今日表揚</label><input value="${esc(b.praise||'')}" ${set('praise')}></div>
+      <div class="field"><label class="sm">今日提醒</label><input value="${esc(b.remind||'')}" ${set('remind')}></div>
+      <div class="field"><label class="sm">回家練習</label><input value="${esc(b.homework||'')}" ${set('homework')}></div>
+      <div class="field"><label class="sm">下次課程預告</label><input value="${esc(b.preview||'')}" ${set('preview')}></div>
+      <div class="field"><label class="sm">教練補充</label><textarea ${set('note')}>${esc(b.note||'')}</textarea></div>
+      <label class="chip ${b.done?'on':''}" onclick="Views.toggleDone('${dp.id}','${bl.key}',null)">✅ 已完成</label>`;
+  }
+  return `${extra}
+    <div class="field" style="margin-top:6px"><label class="sm">課程內容</label><textarea ${set('content')}>${esc(b.content||'')}</textarea></div>
+    <div class="row"><div class="grow"><label class="sm">教學目標</label><input value="${esc(b.goal||'')}" ${set('goal')}></div>
+      <div class="grow"><label class="sm">器材</label><input value="${esc(b.equipment||'')}" ${set('equipment')}></div></div>
+    <div class="row" style="margin-top:6px"><div class="grow"><label class="sm">注意事項</label><input value="${esc(b.safety_notes||'')}" ${set('safety_notes')}></div>
+      <div class="grow"><label class="sm">負責教練</label><select ${set('responsible_coach_id')}><option value="">—</option>${coaches.map(c=>`<option value="${c.id}" ${c.id===b.responsible_coach_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div></div>
+    <label class="chip ${b.done?'on':''}" style="margin-top:8px" onclick="Views.toggleDone('${dp.id}','${bl.key}',null)">✅ 已完成</label>`;
+};
+Views.createPlan=async function(){await ensureDaily(State.ctx.date,State.ctx.classId);
+  // 自動建立五階段全體 block
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  for(const bl of BLOCKS){if(bl.key==='group')continue;
+    if(!C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type===bl.key&&!b.training_group_id))
+      await save('lesson_blocks',{id:uid('lb'),daily_plan_id:dp.id,training_group_id:null,block_type:bl.key,start_minute:bl.s,end_minute:bl.e,content:'',goal:'',equipment:'',safety_notes:'',done:false});
+  }
+  toast('已建立備課','ok');Views.renderPlan();
+};
+Views.saveBlockField=async function(dpId,type,gid,field,val){
+  let b=C('lesson_blocks').find(x=>x.daily_plan_id===dpId&&x.block_type===type&&(gid?x.training_group_id===gid:!x.training_group_id));
+  if(!b){const bl=BLOCKS.find(x=>x.key===type);b={id:uid('lb'),daily_plan_id:dpId,training_group_id:gid||null,block_type:type,start_minute:bl.s,end_minute:bl.e};}
+  b[field]=val;await save('lesson_blocks',b);
+};
+Views.toggleTag=async function(dpId,tag){
+  let b=C('lesson_blocks').find(x=>x.daily_plan_id===dpId&&x.block_type==='fitness'&&!x.training_group_id)||{id:uid('lb'),daily_plan_id:dpId,training_group_id:null,block_type:'fitness',start_minute:10,end_minute:30,tags:[]};
+  b.tags=b.tags||[];const i=b.tags.indexOf(tag);if(i<0)b.tags.push(tag);else b.tags.splice(i,1);
+  await save('lesson_blocks',b);Views.renderPlan();
+};
+Views.toggleDone=async function(dpId,type,gid){
+  let b=C('lesson_blocks').find(x=>x.daily_plan_id===dpId&&x.block_type===type&&(gid?x.training_group_id===gid:!x.training_group_id));
+  if(!b){const bl=BLOCKS.find(x=>x.key===type);b={id:uid('lb'),daily_plan_id:dpId,training_group_id:gid||null,block_type:type,start_minute:bl.s,end_minute:bl.e};}
+  b.done=!b.done;await save('lesson_blocks',b);Views.renderPlan();
+};
+Views.applyWarmup=async function(dpId){
+  await Views.saveBlockField(dpId,'warmup',null,'content','集合、禮節、做操、慢跑 4 圈');
+  await Views.saveBlockField(dpId,'warmup',null,'goal','收心、暖身');
+  toast('已套用標準暖身','ok');Views.renderPlan();
+};
+Views.setStatus=async function(dpId,st){const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status=st;await save('daily_plans',dp);await audit('status','daily_plans',dpId,old,dp);toast('狀態：'+statusMeta(st)[1]);};
+Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');Views.renderPlan();};
+Views.lockPlan=async function(dpId){if(!confirm('鎖定後只有管理者可修改，確定？'))return;const dp=C('daily_plans').find(d=>d.id===dpId);dp.status='lock';await save('daily_plans',dp);await audit('lock','daily_plans',dpId);toast('已鎖定 🔒');Views.renderPlan();};
+Views.copyPrev=async function(){
+  // 找同班別上一個有備課的日期
+  const prev=C('daily_plans').filter(d=>d.class_id===State.ctx.classId&&d.date<State.ctx.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  if(!prev){toast('找不到可複製的上一堂課','warn');return;}
+  const dp=await ensureDaily(State.ctx.date,State.ctx.classId);
+  // 複製 blocks（全體階段）
+  for(const b of C('lesson_blocks').filter(x=>x.daily_plan_id===prev.id&&!x.training_group_id)){
+    let cur=C('lesson_blocks').find(x=>x.daily_plan_id===dp.id&&x.block_type===b.block_type&&!x.training_group_id);
+    const copy={...b,id:cur?cur.id:uid('lb'),daily_plan_id:dp.id,done:false};await save('lesson_blocks',copy);
+  }
+  toast('已複製上一堂課內容','ok');Views.renderPlan();
+};
+/* discussion */
+Views.renderDisc=function(dp){
+  const box=$('#discBox');if(!box)return;
+  const msgs=C('discussions').filter(d=>d.daily_plan_id===dp.id).sort((a,b)=>a.created_at-b.created_at);
+  const top=msgs.filter(m=>!m.parent_id);
+  const coaches=C('profiles').filter(p=>p.active);
+  box.innerHTML=`
+    <div class="field"><textarea id="dMsg" placeholder="輸入討論內容，可 @教練姓名…"></textarea>
+      <div class="row" style="margin-top:6px"><select id="dBlk" class="grow"><option value="">整體</option>${BLOCKS.map(b=>`<option value="${b.key}">${b.s}-${b.e}′ ${b.name}</option>`).join('')}</select>
+      <button class="btn sm" onclick="Views.postDisc('${dp.id}',null)">送出</button></div></div>
+    ${top.length?top.map(m=>Views.msgHtml(m,msgs)).join(''):'<div class="empty">尚無討論，開始共同備課吧！</div>'}`;
+};
+Views.msgHtml=function(m,all){
+  const replies=all.filter(x=>x.parent_id===m.id);
+  const readCnt=(m.reads||[]).length;
+  return `<div class="msg"><div class="mh"><b>${esc(m.author_name)}</b>
+    <span>${new Date(m.created_at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>
+    ${m.block?`<span class="tag">${BLOCKS.find(b=>b.key===m.block)?.name||''}</span>`:''}
+    ${m.edited?'<span class="muted">（已編輯）</span>':''}<span style="flex:1"></span><span class="muted">👁 ${readCnt}</span></div>
+    <div class="mb">${nl2(m.message)}</div>
+    <div class="row" style="margin-top:4px"><button class="btn xs g" onclick="Views.replyTo('${m.id}')">回覆</button>
+      ${m.author_id===State.user.id?`<button class="btn xs g" onclick="Views.editMsg('${m.id}')">編輯</button>`:''}</div>
+    ${replies.map(r=>`<div class="msg reply"><div class="mh"><b>${esc(r.author_name)}</b><span>${new Date(r.created_at).toLocaleString('zh-TW',{hour:'2-digit',minute:'2-digit'})}</span></div><div class="mb">${nl2(r.message)}</div></div>`).join('')}`;
+};
+Views.postDisc=async function(dpId,parentId){
+  const msg=$('#dMsg').value.trim();if(!msg){toast('請輸入內容','warn');return;}
+  await save('discussions',{id:uid('ds'),daily_plan_id:dpId,training_group_id:null,lesson_block_id:$('#dBlk')?.value||null,block:$('#dBlk')?.value||null,
+    author_id:State.user.id,author_name:State.user.name,message:msg,parent_id:parentId,created_at:Date.now(),reads:[State.user.id]});
+  const dp=C('daily_plans').find(d=>d.id===dpId);
+  Views.renderDisc(dp);toast('已發布留言','ok');
+};
+Views.replyTo=function(mid){
+  Modal.open('回覆留言',`<textarea id="rMsg" placeholder="輸入回覆…"></textarea><button class="btn block" style="margin-top:8px" onclick="Views.doReply('${mid}')">送出回覆</button>`);
+};
+Views.doReply=async function(mid){
+  const parent=C('discussions').find(d=>d.id===mid);const msg=$('#rMsg').value.trim();if(!msg)return;
+  await save('discussions',{id:uid('ds'),daily_plan_id:parent.daily_plan_id,parent_id:mid,author_id:State.user.id,author_name:State.user.name,message:msg,created_at:Date.now(),reads:[State.user.id]});
+  Modal.close();Views.renderDisc(C('daily_plans').find(d=>d.id===parent.daily_plan_id));
+};
+Views.editMsg=function(mid){
+  const m=C('discussions').find(d=>d.id===mid);
+  Modal.open('編輯留言',`<textarea id="eMsg">${esc(m.message)}</textarea><button class="btn block" style="margin-top:8px" onclick="Views.doEditMsg('${mid}')">儲存</button>`);
+};
+Views.doEditMsg=async function(mid){const m=C('discussions').find(d=>d.id===mid);m.message=$('#eMsg').value.trim();m.edited=true;m.edited_by=State.user.name;await save('discussions',m);Modal.close();Views.renderDisc(C('daily_plans').find(d=>d.id===m.daily_plan_id));};
+</script>
+
+<script>
+/* ---------- WEEK (整週計畫) ---------- */
+Views.view_week=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const wkStart=mondayOf(State.ctx.date);
+  el.innerHTML=`
+  <div class="card">
+    <div class="row">
+      <div class="grow"><label class="sm">班別</label><select id="wClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+      <button class="btn sm g" onclick="Views.weekNav(-7)">← 上週</button>
+      <button class="btn sm g" onclick="Views.weekNav(7)">下週 →</button>
+    </div>
+    <p class="muted" style="margin:8px 0 0">週次：${wkStart} ~ ${addDays(wkStart,6)}</p>
+    <div class="field" style="margin-top:8px"><label class="sm">本週教學目標</label><input id="wGoal" placeholder="例：前踢與旋踢基本到組合應用"></div>
+    <div class="row"><button class="btn sm" onclick="Views.saveWeekGoal()">儲存目標</button>
+      <button class="btn sm g" onclick="Views.copyLastWeek()">📋 複製上週</button></div>
+  </div>
+  <div id="weekAnalysis"></div>
+  <div class="wk" id="weekGrid"></div>`;
+  $('#wClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('week');};
+  const wp=C('weekly_plans').find(w=>w.week_start===wkStart&&w.class_id===State.ctx.classId);
+  if(wp)$('#wGoal').value=wp.weekly_goal||'';
+  Views.renderWeek(wkStart);
+};
+Views.weekNav=function(n){State.ctx.date=addDays(mondayOf(State.ctx.date),n);App.go('week');};
+Views.renderWeek=function(wkStart){
+  const cls=C('classes').find(c=>c.id===State.ctx.classId);
+  const activeWd=(cls?.weekdays||WEEKDAYS);
+  const grid=$('#weekGrid');
+  let analysisTags={};ABILITY_TAGS.forEach(t=>analysisTags[t]=0);let applyN=0,poomN=0,sparN=0;
+  grid.innerHTML=WEEKDAYS.map((w,i)=>{
+    const date=addDays(wkStart,i);
+    const dp=findDaily(date,State.ctx.classId);
+    const list=Stats.studentsFor(State.ctx.classId,i);
+    const isClassDay=activeWd.includes(w);
+    if(dp){
+      const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
+      const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+      blocks.forEach(b=>{(b.tags||[]).forEach(t=>{if(analysisTags[t]!=null)analysisTags[t]++;});if(b.block_type==='apply'&&b.applyType)applyN++;if(b.poomsae)poomN++;if(b.spar)sparN++;});
+      const filled=blocks.filter(b=>b.content||b.basic||b.praise).length;
+      const totalB=4+groups.length;
+      const sm=Stats.summary(list);
+      return `<div class="wkday"><div class="wd"><b>${w}</b><span class="muted">${date.slice(5)}</span>${badge(dp.status)}<span style="flex:1"></span><button class="btn xs g" onclick="Views.openDay('${date}')">開啟</button></div>
+        <div class="muted">預計 ${list.length} 人・${groups.length} 組・幼${sm.age.幼兒}/小${sm.age.國小}/中${sm.age.國中}/成${sm.age.成人}</div>
+        <div class="progress"><i style="width:${totalB?Math.round(filled/totalB*100):0}%"></i></div>
+        <div class="row" style="margin-top:6px"><button class="btn xs g" onclick="Views.copyToClass('${dp.id}')">複製到其他班</button>${filled<totalB?'<span class="tag" style="background:#fef3c7;color:#92400e">未完成備課</span>':''}</div>
+      </div>`;
+    }
+    return `<div class="wkday" style="${isClassDay?'':'opacity:.5'}"><div class="wd"><b>${w}</b><span class="muted">${date.slice(5)}</span>${isClassDay?'<span class="badge b-draft">未建立</span>':'<span class="muted">非上課日</span>'}</div>
+      ${isClassDay?`<div class="muted">預計 ${list.length} 人</div><button class="btn xs" style="margin-top:6px" onclick="Views.openDay('${date}')">建立備課</button>`:''}</div>`;
+  }).join('');
+  // 分析提醒
+  const miss=ABILITY_TAGS.filter(t=>['柔軟度','平衡','協調'].includes(t)&&!analysisTags[t]);
+  $('#weekAnalysis').innerHTML=`<div class="card"><h3>📈 本週課程分析</h3>
+    <div class="chips">${['敏捷','核心','爆發力'].map(t=>`<span class="tag">${t} ${analysisTags[t]||0} 次</span>`).join('')}
+      <span class="tag spec">品勢 ${poomN}</span><span class="tag spec">對練 ${sparN}</span><span class="tag">挑戰/比賽 ${applyN}</span></div>
+    ${miss.length?`<div class="warnbox">⚠️ 本週較少安排：${miss.join('、')}，建議補強。</div>`:'<div class="okbox">✅ 能力面向分布均衡。</div>'}
+  </div>`;
+};
+Views.openDay=function(date){State.ctx.date=date;App.go('plan');};
+Views.saveWeekGoal=async function(){
+  const wkStart=mondayOf(State.ctx.date);
+  let wp=C('weekly_plans').find(w=>w.week_start===wkStart&&w.class_id===State.ctx.classId);
+  if(!wp)wp=await save('weekly_plans',{id:uid('wp'),week_start:wkStart,week_end:addDays(wkStart,6),class_id:State.ctx.classId,status:'draft',created_by:State.user.id});
+  wp.weekly_goal=$('#wGoal').value.trim();await save('weekly_plans',wp);toast('已儲存本週目標','ok');
+};
+Views.copyLastWeek=async function(){
+  const wkStart=mondayOf(State.ctx.date);const prevStart=addDays(wkStart,-7);
+  const prevDps=C('daily_plans').filter(d=>d.class_id===State.ctx.classId&&d.date>=prevStart&&d.date<wkStart);
+  if(!prevDps.length){toast('上週無課程可複製','warn');return;}
+  for(const pd of prevDps){
+    const newDate=addDays(pd.date,7);
+    const dp=await ensureDaily(newDate,State.ctx.classId);
+    for(const b of C('lesson_blocks').filter(x=>x.daily_plan_id===pd.id&&!x.training_group_id)){
+      let cur=C('lesson_blocks').find(x=>x.daily_plan_id===dp.id&&x.block_type===b.block_type&&!x.training_group_id);
+      await save('lesson_blocks',{...b,id:cur?cur.id:uid('lb'),daily_plan_id:dp.id,done:false});
+    }
+  }
+  toast('已複製上週課程','ok');App.go('week');
+};
+Views.copyToClass=function(dpId){
+  const others=C('classes').filter(c=>c.active&&c.id!==State.ctx.classId);
+  if(!others.length){toast('沒有其他班別','warn');return;}
+  Modal.open('複製到其他班別',`<div class="field"><label>目標班別</label><select id="cpCls">${others.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div>
+    <button class="btn block" onclick="Views.doCopyToClass('${dpId}')">複製</button>`);
+};
+Views.doCopyToClass=async function(dpId){
+  const src=C('daily_plans').find(d=>d.id===dpId);const tgtCls=$('#cpCls').value;
+  const dp=await ensureDaily(src.date,tgtCls);
+  for(const b of C('lesson_blocks').filter(x=>x.daily_plan_id===src.id&&!x.training_group_id))
+    await save('lesson_blocks',{...b,id:uid('lb'),daily_plan_id:dp.id,done:false});
+  Modal.close();toast('已複製到其他班','ok');
+};
+
+/* ---------- MY TASKS (助教/教練) ---------- */
+Views.view_mytasks=function(el){
+  const td=todayStr();State.ctx.date=td;
+  const myGroups=[];
+  C('daily_plans').filter(d=>d.date===td).forEach(dp=>{
+    C('training_groups').filter(g=>g.daily_plan_id===dp.id&&(g.coach_id===State.user.id||g.assistant_id===State.user.id)).forEach(g=>myGroups.push({dp,g}));
+  });
+  const cls=id=>C('classes').find(c=>c.id===id);
+  el.innerHTML=`<div class="hero"><h2>📋 我的今日任務</h2><p>${WEEKDAYS[weekdayOf(td)]}・${td}・${State.user.name}</p></div>
+  ${myGroups.length?myGroups.map(({dp,g})=>{
+    const c=cls(dp.class_id);const gblk=C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type==='group'&&b.training_group_id===g.id)||{};
+    const apply=C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type==='apply'&&!b.training_group_id)||{};
+    const stName=id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'?';};
+    return `<div class="card"><h3>🧩 ${esc(g.name)} <span class="tag">${g.group_type}</span></h3>
+      <div class="kv"><b>班別</b><span>${esc(c?.name||'')} ${c?.start_time||''}</span></div>
+      <div class="kv"><b>人數</b><span>${(g.students||[]).length} 人</span></div>
+      <div class="kv"><b>學員</b><span style="text-align:right">${(g.students||[]).map(stName).join('、')||'—'}</span></div>
+      <div class="divider"></div>
+      <div class="kv"><b>30–60′ 基本動作</b><span>${esc(gblk.basic||'—')}</span></div>
+      <div class="kv"><b>腿法/品勢</b><span>${esc([gblk.kick,gblk.poomsae].filter(Boolean).join('/')||'—')}</span></div>
+      <div class="kv"><b>今日目標</b><span>${esc(gblk.goal||g.target||'—')}</span></div>
+      <div class="kv"><b>60–85′ 應用</b><span>${esc(apply.content||'—')}</span></div>
+      <div class="kv"><b>器材</b><span>${esc(apply.equipment||gblk.equipment||'—')}</span></div>
+      <div class="kv"><b>注意事項</b><span>${esc(gblk.commonErr||apply.safety_notes||'—')}</span></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm g" onclick="toast('已標記閱讀','ok')">👀 我已閱讀</button>
+        <button class="btn sm" onclick="Views.gotoReport('${dp.id}','${g.id}')">📝 填寫回報</button>
+      </div></div>`;
+  }).join(''):'<div class="empty"><div class="ic">☕</div>今天沒有指派給你的任務<br><span class="muted">主教練分組並指派後會顯示在這裡</span></div>'}
+  <div class="sect-title">今日課程討論</div><div class="card" id="myDisc"></div>`;
+  const td2=todayStr();const dps=C('daily_plans').filter(d=>d.date===td2).map(d=>d.id);
+  const msgs=C('discussions').filter(m=>dps.includes(m.daily_plan_id)&&!m.parent_id).sort((a,b)=>b.created_at-a.created_at).slice(0,5);
+  $('#myDisc').innerHTML=msgs.length?msgs.map(m=>`<div class="kv"><b>${esc(m.author_name)}</b><span style="text-align:right;flex:1">${esc(m.message).slice(0,50)}</span></div>`).join(''):'<div class="empty">今日無討論</div>';
+};
+Views.gotoReport=function(dpId,gid){const dp=C('daily_plans').find(d=>d.id===dpId);State.ctx.date=dp.date;State.ctx.classId=dp.class_id;Views._reportGroup=gid;App.go('report');};
+
+/* ---------- REPORT (課後紀錄) ---------- */
+Views._reportGroup=null;
+Views.view_report=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  el.innerHTML=`<div class="card"><div class="row">
+    <div class="grow"><label class="sm">日期</label><input type="date" id="rDate" value="${State.ctx.date}"></div>
+    <div class="grow"><label class="sm">班別</label><select id="rClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+  </div></div><div id="reportBody"></div>`;
+  $('#rDate').onchange=e=>{State.ctx.date=e.target.value;App.go('report');};
+  $('#rClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('report');};
+  const body=$('#reportBody');
+  if(!dp){body.innerHTML='<div class="empty"><div class="ic">✅</div>此日尚無備課，無法填寫課後紀錄</div>';return;}
+  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const opts=[{id:'',name:'全班（整體）'}].concat(groups.map(g=>({id:g.id,name:g.name})));
+  const gid=Views._reportGroup!=null?Views._reportGroup:'';
+  const rep=C('post_class_reports').find(r=>r.daily_plan_id===dp.id&&(r.training_group_id||'')===(gid||''))||{};
+  body.innerHTML=`<div class="card"><h3>📝 課後紀錄</h3>
+    <div class="field"><label class="sm">負責組別</label><select id="rGroup" onchange="Views._reportGroup=this.value;App.go('report')">${opts.map(o=>`<option value="${o.id}" ${o.id===gid?'selected':''}>${o.name}</option>`).join('')}</select></div>
+    <div class="row"><div class="grow field"><label class="sm">實到人數</label><input type="number" id="r_actual" value="${rep.completion_percentage!=null?(rep.actual||''):''}" placeholder="${dp.expected_count}"></div>
+      <div class="grow field"><label class="sm">課程完成度</label><select id="r_status">${['完成','部分完成','未完成'].map(o=>`<option ${rep.completion_status===o?'selected':''}>${o}</option>`).join('')}</select></div></div>
+    <div class="field"><label class="sm">完成百分比：<span id="rPctLbl">${rep.completion_percentage||80}%</span></label><input type="range" id="r_pct" min="0" max="100" value="${rep.completion_percentage||80}" oninput="document.getElementById('rPctLbl').textContent=this.value+'%'"></div>
+    <div class="field"><label class="sm">未完成原因</label><input id="r_reason" value="${esc(rep.reason||'')}"></div>
+    <div class="field"><label class="sm">學員整體反應</label><textarea id="r_feedback">${esc(rep.feedback||'')}</textarea></div>
+    <div class="row"><div class="grow field"><label class="sm">表現較好</label><input id="r_good" value="${esc(rep.good||'')}"></div>
+      <div class="grow field"><label class="sm">需要補強</label><input id="r_weak" value="${esc(rep.weak||'')}"></div></div>
+    <div class="field"><label class="sm">需調整的分組</label><input id="r_adjust" value="${esc(rep.adjust||'')}"></div>
+    <div class="field"><label class="sm">⭐ 下堂課銜接內容（會自動出現在下次備課）</label><textarea id="r_next">${esc(rep.next_lesson||'')}</textarea></div>
+    <div class="row"><div class="grow field"><label class="sm">安全事件</label><input id="r_safety" value="${esc(rep.safety_event||'無')}"></div>
+      <div class="grow field"><label class="sm">傷勢狀況</label><input id="r_injury" value="${esc(rep.injury||'無')}"></div></div>
+    <div class="field"><label class="sm">教練補充</label><textarea id="r_note">${esc(rep.note||'')}</textarea></div>
+    <button class="btn block" onclick="Views.saveReport('${dp.id}','${gid}','${rep.id||''}')">儲存課後紀錄</button>
+  </div>
+  ${Views.prevNextHint(dp)}`;
+};
+Views.prevNextHint=function(dp){
+  const prev=C('daily_plans').filter(d=>d.class_id===dp.class_id&&d.date<dp.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  if(!prev)return '';
+  const rep=C('post_class_reports').find(r=>r.daily_plan_id===prev.id&&r.next_lesson);
+  if(!rep||!rep.next_lesson)return '';
+  return `<div class="infobox">📎 上一堂（${prev.date}）銜接內容：<b>${esc(rep.next_lesson)}</b></div>`;
+};
+Views.saveReport=async function(dpId,gid,repId){
+  const obj={id:repId||uid('pr'),daily_plan_id:dpId,training_group_id:gid||null,coach_id:State.user.id,
+    actual:$('#r_actual').value?+$('#r_actual').value:null,
+    completion_status:$('#r_status').value,completion_percentage:+$('#r_pct').value,
+    reason:$('#r_reason').value.trim(),feedback:$('#r_feedback').value.trim(),
+    good:$('#r_good').value.trim(),weak:$('#r_weak').value.trim(),adjust:$('#r_adjust').value.trim(),
+    next_lesson:$('#r_next').value.trim(),safety_event:$('#r_safety').value.trim(),injury:$('#r_injury').value.trim(),
+    note:$('#r_note').value.trim(),created_at:Date.now()};
+  await save('post_class_reports',obj);
+  // 回寫實到人數
+  const dp=C('daily_plans').find(d=>d.id===dpId);if(obj.actual!=null){dp.actual_count=obj.actual;await save('daily_plans',dp);}
+  await audit('report','post_class_reports',obj.id,null,obj);
+  toast('課後紀錄已儲存','ok');
+};
+
+/* ---------- TEMPLATES ---------- */
+Views.view_templates=function(el){
+  const ts=C('course_templates');
+  el.innerHTML=`<div class="card"><div class="row"><h3 style="margin:0">📚 課程模板</h3><div style="flex:1"></div>${can('template')||can('*')?'<button class="btn sm" onclick="Views.editTpl()">＋ 新增</button>':''}</div></div>
+  <div class="grid g2" style="margin-top:12px">${ts.map(t=>`<div class="card"><h3>${esc(t.name)}</h3>
+    <div class="kv"><b>階段</b><span>${BLOCKS.find(b=>b.key===t.category)?.name||t.category}</span></div>
+    <div class="kv"><b>時長</b><span>${t.duration}′</span></div>
+    <div class="kv"><b>內容</b><span style="text-align:right">${esc(t.content)}</span></div>
+    <div class="kv"><b>目標</b><span>${esc(t.goal||'—')}</span></div>
+    ${can('*')?`<button class="btn g sm" style="margin-top:6px" onclick="Views.editTpl('${t.id}')">編輯</button>`:''}
+  </div>`).join('')||'<div class="empty">尚無模板</div>'}</div>`;
+};
+Views.editTpl=function(id){
+  const t=id?C('course_templates').find(x=>x.id===id):{category:'fitness',duration:20};
+  Modal.open(id?'編輯模板':'新增模板',`
+    <div class="field"><label>名稱 *</label><input id="tp_name" value="${esc(t.name||'')}"></div>
+    <div class="row"><div class="grow field"><label>階段</label><select id="tp_cat">${BLOCKS.map(b=>`<option value="${b.key}" ${b.key===t.category?'selected':''}>${b.name}</option>`).join('')}</select></div>
+      <div class="grow field"><label>時長(分)</label><input type="number" id="tp_dur" value="${t.duration||20}"></div></div>
+    <div class="field"><label>內容</label><textarea id="tp_content">${esc(t.content||'')}</textarea></div>
+    <div class="field"><label>目標</label><input id="tp_goal" value="${esc(t.goal||'')}"></div>
+    <div class="field"><label>器材</label><input id="tp_eq" value="${esc(t.equipment||'')}"></div>
+    <div class="row"><button class="btn block" onclick="Views.saveTpl('${id||''}')">儲存</button>${id?`<button class="btn bad sm" onclick="Views.delTpl('${id}')">刪除</button>`:''}</div>`);
+};
+Views.saveTpl=async function(id){const name=$('#tp_name').value.trim();if(!name){toast('名稱必填','bad');return;}
+  await save('course_templates',{id:id||uid('tp'),name,category:$('#tp_cat').value,duration:+$('#tp_dur').value,content:$('#tp_content').value.trim(),goal:$('#tp_goal').value.trim(),equipment:$('#tp_eq').value.trim(),age_groups:[],belt_ranks:[]});
+  Modal.close();toast('已儲存','ok');App.go('templates');};
+Views.delTpl=async function(id){if(!confirm('刪除模板？'))return;await remove('course_templates',id);Modal.close();App.go('templates');};
+</script>
+
+<script>
+/* ---------- PDF (列印) ---------- */
+Views.view_pdf=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const wkStart=mondayOf(State.ctx.date);
+  el.innerHTML=`<div class="card"><h3>🖨️ PDF 週課程計畫輸出</h3>
+    <div class="row"><div class="grow"><label class="sm">班別</label><select id="pdfClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+      <div class="grow"><label class="sm">週次(任一日)</label><input type="date" id="pdfDate" value="${State.ctx.date}"></div></div>
+    <div class="field" style="margin-top:8px"><label class="sm">版本</label><div class="chips" id="pdfVer">
+      <span class="chip on" data-v="full">完整管理版</span><span class="chip" data-v="coach">教練現場執行版</span></div></div>
+    <p class="muted">週次：${wkStart} ~ ${addDays(wkStart,6)}。使用瀏覽器列印，中文字型由系統原生渲染，不會亂碼；於列印視窗選「另存為 PDF」即可下載。</p>
+    <button class="btn block" onclick="Views.buildPDF()">📄 產生預覽並列印 / 存 PDF</button>
+  </div>
+  <div class="card"><h3>預覽</h3><div id="pdfPrev" style="border:1px solid var(--line);border-radius:10px;padding:12px;max-height:60vh;overflow:auto;font-size:12px"></div></div>`;
+  $('#pdfClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('pdf');};
+  $('#pdfDate').onchange=e=>{State.ctx.date=e.target.value;App.go('pdf');};
+  let ver='full';document.querySelectorAll('#pdfVer .chip').forEach(c=>c.onclick=()=>{document.querySelectorAll('#pdfVer .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');ver=c.dataset.v;Views._pdfVer=ver;Views.previewPDF();});
+  Views._pdfVer='full';Views.previewPDF();
+};
+Views.buildPDFHtml=function(ver){
+  const s=settings();const cls=C('classes').find(c=>c.id===State.ctx.classId);
+  const wkStart=mondayOf(State.ctx.date);const wkEnd=addDays(wkStart,6);
+  const wp=C('weekly_plans').find(w=>w.week_start===wkStart&&w.class_id===State.ctx.classId);
+  const stName=id=>{const st=C('students').find(x=>x.id===id);return st?st.name:'';};
+  let days='';
+  WEEKDAYS.forEach((w,i)=>{
+    const date=addDays(wkStart,i);const dp=findDaily(date,State.ctx.classId);
+    if(!dp)return;
+    const list=Stats.studentsFor(State.ctx.classId,i);const sm=Stats.summary(list);
+    const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+    const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
+    const gb=(type)=>blocks.find(b=>b.block_type===type&&!b.training_group_id)||{};
+    const warm=gb('warmup'),fit=gb('fitness'),app=gb('apply'),rev=gb('review');
+    const coachName=id=>{const c=C('profiles').find(p=>p.id===id);return c?c.name:'—';};
+    const groupRows=groups.map(g=>{const b=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};
+      return `<tr><td><b>${esc(g.name)}</b><br>${esc(coachName(g.coach_id))}</td>
+        <td>${(g.students||[]).length}人${ver==='full'?'<br>'+(g.students||[]).map(stName).join('、'):''}</td>
+        <td>${esc([b.basic&&('基本:'+b.basic),b.kick&&('腿法:'+b.kick),b.poomsae&&('品勢:'+b.poomsae),b.spar&&('對練:'+b.spar)].filter(Boolean).join('；')||'—')}</td>
+        <td>${esc(b.goal||g.target||'—')}</td></tr>`;}).join('');
+    days+=`<div class="pday no-break">
+      <h2>${w}（${date}）　預計 ${list.length} 人　${cls?.start_time||''}-${cls?.end_time||''}</h2>
+      ${ver==='full'?`<div style="font-size:11px;margin-bottom:4px">年齡：幼兒${sm.age.幼兒}／國小${sm.age.國小}／國中${sm.age.國中}／成人${sm.age.成人}　｜　級別：${BELTS.filter(b=>sm.belt[b]).map(b=>b+sm.belt[b]).join(' ')}</div>`:''}
+      <table class="ptbl"><tr><th style="width:14%">時段</th><th>內容</th><th style="width:20%">目標/器材</th></tr>
+        <tr><td>0–10′ 做操慢跑</td><td>${esc(warm.content||'集合、禮節、做操、慢跑')}</td><td>${esc(warm.goal||'暖身')}</td></tr>
+        <tr><td>10–30′ 熱身體能</td><td>${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
+        <tr><td colspan="3" style="background:#eef2ff"><b>30–60′ 分組訓練</b></td></tr>
+        ${groupRows||'<tr><td colspan="3">（未分組）</td></tr>'}
+        <tr><td>60–85′ 應用挑戰</td><td>${esc(app.applyType?('['+app.applyType+'] '):'')}${esc(app.content||'')}</td><td>${esc(app.equipment||'')}</td></tr>
+        <tr><td>85–90′ 講評</td><td>${esc([rev.praise&&('表揚:'+rev.praise),rev.remind&&('提醒:'+rev.remind),rev.homework&&('作業:'+rev.homework),rev.preview&&('預告:'+rev.preview)].filter(Boolean).join('；')||'—')}</td><td></td></tr>
+      </table>
+      ${ver==='full'?`<div style="font-size:11px;margin-top:4px">注意事項：${esc([warm.safety_notes,app.safety_notes].filter(Boolean).join('；')||'—')}　｜　課後紀錄：實到＿＿人　完成度＿＿＿</div>`:''}
+    </div>`;
+  });
+  if(!days)days='<p>本週此班別尚無任何備課資料。</p>';
+  return `<div class="pg">
+    <div class="phead"><h1>${esc(s.logo)} ${esc(s.dojo)}　${ver==='full'?'週課程計畫（完整管理版）':'週課程計畫（教練現場執行版）'}</h1>
+      <div class="meta">班別：${esc(cls?.name||'')}　｜　訓練週期：${wkStart} ~ ${wkEnd}　｜　產出：${todayStr()}　｜　產出人：${esc(State.user.name)}</div>
+      ${ver==='full'&&wp?.weekly_goal?`<div class="meta" style="margin-top:4px">本週教學目標：${esc(wp.weekly_goal)}</div>`:''}</div>
+    ${days}
+    ${ver==='full'?`<div style="margin-top:12px;font-size:11px">教練討論結論：______________________________　核准人：____________　日期：____________</div>`:''}
+  </div>`;
+};
+Views.previewPDF=function(){$('#pdfPrev').innerHTML='<div class="ppreview">'+Views.buildPDFHtml(Views._pdfVer)+'</div>';
+  // 讓預覽套用列印表格樣式
+  $('#pdfPrev').querySelectorAll('.ptbl').forEach(t=>{t.style.width='100%';t.style.borderCollapse='collapse';t.querySelectorAll('th,td').forEach(c=>{c.style.border='1px solid #94a3b8';c.style.padding='4px 6px';c.style.fontSize='11px';c.style.verticalAlign='top';});t.querySelectorAll('th').forEach(c=>c.style.background='#e2e8f0');});
+  $('#pdfPrev').querySelectorAll('.pday h2').forEach(h=>{h.style.background='#4f46e5';h.style.color='#fff';h.style.padding='4px 8px';h.style.borderRadius='4px';h.style.fontSize='13px';});
+  $('#pdfPrev').querySelectorAll('.pday').forEach(d=>{d.style.border='1px solid #94a3b8';d.style.borderRadius='6px';d.style.padding='8px';d.style.marginBottom='10px';});
+  $('#pdfPrev').querySelectorAll('.phead').forEach(h=>{h.style.borderBottom='3px solid #4f46e5';h.style.paddingBottom='6px';h.style.marginBottom='10px';});
+};
+Views.buildPDF=function(){
+  const s=settings();const wkStart=mondayOf(State.ctx.date);
+  document.title=`${s.dojo}_週課程計畫_${wkStart}至${addDays(wkStart,6)}`;
+  $('#print').innerHTML=Views.buildPDFHtml(Views._pdfVer);
+  window.print();
+  setTimeout(()=>{document.title='TeamPro 教練共同備課系統';},1000);
+};
+
+/* ---------- SETTINGS ---------- */
+Views.view_settings=function(el){
+  const s=settings();
+  el.innerHTML=`<div class="card"><h3>⚙️ 系統設定</h3>
+    <div class="row"><div class="grow field"><label class="sm">道館名稱</label><input id="se_dojo" value="${esc(s.dojo)}"></div>
+      <div class="grow field"><label class="sm">Logo（emoji）</label><input id="se_logo" value="${esc(s.logo)}"></div></div>
+    <div class="sect-title">分組人數上限（每位教練）</div>
+    <div class="row">
+      <div class="grow field"><label class="sm">幼兒</label><input type="number" id="lim_kid" value="${s.limits.幼兒}"></div>
+      <div class="grow field"><label class="sm">基礎</label><input type="number" id="lim_base" value="${s.limits.基礎}"></div>
+      <div class="grow field"><label class="sm">品勢</label><input type="number" id="lim_poom" value="${s.limits.品勢}"></div>
+      <div class="grow field"><label class="sm">對練</label><input type="number" id="lim_spar" value="${s.limits.對練}"></div>
+    </div>
+    <div class="sect-title">能力分組級別（可調整）</div>
+    ${['初階','中階','高階'].map(t=>`<div class="field"><label class="sm">${t}</label><div class="chips" id="tier_${t}">${BELTS.map(b=>`<span class="chip ${s.tiers[t].includes(b)?'on':''}" data-b="${b}" onclick="this.classList.toggle('on')">${b}</span>`).join('')}</div></div>`).join('')}
+    <button class="btn block" onclick="Views.saveSettings()">儲存設定</button>
+  </div>
+  <div class="card"><h3>☁️ 多裝置雲端同步</h3>
+    <p class="muted">各教練各自手機共用同一份資料時使用。先依 <b>apps-script/Code.gs</b> 部署後端，取得 /exec 網址貼在下方。（建議直接寫進程式碼的 <b>DEFAULT_SYNC_URL</b> 再上架，這樣每支手機打開同一網址即自動同步。）</p>
+    <div class="field"><label class="sm">同步後端網址（GAS /exec）</label><input id="se_sync" value="${esc(s.syncUrl||'')}" placeholder="https://script.google.com/macros/s/.../exec"></div>
+    <div class="row"><button class="btn sm" onclick="Views.saveSyncUrl()">儲存並測試連線</button>
+      <button class="btn sm ok" onclick="Views.cloudUpload()">⬆️ 上傳本機到雲端（主帳號首次）</button>
+      <button class="btn sm g" onclick="Views.cloudDownload()">⬇️ 從雲端下載到本機</button></div>
+    <p class="muted" id="syncStat" style="margin-top:8px">狀態：${SYNC.enabled()?'已啟用（'+esc(SYNC.status)+'）':'未啟用（單機）'}</p>
+  </div>
+  <div class="card"><h3>資料管理</h3>
+    <div class="row"><button class="btn g sm" onclick="Views.exportData()">⬇️ 匯出備份(JSON)</button>
+      <label class="btn g sm">⬆️ 匯入備份<input type="file" id="impBackup" accept=".json" style="display:none"></label>
+      <button class="btn warn sm" onclick="App.seedFromLogin()">重載示範資料</button>
+      <button class="btn bad sm" onclick="App.wipeAll()">清空全部</button></div>
+    <p class="muted" style="margin-top:8px">學員 ${C('students').length}・帳號 ${C('profiles').length}・班別 ${C('classes').length}・週計畫 ${C('weekly_plans').length}・稽核 ${C('audit_logs').length}</p>
+  </div>
+  <div class="card"><h3>稽核紀錄（最近 20 筆）</h3><div class="scroll"><table class="tbl"><tr><th>時間</th><th>使用者</th><th>動作</th><th>表</th></tr>
+    ${C('audit_logs').sort((a,b)=>b.created_at-a.created_at).slice(0,20).map(a=>`<tr><td class="muted">${new Date(a.created_at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td><td>${esc(a.user_name||'')}</td><td>${esc(a.action)}</td><td>${esc(a.table_name||'')}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">無</td></tr>'}
+  </table></div></div>`;
+  $('#impBackup').onchange=Views.importData;
+};
+Views.saveSettings=async function(){
+  const s=settings();
+  s.dojo=$('#se_dojo').value.trim()||'道館';s.logo=$('#se_logo').value.trim()||'🥋';
+  s.limits={幼兒:+$('#lim_kid').value,基礎:+$('#lim_base').value,品勢:+$('#lim_poom').value,對練:+$('#lim_spar').value,default:12};
+  ['初階','中階','高階'].forEach(t=>{s.tiers[t]=[...document.querySelectorAll('#tier_'+t+' .chip.on')].map(x=>x.dataset.b);});
+  s.id='app';await save('settings',s);toast('設定已儲存','ok');
+};
+Views.saveSyncUrl=async function(){
+  const s=settings();s.syncUrl=$('#se_sync').value.trim();s.id='app';await save('settings',s);
+  if(!SYNC.enabled()){$('#syncStat').textContent='狀態：未啟用（單機）';toast('已清除同步網址','ok');return;}
+  $('#syncStat').textContent='狀態：測試連線中…';
+  try{const r=await fetch(SYNC.url());const j=await r.json();
+    if(j&&j.ok){$('#syncStat').textContent='狀態：✅ 連線成功，同步已啟用';toast('雲端連線成功','ok');SYNC.startAuto();}
+    else throw new Error('回應異常');
+  }catch(e){$('#syncStat').textContent='狀態：❌ 連線失敗（'+esc(e.message)+'）請確認網址與部署權限「任何人」';toast('連線失敗','bad');}
+};
+Views.cloudUpload=async function(){
+  if(!SYNC.enabled()){toast('請先儲存同步網址','warn');return;}
+  if(!confirm('會把「雲端資料整個覆蓋成這台裝置目前的資料」，第一次由主帳號做即可。確定？'))return;
+  $('#syncStat').textContent='狀態：上傳中…';
+  try{const r=await SYNC.replaceAll();$('#syncStat').textContent='狀態：✅ 已上傳 '+r.count+' 筆到雲端';toast('已上傳雲端','ok');}
+  catch(e){$('#syncStat').textContent='狀態：❌ 上傳失敗（'+esc(e.message)+'）';toast('上傳失敗','bad');}
+};
+Views.cloudDownload=async function(){
+  if(!SYNC.enabled()){toast('請先儲存同步網址','warn');return;}
+  $('#syncStat').textContent='狀態：下載中…';
+  SYNC.setLastPull(0);
+  try{const {changed}=await SYNC.pull();$('#syncStat').textContent='狀態：✅ 已從雲端更新 '+changed+' 筆';toast('已從雲端下載','ok');App.go('settings');}
+  catch(e){$('#syncStat').textContent='狀態：❌ 下載失敗（'+esc(e.message)+'）';toast('下載失敗','bad');}
+};
+Views.exportData=async function(){
+  const data={};for(const st of STORES)data[st]=C(st);
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='TeamPro備課備份_'+todayStr()+'.json';a.click();
+  toast('已匯出備份','ok');
+};
+Views.importData=function(e){
+  const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=async ev=>{try{const data=JSON.parse(ev.target.result);
+    if(!confirm('匯入將覆蓋現有資料，確定？'))return;
+    await wipeData(false);
+    for(const st of STORES){if(data[st])await DB.bulk(st,data[st]);}
+    await reloadAll();toast('已匯入備份','ok');App.go('settings');
+  }catch(err){toast('匯入失敗：'+err.message,'bad');}};
+  r.readAsText(f);
+};
+
+/* ---------- BOOT ---------- */
+window.addEventListener('DOMContentLoaded',()=>App.boot());
+</script>
