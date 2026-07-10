@@ -400,6 +400,18 @@ const BLOCKS=[
   {key:'apply',   name:'應用、組合、挑戰、比賽',s:60, e:85},
   {key:'review',  name:'課程講評',          s:85, e:90},
 ];
+/* 每堂課教練/助教合計硬性上限（主教練+教練+助教都計入） */
+const MAX_COACHES_PER_CLASS=4;
+const CLASS_TYPES=['暑期訓練','一般健身','選手訓練','黑帶培訓','一般'];
+/* 雄麒道館預設班別（weekdays 用 JS getDay：0=日,1=一…6=六，建立時轉為本系統 WEEKDAYS 字串） */
+const HSIUNGCHI_PRESETS=[
+  {name:'暑期班',    class_type:'暑期訓練',jsdays:[1,2,3,4,5],start_time:'08:00',end_time:'09:30',duration_minutes:90,seasonal:true,active_from:'2026-07-06',active_until:'2026-08-26'},
+  {name:'健身班',    class_type:'一般健身',jsdays:[1,2,3,4,5],start_time:'18:00',end_time:'19:30',duration_minutes:90,seasonal:false},
+  {name:'選手班',    class_type:'選手訓練',jsdays:[1,2,3,4,5],start_time:'19:30',end_time:'21:00',duration_minutes:90,seasonal:false},
+  {name:'週六健身班',class_type:'一般健身',jsdays:[6],      start_time:'08:30',end_time:'10:30',duration_minutes:120,seasonal:false},
+  {name:'黑帶培訓班',class_type:'黑帶培訓',jsdays:[0],      start_time:'10:30',end_time:'12:00',duration_minutes:90,seasonal:false},
+];
+const jsdayToWeekday=d=>WEEKDAYS[(d+6)%7]; // JS getDay(0=日) -> 本系統 WEEKDAYS
 const ABILITY_TAGS=['敏捷','反應','協調','平衡','核心','柔軟度','爆發力','心肺','折返跑','體能遊戲','團隊遊戲','專項暖身'];
 const APPLY_TYPES=['應用','組合','挑戰','闖關','小組競賽','品勢演練','踢靶','攻防反應','條件對練','模擬比賽'];
 const STATUS=[['draft','草稿','b-draft'],['disc','討論中','b-disc'],['wait','待確認','b-wait'],
@@ -909,25 +921,45 @@ const Grouping={
     return {groups,notes};
   },
   // 驗證目前分組
-  validate(groups,list){
+  // 計算一組人力：跨所有分組的教練+助教（含 daily_plan 的 lead/assigned）不重複人數
+  coachTeam(groups,dp){
+    const team=new Set();
+    (groups||[]).forEach(g=>{if(g.coach_id)team.add(g.coach_id);if(g.assistant_id)team.add(g.assistant_id);});
+    if(dp){(dp.assigned_coach_ids||[]).forEach(id=>id&&team.add(id));if(dp.lead_coach_id)team.add(dp.lead_coach_id);}
+    return team;
+  },
+  validate(groups,list,dp){
     const issues=[]; const assigned={};
+    const nm=id=>{const c=C('profiles').find(p=>p.id===id);return c?c.name:'';};
+    const coachMap={}, asstMap={};
     groups.forEach(g=>{
       (g.students||[]).forEach(sid=>{
         if(assigned[sid])issues.push({t:'dup',msg:`學員重複出現在「${assigned[sid]}」與「${g.name}」`});
         assigned[sid]=g.name;
       });
       if(!g.coach_id)issues.push({t:'nocoach',msg:`「${g.name}」尚未指派教練`});
+      if(g.coach_id&&g.assistant_id&&g.coach_id===g.assistant_id)issues.push({t:'sameperson',msg:`「${g.name}」的教練與助教是同一人（${nm(g.coach_id)}）`});
+      if(g.coach_id)coachMap[g.coach_id]=(coachMap[g.coach_id]||0)+1;
+      if(g.assistant_id)asstMap[g.assistant_id]=(asstMap[g.assistant_id]||0)+1;
       if((g.students||[]).length>this.limit(g.group_type))issues.push({t:'over',msg:`「${g.name}」人數 ${g.students.length} 超過上限 ${this.limit(g.group_type)}`});
     });
     const un=list.filter(s=>!assigned[s.id]);
     if(un.length)issues.push({t:'unassigned',msg:`有 ${un.length} 位學員尚未分組：${un.slice(0,6).map(s=>s.name).join('、')}${un.length>6?'…':''}`});
-    // 同教練同時段兩組
-    const coachMap={};
-    groups.forEach(g=>{if(g.coach_id){coachMap[g.coach_id]=(coachMap[g.coach_id]||0)+1;}});
-    Object.entries(coachMap).forEach(([cid,n])=>{if(n>1){const c=C('profiles').find(p=>p.id===cid);issues.push({t:'conflict',msg:`教練「${c?.name||''}」同時被指派到 ${n} 組`});}});
-    return {issues,unassigned:un};
+    // 同教練/助教同時段被指派到兩組
+    Object.entries(coachMap).forEach(([cid,n])=>{if(n>1)issues.push({t:'conflict',msg:`教練「${nm(cid)}」同時被指派到 ${n} 組`});});
+    Object.entries(asstMap).forEach(([aid,n])=>{if(n>1)issues.push({t:'conflict',msg:`助教「${nm(aid)}」同時被指派到 ${n} 組`});});
+    // 同一人同時擔任教練與助教
+    Object.keys(coachMap).forEach(id=>{if(asstMap[id])issues.push({t:'dualrole',msg:`「${nm(id)}」在不同組同時被安排為教練與助教`});});
+    // 4 位教練硬性上限 + 停用/未安排任務教練
+    const team=this.coachTeam(groups,dp);
+    if(team.size>MAX_COACHES_PER_CLASS)issues.push({t:'toomany',msg:`本堂課共出現 ${team.size} 位教練／助教，超過每堂最多 ${MAX_COACHES_PER_CLASS} 位，請先移除或合併`});
+    team.forEach(id=>{const p=C('profiles').find(x=>x.id===id);if(p&&p.active===false)issues.push({t:'inactive',msg:`「${p.name}」已停用，不應被指派`});});
+    return {issues,unassigned:un,coachCount:team.size};
   }
 };
+/* 阻擋發布的重大錯誤類型（其餘為提醒） */
+const BLOCKING_ISSUE_TYPES=['toomany','dup','nocoach','sameperson','dualrole','inactive'];
+function hasBlockingIssues(val){return (val.issues||[]).some(i=>BLOCKING_ISSUE_TYPES.includes(i.t));}
 </script>
 
 <script>
@@ -1364,7 +1396,7 @@ function planStatus(date,classId){
     return !!(b.content&&String(b.content).trim());};
   let stagesFilled=['warmup','fitness','apply','review'].filter(stageFilled).length;
   if(groups.length&&blocks.some(b=>b.block_type==='group'&&(b.basic||b.kick||b.goal)))stagesFilled++;
-  const val=Grouping.validate(groups.map(g=>({...g,students:[...(g.students||[])]})),list);
+  const val=Grouping.validate(groups.map(g=>({...g,students:[...(g.students||[])]})),list,dp);
   const steps={
     stats:!!dp,
     groups:groups.length>0&&val.unassigned.length===0,
@@ -1405,8 +1437,8 @@ function currentEditLock(dpId){
 Views.view_home=function(el){
   const s=settings();
   ensureClassCtx();
-  const cls=C('classes').filter(c=>c.active);
-  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const cls=C('classes').filter(c=>classActiveOn(c,State.ctx.date)); // 今日班表：季節性班別過季不顯示
+  if((!State.ctx.classId||!cls.some(c=>c.id===State.ctx.classId))&&cls.length)State.ctx.classId=cls[0].id;
   const wd=weekdayOf(State.ctx.date);
   const cl=C('classes').find(c=>c.id===State.ctx.classId);
   const {todos,ps}=computeTodos(State.ctx.date,State.ctx.classId);
@@ -1639,6 +1671,8 @@ Views.view_publish=function(el){
   $('#pbClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('publish','plan');};
 };
 Views.publishFromFlow=async function(dpId,hasIssues){
+  const dp=C('daily_plans').find(d=>d.id===dpId);
+  if(dp){const ps=planStatus(dp.date,dp.class_id);if(hasBlockingIssues(ps.val)){toast('有重大錯誤（教練超過4位／組別缺教練／重複分組等），必須先修正才能發布','bad');return;}}
   if(hasIssues&&!confirm('仍有未完成項目，確定要發布？'))return;
   await Views.publish(dpId); App.go('publish','plan');
 };
@@ -1875,34 +1909,88 @@ Views.commitImport=async function(){
 <script>
 /* ---------- CLASSES ---------- */
 Views.view_classes=function(el){
-  const cs=C('classes');
-  el.innerHTML=`<div class="card"><div class="row"><h3 style="margin:0">🏫 班別管理</h3><div class="sp" style="flex:1"></div><button class="btn sm" onclick="Views.editClass()">＋ 新增班別</button></div></div>
-  <div class="grid g2" style="margin-top:12px">${cs.map(c=>`<div class="card"><h3>${esc(c.name)} ${c.active?'':'<span class="badge b-lock">停用</span>'}</h3>
-    <div class="kv"><b>時間</b><span>${c.start_time}–${c.end_time}</span></div>
+  const cs=C('classes');const td=todayStr();
+  el.innerHTML=`<div class="card"><div class="row"><h3 style="margin:0">🏫 班別管理</h3><div class="sp" style="flex:1"></div>
+    <button class="btn secondary sm" onclick="Views.createPresets()">建立雄麒預設班別</button>
+    <button class="btn sm" onclick="Views.editClass()">＋ 新增班別</button></div>
+    <p class="muted" style="margin:8px 0 0">「建立雄麒預設班別」為冪等操作：已存在的相同班別不會重複新增，也不會覆蓋你改過的班別。</p></div>
+  <div class="grid g2" style="margin-top:12px">${cs.map(c=>{const inSeason=classActiveOn(c,td);
+    return `<div class="card"><h3>${esc(c.name)} ${c.active===false?'<span class="badge b-lock">停用</span>':''}${c.seasonal&&!inSeason?'<span class="badge b-wait">非季節</span>':''}</h3>
+    ${c.class_type?`<div class="kv"><b>類型</b><span>${esc(c.class_type)}</span></div>`:''}
+    <div class="kv"><b>時間</b><span>${c.start_time}–${c.end_time}${c.duration_minutes?`（${c.duration_minutes}分）`:''}</span></div>
     <div class="kv"><b>上課日</b><span>${(c.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('、')}</span></div>
+    ${c.seasonal?`<div class="kv"><b>季節區間</b><span>${esc(c.active_from||'—')} ~ ${esc(c.active_until||'—')}</span></div>`:''}
     <div class="kv"><b>學員數</b><span>${C('students').filter(s=>s.class_id===c.id&&s.active).length} 人</span></div>
-    <button class="btn g sm" style="margin-top:8px" onclick="Views.editClass('${c.id}')">編輯</button></div>`).join('')||'<div class="empty">尚無班別</div>'}</div>`;
+    <button class="btn g sm" style="margin-top:8px" onclick="Views.editClass('${c.id}')">編輯</button></div>`;}).join('')||'<div class="empty">尚無班別，可點「建立雄麒預設班別」快速建立。</div>'}</div>`;
 };
 Views.editClass=function(id){
-  const c=id?C('classes').find(x=>x.id===id):{start_time:'19:00',end_time:'20:30',weekdays:[],active:true};
+  const c=id?C('classes').find(x=>x.id===id):{start_time:'19:00',end_time:'20:30',weekdays:[],active:true,class_type:'一般',seasonal:false};
   Modal.open(id?'編輯班別':'新增班別',`
-    <div class="field"><label>班別名稱 *</label><input id="ec_name" value="${esc(c.name||'')}"></div>
+    <div class="field"><label>班別名稱 <span class="req">*</span></label><input id="ec_name" value="${esc(c.name||'')}"></div>
+    <div class="row"><div class="grow field"><label>班別類型</label><select id="ec_type">${CLASS_TYPES.map(t=>`<option ${t===(c.class_type||'一般')?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="grow field"><label>課程長度(分)</label><input type="number" id="ec_dur" value="${c.duration_minutes||90}"></div></div>
     <div class="row"><div class="grow field"><label>開始</label><input type="time" id="ec_s" value="${c.start_time}"></div>
       <div class="grow field"><label>結束</label><input type="time" id="ec_e" value="${c.end_time}"></div></div>
     <div class="field"><label>上課日</label><div class="chips" id="ec_wd">${WEEKDAYS.map(w=>`<span class="chip ${(c.weekdays||[]).includes(w)?'on':''}" data-w="${w}">${w}</span>`).join('')}</div></div>
-    <label class="chip ${c.active!==false?'on':''}" id="ec_act">啟用中</label>
+    <label class="chip ${c.seasonal?'on':''}" id="ec_seasonal">季節性班別</label>
+    <div id="ec_seasonwrap" class="row" style="margin-top:8px;${c.seasonal?'':'display:none'}">
+      <div class="grow field"><label>啟用日期</label><input type="date" id="ec_from" value="${esc(c.active_from||'')}"></div>
+      <div class="grow field"><label>結束日期</label><input type="date" id="ec_until" value="${esc(c.active_until||'')}"></div></div>
+    <label class="chip ${c.active!==false?'on':''}" id="ec_act" style="margin-top:8px">啟用中</label>
     <div class="row" style="margin-top:10px"><button class="btn block" onclick="Views.saveClass('${id||''}')">儲存</button>
     ${id?`<button class="btn bad sm" onclick="Views.delClass('${id}')">刪除</button>`:''}</div>`,
-    m=>{m.querySelectorAll('#ec_wd .chip').forEach(x=>x.onclick=()=>x.classList.toggle('on'));$('#ec_act').onclick=()=>$('#ec_act').classList.toggle('on');});
+    m=>{m.querySelectorAll('#ec_wd .chip').forEach(x=>x.onclick=()=>x.classList.toggle('on'));
+        ['ec_act'].forEach(i=>$('#'+i).onclick=()=>$('#'+i).classList.toggle('on'));
+        $('#ec_seasonal').onclick=()=>{$('#ec_seasonal').classList.toggle('on');$('#ec_seasonwrap').style.display=$('#ec_seasonal').classList.contains('on')?'':'none';};});
 };
 Views.saveClass=async function(id){
   const name=$('#ec_name').value.trim();if(!name){toast('名稱必填','bad');return;}
   const wd=[...document.querySelectorAll('#ec_wd .chip.on')].map(x=>x.dataset.w);
+  const seasonal=$('#ec_seasonal').classList.contains('on');
   const old=id?C('classes').find(x=>x.id===id):null;
-  await save('classes',Object.assign({},old||{},{id:id||uid('cl'),name,start_time:$('#ec_s').value,end_time:$('#ec_e').value,weekdays:wd,active:$('#ec_act').classList.contains('on')}));
+  await save('classes',Object.assign({},old||{created_at:Date.now()},{id:id||uid('cl'),name,
+    class_type:$('#ec_type').value,duration_minutes:+$('#ec_dur').value||90,
+    start_time:$('#ec_s').value,end_time:$('#ec_e').value,weekdays:wd,
+    seasonal,active_from:seasonal?$('#ec_from').value:'',active_until:seasonal?$('#ec_until').value:'',
+    active:$('#ec_act').classList.contains('on'),updated_at:Date.now()}));
   Modal.close();toast('已儲存','ok');App.go('classes');
 };
 Views.delClass=async function(id){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'刪除班別',impact:'刪除班別不會刪除學員，但會影響班別選單。',confirmText:'確認刪除',onConfirm:async()=>{await remove('classes',id);Modal.close();App.go('classes');}});};
+
+/* ---------- 班別季節性 / 雄麒預設班別 ---------- */
+// 該班別在指定日期是否應出現在「今日班表」（啟用中 + 若季節性則落在啟用區間內）
+function classActiveOn(c,dateStr){
+  if(!c||c.active===false)return false;
+  if(c.seasonal){
+    if(c.active_from&&dateStr<c.active_from)return false;
+    if(c.active_until&&dateStr>c.active_until)return false;
+  }
+  return true;
+}
+// 建立雄麒預設班別（冪等：依名稱+上課日+起訖時間判重，不覆蓋已修改過的班別）
+async function applyHsiungchiPresets(){
+  const now=Date.now();let added=0,exists=0,failed=0;const existing=C('classes');
+  for(const def of HSIUNGCHI_PRESETS){
+    try{
+      const weekdays=def.jsdays.map(jsdayToWeekday);
+      const dup=existing.find(c=>c.name===def.name&&c.start_time===def.start_time&&c.end_time===def.end_time
+        &&JSON.stringify((c.weekdays||[]).slice().sort())===JSON.stringify(weekdays.slice().sort()));
+      if(dup){exists++;continue;}
+      await save('classes',{id:uid('cl'),name:def.name,class_type:def.class_type,weekdays,
+        start_time:def.start_time,end_time:def.end_time,duration_minutes:def.duration_minutes,
+        active:true,seasonal:!!def.seasonal,active_from:def.active_from||'',active_until:def.active_until||'',
+        default_theme:'',default_intensity:'中',default_grouping_mode:'smart',default_coach_ids:[],
+        created_at:now,updated_at:now});
+      added++;
+    }catch(e){failed++;}
+  }
+  return {added,exists,failed};
+}
+Views.createPresets=async function(){
+  const r=await applyHsiungchiPresets();
+  toast(`雄麒預設班別：新增 ${r.added}・已存在 ${r.exists}・失敗 ${r.failed}`,r.failed?'warn':'ok');
+  App.go('classes');
+};
 
 /* ---------- COACHES ---------- */
 Views.view_coaches=function(el){
@@ -2033,8 +2121,10 @@ Views.delGroup=function(gi){Views._groupState.groups.splice(gi,1);Views.reRender
 Views.saveGroups=async function(next){
   const wd=weekdayOf(State.ctx.date);
   const list=Stats.studentsFor(State.ctx.classId,wd);
-  const val=Grouping.validate(Views._groupState.groups,list);
   let dp=findDaily(State.ctx.date,State.ctx.classId);
+  const val=Grouping.validate(Views._groupState.groups,list,dp);
+  const team=Grouping.coachTeam(Views._groupState.groups,dp);
+  if(team.size>MAX_COACHES_PER_CLASS){toast(`每堂課最多安排 ${MAX_COACHES_PER_CLASS} 位教練，目前 ${team.size} 位，請先移除或更換現有人員`,'bad');return;}
   if(!dp)dp=await ensureDaily(State.ctx.date,State.ctx.classId);
   // 清掉舊 group + 其 group block
   const oldGs=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
@@ -2313,7 +2403,7 @@ Views.applyWarmup=async function(dpId){
   toast('已套用標準暖身','ok');Views.renderPlan();
 };
 Views.setStatus=async function(dpId,st){const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status=st;await save('daily_plans',dp);await audit('status','daily_plans',dpId,old,dp);toast('狀態：'+statusMeta(st)[1]);};
-Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');if($('#planBody'))Views.renderPlan();else App.go(App.view,App.area);};
+Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const ps=planStatus(dp.date,dp.class_id);if(hasBlockingIssues(ps.val)){toast('有重大錯誤（教練超過4位／組別缺教練／重複分組等），必須先修正才能發布','bad');return;}const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');if($('#planBody'))Views.renderPlan();else App.go(App.view,App.area);};
 Views.lockPlan=async function(dpId){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'鎖定課程',impact:'鎖定後只有管理者可修改此課程。',confirmText:'確認鎖定',onConfirm:async()=>{const dp=C('daily_plans').find(d=>d.id===dpId);dp.status='lock';await save('daily_plans',dp);await audit('lock','daily_plans',dpId);Modal.close();toast('已鎖定 🔒');Views.renderPlan();}});};
 Views.copyPrev=async function(){
   // 找同班別上一個有備課的日期
