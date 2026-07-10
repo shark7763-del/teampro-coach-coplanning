@@ -378,7 +378,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.3.0-internal';
+const APP_VERSION='1.3.1-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1056,13 +1056,15 @@ async function seedDemo(){
     const list=Stats.studentsFor('cl_mon',wIdx);
     const dp=await save('daily_plans',{id:uid('dp'),weekly_plan_id:wp.id,date,class_id:'cl_mon',
       expected_count:list.length,actual_count:null,status:wIdx===0?'pub':'draft',revision:1,created_by:'u_head'});
-    // 分組（smart）
-    const sug=Grouping.suggest(list,'smart',6);
-    const coaches=['u_head','u_head2','u_c3'];
-    for(let gi=0;gi<sug.groups.length;gi++){
-      const g=sug.groups[gi];
+    // 分組（smart）—— 合併成最多 4 組、指派 4 位不重複教練，符合每堂最多 4 位上限（示範資料須合規）
+    const sug=Grouping.suggest(list,'smart',4);
+    let gps=sug.groups.slice();
+    if(gps.length>MAX_COACHES_PER_CLASS){const extra=gps.slice(MAX_COACHES_PER_CLASS);gps=gps.slice(0,MAX_COACHES_PER_CLASS);extra.forEach(e=>{gps[gps.length-1].students=gps[gps.length-1].students.concat(e.students);});}
+    const coachIds=['u_head','u_head2','u_c3','u_a1'];
+    for(let gi=0;gi<gps.length;gi++){
+      const g=gps[gi];
       await save('training_groups',{id:g.id,daily_plan_id:dp.id,name:g.name,group_type:g.group_type,
-        coach_id:coaches[gi%coaches.length],assistant_id:gi===0?'u_a1':(gi===1?'u_a2':''),
+        coach_id:coachIds[gi]||'',assistant_id:'',lead_coach_id:coachIds[0],
         target:'掌握本日基本動作並能完成組合',notes:'',students:g.students});
     }
     // 五階段 block（共用課表層級，training_group_id=null 代表全體階段）
