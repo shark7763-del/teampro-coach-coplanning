@@ -376,7 +376,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.1.4-internal';
+const APP_VERSION='1.1.5-internal';
 const DB_NAME='teampro_planner', DB_VER=2;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1150,16 +1150,28 @@ const App={
     if(!requireAdminRole())return;
     const demo=C('students').filter(s=>s.demo===true);
     if(!demo.length){toast('目前沒有示範學員可刪除','warn');return;}
-    await this.requireAdminPin({actionName:'刪除示範學員',impact:`將刪除 ${demo.length} 位 demo:true 的示範學員，並從既有分組中移除這些學員。正式匯入學員不會受影響。`,confirmText:'刪除示範',
-      backupReason:'刪除示範學員前自動備份',onConfirm:async()=>{
-        const ids=new Set(demo.map(s=>s.id));
-        for(const s of demo)await remove('students',s.id);
+    await this.deleteStudentsByIds(demo.map(s=>s.id),{actionName:'刪除示範學員',confirmText:'刪除示範',backupReason:'刪除示範學員前自動備份',auditAction:'delete_demo_students',
+      impact:`將刪除 ${demo.length} 位 demo:true 的示範學員，並從既有分組中移除這些學員。正式匯入學員不會受影響。`});
+  },
+  async deleteStudentsByIds(ids,options={}){
+    if(!requireAdminRole())return;
+    const unique=[...new Set(ids)].filter(Boolean);
+    const targets=C('students').filter(s=>unique.includes(s.id));
+    if(!targets.length){toast('請先選擇要刪除的學員','warn');return;}
+    const names=targets.slice(0,8).map(s=>s.name).join('、')+(targets.length>8?'…':'');
+    await this.requireAdminPin({actionName:options.actionName||'批量刪除學員',
+      impact:options.impact||`將刪除 ${targets.length} 位學員：${names}。此操作會同時從既有分組中移除這些學員。`,
+      confirmText:options.confirmText||'確認刪除',
+      backupReason:options.backupReason||'批量刪除學員前自動備份',
+      onConfirm:async()=>{
+        const idset=new Set(targets.map(s=>s.id));
+        for(const s of targets)await remove('students',s.id);
         for(const g of C('training_groups')){
-          const next=(g.students||[]).filter(id=>!ids.has(id));
+          const next=(g.students||[]).filter(id=>!idset.has(id));
           if(next.length!==(g.students||[]).length)await save('training_groups',{...g,students:next});
         }
-        await audit('delete_demo_students','students',null,null,{count:demo.length});
-        Modal.close();toast('已刪除示範學員 '+demo.length+' 位','ok');App.go('students','more');
+        await audit(options.auditAction||'delete_students_bulk','students',null,null,{count:targets.length,ids:[...idset]});
+        Modal.close();toast('已刪除學員 '+targets.length+' 位','ok');App.go('students','more');
       }});
   },
 };
@@ -1473,6 +1485,7 @@ Views.view_live=function(el){
 
 /* ---------- STUDENTS ---------- */
 Views.view_students=function(el){
+  Views._studentSelected=Views._studentSelected||new Set();
   el.innerHTML=`
   <div class="card">
     <div class="row">
@@ -1498,9 +1511,14 @@ Views.view_students=function(el){
     if(fs)list=list.filter(s=>s.specialty===fs);
     if(fc)list=list.filter(s=>s.class_id===fc);
     if(fw!=='')list=list.filter(s=>(s.weekdays||[]).includes(WEEKDAYS[+fw]));
-    $('#stuList').innerHTML=list.length?`<div class="card" style="margin-top:12px"><div class="scroll"><table class="tbl">
-      <tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th><th>進度</th><th>上課日</th><th></th></tr>
+    const selected=[...Views._studentSelected].filter(id=>C('students').some(s=>s.id===id&&s.active));
+    Views._studentSelected=new Set(selected);
+    $('#stuList').innerHTML=list.length?`<div class="card" style="margin-top:12px">
+      ${can('*')?`<div class="row" style="margin-bottom:8px"><button class="btn xs g" onclick="Views.selectVisibleStudents()">全選目前篩選 ${list.length} 人</button><button class="btn xs g" onclick="Views.clearStudentSelection()">清除選取</button><button id="bulkDelBtn" class="btn xs bad ${selected.length?'':'disabled'}" onclick="Views.deleteSelectedStudents()">刪除選取 ${selected.length} 人</button></div>`:''}
+      <div class="scroll"><table class="tbl">
+      <tr>${can('*')?'<th style="width:34px">選</th>':''}<th>姓名</th><th>年齡</th><th>級別</th><th>專項</th><th>進度</th><th>上課日</th><th></th></tr>
       ${list.map(s=>`<tr>
+        ${can('*')?`<td><input type="checkbox" class="stuChk" data-id="${s.id}" ${Views._studentSelected.has(s.id)?'checked':''} onchange="Views.toggleStudentSelection('${s.id}',this.checked)"></td>`:''}
         <td><b>${esc(s.name)}</b>${s.promotion_status?' 🎯':''}${s.competition_athlete?' 🏅':''}</td>
         <td><span class="tag age">${s.age_group}</span></td>
         <td><span class="tag belt">${normBelt(s.belt_rank)}</span></td>
@@ -1509,11 +1527,16 @@ Views.view_students=function(el){
         <td class="muted">${(s.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')}</td>
         <td>${can('*')?`<button class="btn xs g" onclick="Views.editStudent('${s.id}')">編輯</button>`:''}</td>
       </tr>`).join('')}
-    </table></div><div class="muted" style="margin-top:8px">共 ${list.length} 人</div></div>`:'<div class="empty"><div class="ic">👥</div>沒有符合的學員</div>';
+    </table></div><div class="muted" style="margin-top:8px">共 ${list.length} 人${can('*')?`・已選 ${selected.length} 人`:''}</div></div>`:'<div class="empty"><div class="ic">👥</div>沒有符合的學員</div>';
+    Views._studentVisibleIds=list.map(s=>s.id);
   };
   ['stuSearch','fAge','fBelt','fSpec','fClass','fWd'].forEach(id=>{const e=$('#'+id);e.oninput=render;e.onchange=render;});
   render();
 };
+Views.toggleStudentSelection=function(id,on){Views._studentSelected=Views._studentSelected||new Set();if(on)Views._studentSelected.add(id);else Views._studentSelected.delete(id);const btn=$('#bulkDelBtn');if(btn){const n=Views._studentSelected.size;btn.textContent='刪除選取 '+n+' 人';btn.classList.toggle('disabled',!n);}};
+Views.selectVisibleStudents=function(){Views._studentSelected=Views._studentSelected||new Set();(Views._studentVisibleIds||[]).forEach(id=>Views._studentSelected.add(id));Views.view_students($('#view'));};
+Views.clearStudentSelection=function(){Views._studentSelected=new Set();Views.view_students($('#view'));};
+Views.deleteSelectedStudents=async function(){const ids=[...(Views._studentSelected||new Set())];if(!ids.length){toast('請先勾選學員','warn');return;}await App.deleteStudentsByIds(ids,{actionName:'批量刪除學員',confirmText:'確認刪除',backupReason:'批量刪除學員前自動備份',auditAction:'delete_students_bulk'});Views._studentSelected=new Set();};
 Views.editStudent=function(id){
   const s=id?C('students').find(x=>x.id===id):{age_group:'國小',belt_rank:'白帶',specialty:'基礎',weekdays:[]};
   Modal.open(id?'編輯學員':'新增學員',`
