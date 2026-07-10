@@ -36,32 +36,92 @@ function doPost(e){
   }
 }
 
-/* ---- DB 分頁：key | store | id | json | srv | deleted ---- */
+/* ---- DB 分頁：key | store | id | json | srv | deleted | rev | updated_by | updated_at ---- */
 function getDB(){
   var ss=SpreadsheetApp.getActiveSpreadsheet();
   var sh=ss.getSheetByName('DB');
   if(!sh){
     sh=ss.insertSheet('DB');
-    sh.appendRow(['key','store','id','json','srv','deleted']);
+    sh.appendRow(['key','store','id','json','srv','deleted','rev','updated_by','updated_at']);
+  }else{
+    ensureColumns(sh);
   }
   return sh;
 }
 
-/* 逐筆 upsert（一般存檔用） */
+function ensureColumns(sh){
+  var head=sh.getRange(1,1,1,Math.max(sh.getLastColumn(),9)).getValues()[0];
+  var want=['key','store','id','json','srv','deleted','rev','updated_by','updated_at'];
+  var changed=false;
+  for(var i=0;i<want.length;i++){if(head[i]!==want[i]){head[i]=want[i];changed=true;}}
+  if(changed)sh.getRange(1,1,1,want.length).setValues([head.slice(0,want.length)]);
+  var req=SpreadsheetApp.getActiveSpreadsheet().getSheetByName('REQUEST_LOG');
+  if(!req){
+    req=SpreadsheetApp.getActiveSpreadsheet().insertSheet('REQUEST_LOG');
+    req.appendRow(['request_id','key','srv','status']);
+  }
+}
+
+function requestLog(){
+  var ss=SpreadsheetApp.getActiveSpreadsheet();
+  var sh=ss.getSheetByName('REQUEST_LOG');
+  if(!sh){sh=ss.insertSheet('REQUEST_LOG');sh.appendRow(['request_id','key','srv','status']);}
+  return sh;
+}
+
+function readRequestIds(){
+  var sh=requestLog(),data=sh.getDataRange().getValues(),out={};
+  for(var i=1;i<data.length;i++)out[String(data[i][0])]={key:data[i][1],srv:data[i][2],status:data[i][3]};
+  return out;
+}
+
+function parseJsonSafe(s){
+  try{return s?JSON.parse(s):null;}catch(e){return null;}
+}
+
+/* 逐筆 upsert（一般存檔用，支援 request_id 去重與 base_rev 衝突偵測） */
 function push(sh, records){
   var data=sh.getDataRange().getValues();
   var idx={};                                  // key -> row number
   for(var i=1;i<data.length;i++) idx[data[i][0]]=i+1;
+  var done=readRequestIds();
   var now=Date.now();
-  var inserts=[];
+  var inserts=[],results=[],logRows=[];
   records.forEach(function(r){
+    var requestId=String(r.request_id||'');
     var key=r.store+'|'+r.id;
-    var row=[key, r.store, r.id, r.json||'', now, r.deleted?1:0];
-    if(idx[key]) sh.getRange(idx[key],1,1,6).setValues([row]);
+    if(requestId && done[requestId]){
+      results.push({ok:true,duplicate:true,request_id:requestId,key:key,srv:done[requestId].srv});
+      return;
+    }
+    var current=null,currentRev=0,rowNo=idx[key]||0;
+    if(rowNo){
+      var rowData=data[rowNo-1];
+      current=parseJsonSafe(rowData[3]);
+      currentRev=Number(rowData[6]||((current&&current._rev)||0)||0);
+    }
+    var baseRev=Number(r.base_rev||0);
+    if(rowNo && !r.deleted && currentRev!==baseRev){
+      results.push({ok:false,status:409,conflict:true,request_id:requestId,key:key,remote:current,remote_rev:currentRev,error:'conflict'});
+      return;
+    }
+    if(rowNo && r.deleted && currentRev!==baseRev){
+      results.push({ok:false,status:409,conflict:true,request_id:requestId,key:key,remote:current,remote_rev:currentRev,error:'conflict'});
+      return;
+    }
+    var obj=parseJsonSafe(r.json);
+    var rev=r.deleted?currentRev:Number((obj&&obj._rev)||currentRev+1||1);
+    var updatedBy=obj&&obj.updated_by?JSON.stringify(obj.updated_by):JSON.stringify(r.updated_by||null);
+    var updatedAt=(obj&&obj.updated_at)||r.client_updated_at||now;
+    var row=[key, r.store, r.id, r.json||'', now, r.deleted?1:0, rev, updatedBy, updatedAt];
+    if(rowNo) sh.getRange(rowNo,1,1,9).setValues([row]);
     else inserts.push(row);
+    if(requestId)logRows.push([requestId,key,now,'ok']);
+    results.push({ok:true,request_id:requestId,key:key,srv:now,rev:rev});
   });
-  if(inserts.length) sh.getRange(sh.getLastRow()+1,1,inserts.length,6).setValues(inserts);
-  return {ok:true, srv:now, count:records.length};
+  if(inserts.length) sh.getRange(sh.getLastRow()+1,1,inserts.length,9).setValues(inserts);
+  if(logRows.length){var log=requestLog();log.getRange(log.getLastRow()+1,1,logRows.length,4).setValues(logRows);}
+  return {ok:true, srv:now, count:records.length, results:results};
 }
 
 /* 拉取 srv > since 的變更 */
@@ -71,7 +131,7 @@ function pull(sh, since){
   for(var i=1;i<data.length;i++){
     var srv=Number(data[i][4]);
     if(srv>since){
-      out.push({store:data[i][1], id:String(data[i][2]), json:data[i][3], srv:srv, deleted:data[i][5]==1});
+      out.push({store:data[i][1], id:String(data[i][2]), json:data[i][3], srv:srv, deleted:data[i][5]==1, rev:Number(data[i][6]||0), updated_by:data[i][7], updated_at:data[i][8]});
       if(srv>maxSrv) maxSrv=srv;
     }
   }
@@ -81,10 +141,13 @@ function pull(sh, since){
 /* 全量覆蓋（主帳號第一次上傳 / 重置雲端用）：清空後整批寫入 */
 function replaceAll(sh, records){
   var last=sh.getLastRow();
-  if(last>1) sh.getRange(2,1,last-1,6).clearContent();
+  if(last>1) sh.getRange(2,1,last-1,9).clearContent();
   var now=Date.now();
-  var rows=records.map(function(r){ return [r.store+'|'+r.id, r.store, r.id, r.json||'', now, r.deleted?1:0]; });
-  if(rows.length) sh.getRange(2,1,rows.length,6).setValues(rows);
+  var rows=records.map(function(r){
+    var obj=parseJsonSafe(r.json),rev=Number((obj&&obj._rev)||0),updatedBy=obj&&obj.updated_by?JSON.stringify(obj.updated_by):'',updatedAt=(obj&&obj.updated_at)||now;
+    return [r.store+'|'+r.id, r.store, r.id, r.json||'', now, r.deleted?1:0, rev, updatedBy, updatedAt];
+  });
+  if(rows.length) sh.getRange(2,1,rows.length,9).setValues(rows);
   return {ok:true, srv:now, count:rows.length};
 }
 

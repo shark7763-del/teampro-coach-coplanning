@@ -25,7 +25,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  background:var(--color-bg);color:var(--ink);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%}
+  background:var(--color-bg);color:var(--ink);font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%;overflow-x:hidden}
 svg{display:inline-block;vertical-align:middle}
 button,input,select,textarea{font-family:inherit;font-size:15px}
 button{cursor:pointer;border:none;background:none}
@@ -135,6 +135,7 @@ a{color:var(--brand);text-decoration:none}
 .tbl th{color:var(--sub);font-weight:600;font-size:12px;background:#f8fafc;position:sticky;top:0}
 .tbl tr:active{background:#f8fafc}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.codebox{display:block;max-width:100%;max-height:280px;overflow:auto;background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap;word-break:break-word}
 /* chips / tags */
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);background:#fff;color:#475569;cursor:pointer;user-select:none}
@@ -376,14 +377,15 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.1.5-internal';
-const DB_NAME='teampro_planner', DB_VER=2;
+const APP_VERSION='1.2.0-internal';
+const DB_NAME='teampro_planner', DB_VER=3;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
 const DEFAULT_SYNC_URL='https://script.google.com/macros/s/AKfycbyPf7Qd2LuIsx-P0z-kdrAMxrsqpvonswGHXHnHrrLaT22EWjXXQYOQGUd29SlNc7Lt/exec';
 const DATA_STORES=['settings','profiles','students','classes','weekly_plans','daily_plans',
-  'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs'];
-const STORES=[...DATA_STORES,'backups'];
+  'training_groups','lesson_blocks','discussions','post_class_reports','course_templates','audit_logs','edit_locks'];
+const LOCAL_STORES=['backups','sync_outbox','sync_conflicts'];
+const STORES=[...DATA_STORES,...LOCAL_STORES];
 
 const AGE_GROUPS=['幼兒','國小','國中','成人'];
 const BELTS=['白帶','黃帶','黃藍帶','藍帶','藍紅帶','紅帶','紅一線','紅二線','黑頭','一段','兩段','三段','四段'];
@@ -402,6 +404,8 @@ const ABILITY_TAGS=['敏捷','反應','協調','平衡','核心','柔軟度','�
 const APPLY_TYPES=['應用','組合','挑戰','闖關','小組競賽','品勢演練','踢靶','攻防反應','條件對練','模擬比賽'];
 const STATUS=[['draft','草稿','b-draft'],['disc','討論中','b-disc'],['wait','待確認','b-wait'],
   ['pub','已發布','b-pub'],['done','已完成','b-done'],['lock','已鎖定','b-lock']];
+const SYNC_DATA_STORES=DATA_STORES.filter(s=>s!=='audit_logs');
+const DEVICE_ID=(()=>{let id=localStorage.getItem('tp_device_id');if(!id){id='dev_'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem('tp_device_id',id);}return id;})();
 
 /* ---------------- IndexedDB tiny layer ---------------- */
 const DB={
@@ -420,6 +424,16 @@ const DB={
     DB._openPromise.then(res,rej);
   });},
   _tx(store,mode){if(!DB._db)throw new Error('資料庫尚未就緒，請重新整理後再試。');return DB._db.transaction(store,mode).objectStore(store);},
+  tx(stores,mode,fn){return new Promise((res,rej)=>{
+    if(!DB._db)return rej(new Error('資料庫尚未就緒，請重新整理後再試。'));
+    const tx=DB._db.transaction(stores,mode);
+    const api={store:n=>tx.objectStore(n)};
+    let out;
+    tx.oncomplete=()=>res(out);
+    tx.onerror=()=>rej(tx.error);
+    tx.onabort=()=>rej(tx.error||new Error('IndexedDB transaction aborted'));
+    try{out=fn(api,tx);}catch(e){tx.abort();rej(e);}
+  });},
   all(store){return new Promise((res,rej)=>{const r=DB._tx(store,'readonly').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});},
   get(store,id){return new Promise((res,rej)=>{const r=DB._tx(store,'readonly').get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});},
   put(store,obj){return new Promise((res,rej)=>{const r=DB._tx(store,'readwrite').put(obj);r.onsuccess=()=>res(obj);r.onerror=()=>rej(r.error);});},
@@ -463,8 +477,58 @@ async function ensureDbReady(){
   for(const s of STORES){if(!State.cache[s])State.cache[s]=await DB.all(s);}
 }
 const C=store=>State.cache[store]||[];
-async function save(store,obj){obj.id=obj.id||uid();obj._u=Date.now();await DB.put(store,obj);await reload(store);if(typeof SYNC!=='undefined')SYNC.push(store,obj);return obj;}
-async function remove(store,id){await DB.del(store,id);await reload(store);if(typeof SYNC!=='undefined')SYNC.pushDelete(store,id);}
+function shouldSyncStore(store){return SYNC_DATA_STORES.includes(store);}
+function outboxRecord(store,id,operation,payload,baseRev){
+  const now=Date.now(),request_id=uid('rq_');
+  return {id:request_id,request_id,store,record_id:id,operation,payload:payload?JSON.parse(JSON.stringify(payload)):null,
+    base_rev:baseRev||0,created_at:now,updated_at:now,retry_count:0,last_error:'',status:'queued',next_retry_at:0};
+}
+function touchSyncMeta(obj,old){
+  const now=Date.now(),prevRev=Number(old?old._rev:(obj._rev||0))||0;
+  obj.base_rev=prevRev;
+  obj._rev=prevRev+1;
+  obj.updated_by=State.user?{id:State.user.id,name:State.user.name,role:State.user.role}:null;
+  obj.updated_device=DEVICE_ID;
+  obj.updated_at=now;
+  obj._u=now;
+  return obj;
+}
+async function save(store,obj){
+  obj={...obj,id:obj.id||uid()};
+  if(!shouldSyncStore(store)){
+    obj._u=Date.now();await DB.put(store,obj);await reload(store);return obj;
+  }
+  let saved;
+  await DB.tx([store,'sync_outbox'],'readwrite',api=>{
+    const os=api.store(store),out=api.store('sync_outbox');
+    const get=os.get(obj.id);
+    get.onsuccess=()=>{
+      const old=get.result||null;
+      saved=touchSyncMeta({...obj},old);
+      os.put(saved);
+      out.put(outboxRecord(store,saved.id,old?'update':'create',saved,saved.base_rev));
+    };
+  });
+  await reload(store);await reload('sync_outbox');
+  if(typeof SYNC!=='undefined')SYNC.kick();
+  return saved;
+}
+async function remove(store,id){
+  if(!shouldSyncStore(store)){
+    await DB.del(store,id);await reload(store);return;
+  }
+  await DB.tx([store,'sync_outbox'],'readwrite',api=>{
+    const os=api.store(store),out=api.store('sync_outbox');
+    const get=os.get(id);
+    get.onsuccess=()=>{
+      const old=get.result||null;
+      os.delete(id);
+      out.put(outboxRecord(store,id,'delete',old?{id,_rev:old._rev||0,updated_at:Date.now()}:null,old?old._rev||0:0));
+    };
+  });
+  await reload(store);await reload('sync_outbox');
+  if(typeof SYNC!=='undefined')SYNC.kick();
+}
 async function audit(action,table,recId,before,after){
   await save('audit_logs',{id:uid(),user_id:State.user?.id,user_name:State.user?.name,action,table_name:table,record_id:recId,before_data:before?JSON.stringify(before).slice(0,500):'',after_data:after?JSON.stringify(after).slice(0,500):'',created_at:Date.now()});
 }
@@ -545,28 +609,74 @@ const SYNC={
   _replacing:false,
   url(){try{return (settings().syncUrl||DEFAULT_SYNC_URL||'').trim();}catch(e){return (DEFAULT_SYNC_URL||'').trim();}},
   enabled(){return !!SYNC.url();},
-  pendingCount(){return SYNC._q.length;},
+  pendingCount(){return C('sync_outbox').filter(x=>!['done','conflict'].includes(x.status)).length;},
+  conflictCount(){return C('sync_conflicts').filter(x=>x.status!=='resolved').length;},
   lastPull(){return +(localStorage.getItem('tp_lastpull')||0);},
   setLastPull(v){localStorage.setItem('tp_lastpull',v);},
   async post(payload){
     const res=await fetch(SYNC.url(),{method:'POST',body:JSON.stringify(payload)});
     return await res.json();
   },
-  _q:[], _busy:false,
-  push(store,obj){if(store==='backups'||!SYNC.enabled())return;SYNC._q.push({store,id:obj.id,json:JSON.stringify(obj),deleted:false});SYNC._flush();App.updateSyncPill?.();},
-  pushDelete(store,id){if(store==='backups'||!SYNC.enabled())return;SYNC._q.push({store,id,json:'',deleted:true});SYNC._flush();App.updateSyncPill?.();},
+  _busy:false,
+  push(){SYNC.kick();},
+  pushDelete(){SYNC.kick();},
+  kick(){App.updateSyncPill?.();if(SYNC.enabled())setTimeout(()=>SYNC._flush(),0);},
+  async _markOutbox(item,patch){await DB.put('sync_outbox',{...item,...patch,updated_at:Date.now()});await reload('sync_outbox');},
+  _wire(item){
+    return {request_id:item.request_id,store:item.store,id:item.record_id,operation:item.operation,
+      json:item.payload?JSON.stringify(item.payload):'',deleted:item.operation==='delete',
+      base_rev:item.base_rev||0,client_updated_at:item.updated_at||item.created_at||Date.now(),updated_by:item.payload?.updated_by||null,updated_device:item.payload?.updated_device||DEVICE_ID};
+  },
+  _nextDelay(n){return Math.min(10*60*1000,Math.max(1000,Math.pow(2,Math.min(n,8))*1000));},
   async _flush(){
-    if(SYNC._busy||!SYNC._q.length||!SYNC.enabled())return;
+    if(SYNC._busy||!SYNC.enabled())return;
     if(navigator.onLine===false){SYNC.status='網路離線';App.updateSyncPill?.();return;}
     SYNC._busy=true;
     SYNC.status='同步中';
     App.updateSyncPill?.();
-    const batch=SYNC._q.splice(0,SYNC._q.length);
-    try{await SYNC.post({action:'push',records:batch});SYNC.lastSuccess=Date.now();localStorage.setItem('tp_sync_success',SYNC.lastSuccess);SYNC.lastError='';SYNC.status='已同步 '+new Date(SYNC.lastSuccess).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});}
-    catch(e){SYNC._q.unshift(...batch);SYNC.lastError=e.message||String(e);SYNC.status='同步失敗';toast('同步失敗：'+SYNC.lastError,'warn');setTimeout(()=>SYNC._flush(),4000);}
+    let sent=0,failed=0,conflicted=0;
+    try{
+      const now=Date.now();
+      const items=(await DB.all('sync_outbox'))
+        .filter(x=>['queued','failed'].includes(x.status||'queued')&&Number(x.next_retry_at||0)<=now)
+        .sort((a,b)=>(a.created_at||0)-(b.created_at||0))
+        .slice(0,25);
+      if(!items.length){SYNC.status=SYNC.pendingCount()?`待同步 ${SYNC.pendingCount()} 筆`:'已同步 '+(SYNC.lastSuccess?new Date(SYNC.lastSuccess).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}):'');SYNC._busy=false;App.updateSyncPill?.();return;}
+      for(const item of items){
+        await SYNC._markOutbox(item,{status:'sending',last_error:''});
+        try{
+          const r=await SYNC.post({action:'push',records:[SYNC._wire(item)]});
+          const res=(r&&r.results&&r.results[0])||r||{};
+          if(res.ok){
+            await DB.del('sync_outbox',item.id);sent++;
+          }else if(res.conflict||res.status===409){
+            await SYNC._saveConflict(item,res);await DB.del('sync_outbox',item.id);conflicted++;
+          }else{
+            throw new Error(res.error||'同步失敗');
+          }
+        }catch(e){
+          failed++;
+          const retry=(item.retry_count||0)+1;
+          await SYNC._markOutbox(item,{status:'failed',retry_count:retry,last_error:e.message||String(e),next_retry_at:Date.now()+SYNC._nextDelay(retry)});
+        }
+      }
+      await reload('sync_outbox');await reload('sync_conflicts');
+      if(sent){SYNC.lastSuccess=Date.now();localStorage.setItem('tp_sync_success',SYNC.lastSuccess);SYNC.lastError='';}
+      if(conflicted){toast('偵測到同步衝突，請到系統設定處理','warn');}
+      if(failed){SYNC.lastError='有 '+failed+' 筆同步失敗，已排程重試';SYNC.status='同步失敗';}
+      else SYNC.status=SYNC.pendingCount()?`待同步 ${SYNC.pendingCount()} 筆`:'已同步 '+new Date(SYNC.lastSuccess||Date.now()).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    }catch(e){SYNC.lastError=e.message||String(e);SYNC.status='同步失敗';toast('同步失敗：'+SYNC.lastError,'warn');}
     SYNC._busy=false;
     App.updateSyncPill?.();
-    if(SYNC._q.length)setTimeout(()=>SYNC._flush(),1500);
+    if(SYNC.pendingCount())setTimeout(()=>SYNC._flush(),3000);
+  },
+  async _saveConflict(item,res){
+    const id='cf_'+item.request_id;
+    const cf={id,request_id:item.request_id,store:item.store,record_id:item.record_id,operation:item.operation,
+      local_payload:item.payload||null,remote_payload:res.remote||null,local_rev:item.payload?item.payload._rev:item.base_rev,
+      base_rev:item.base_rev||0,remote_rev:res.remote?res.remote._rev:res.remote_rev,updated_by:res.remote?.updated_by||res.updated_by||null,
+      updated_at:res.remote?.updated_at||res.updated_at||Date.now(),created_at:Date.now(),status:'open',error:res.error||'conflict'};
+    await DB.put('sync_conflicts',cf);await reload('sync_conflicts');
   },
   async pull(){
     if(!SYNC.enabled())return{changed:0};
@@ -579,7 +689,7 @@ const SYNC={
       const local=(State.cache[rec.store]||[]).find(x=>x.id===rec.id);
       if(rec.deleted){if(local){await DB.del(rec.store,rec.id);changed++;}continue;}
       let obj;try{obj=JSON.parse(rec.json);}catch(e){continue;}
-      if(!local || (obj._u||0)>(local._u||0)){await DB.put(rec.store,obj);changed++;}
+      if(!local || (obj._rev||obj._u||0)>(local._rev||local._u||0)){await DB.put(rec.store,obj);changed++;}
     }
     if(changed)await reloadAll();
     SYNC.setLastPull(r.maxSrv||r.srv||SYNC.lastPull());
@@ -632,6 +742,36 @@ const SYNC={
     await SYNC._flush();
     const r=await SYNC.pull();
     if(r.changed)App.refresh();
+  },
+  async retryFailed(){
+    const items=C('sync_outbox').filter(x=>x.status==='failed');
+    for(const it of items)await DB.put('sync_outbox',{...it,status:'queued',next_retry_at:0,updated_at:Date.now()});
+    await reload('sync_outbox');toast('已重新排入 '+items.length+' 筆失敗項目','ok');SYNC.kick();
+  },
+  async resolveConflict(id,mode){
+    if(!State.user)return toast('請先登入','warn');
+    const cf=C('sync_conflicts').find(x=>x.id===id);if(!cf)return toast('找不到衝突紀錄','bad');
+    if(mode==='cloud'){
+      if(cf.remote_payload)await DB.put(cf.store,cf.remote_payload);
+      await DB.del('sync_conflicts',id);await reload(cf.store);await reload('sync_conflicts');toast('已使用雲端版本','ok');App.go('settings','more');return;
+    }
+    if(mode==='mine'){
+      const mine={...(cf.local_payload||{}),base_rev:cf.remote_payload?cf.remote_payload._rev||0:cf.remote_rev||0};
+      await save(cf.store,mine);await DB.del('sync_conflicts',id);await reload('sync_conflicts');toast('已保留我的版本，將重新同步','ok');App.go('settings','more');return;
+    }
+    const txt=$('#mergeJson')?.value||'';
+    try{const merged=JSON.parse(txt);merged.id=cf.record_id;merged.base_rev=cf.remote_payload?cf.remote_payload._rev||0:cf.remote_rev||0;await save(cf.store,merged);await DB.del('sync_conflicts',id);await reload('sync_conflicts');toast('已儲存合併版本','ok');App.go('settings','more');}
+    catch(e){toast('合併內容不是有效 JSON','bad');$('#mergeJson')?.focus();}
+  },
+  showConflict(id){
+    const cf=C('sync_conflicts').find(x=>x.id===id);if(!cf)return;
+    Modal.open('同步衝突處理',`
+      <div class="warnbox">同一筆資料已被其他教練修改，系統已停止自動覆蓋。</div>
+      <div class="kv"><b>資料</b><span>${esc(cf.store)} / ${esc(cf.record_id)}</span></div>
+      <div class="kv"><b>雲端修改者</b><span>${esc(cf.updated_by?.name||'—')}</span></div>
+      <div class="row" style="align-items:stretch"><div class="grow"><label class="sm">我的內容</label><pre class="codebox">${esc(JSON.stringify(cf.local_payload,null,2))}</pre></div><div class="grow"><label class="sm">雲端內容</label><pre class="codebox">${esc(JSON.stringify(cf.remote_payload,null,2))}</pre></div></div>
+      <div class="field"><label class="sm">合併後儲存 JSON</label><textarea id="mergeJson" style="min-height:160px">${esc(JSON.stringify(cf.remote_payload||cf.local_payload||{},null,2))}</textarea></div>
+      <div class="row"><button class="btn secondary grow" onclick="SYNC.resolveConflict('${id}','cloud')">使用雲端版本</button><button class="btn secondary grow" onclick="SYNC.resolveConflict('${id}','mine')">使用我的版本</button><button class="btn grow" onclick="SYNC.resolveConflict('${id}','merge')">合併後儲存</button></div>`);
   },
   bindNetwork(){
     if(SYNC._netBound)return;SYNC._netBound=true;
@@ -945,7 +1085,7 @@ const App={
     {key:'team',label:'團隊',icon:'users',roles:['admin','head','assistant']},
     {key:'more',label:'更多',icon:'grid',roles:['admin','head','assistant']},
   ],
-  VIEW_AREA:{home:'today',live:'today',stats:'plan',groups:'plan',plan:'plan',confirm:'plan',publish:'plan',
+  VIEW_AREA:{home:'today',live:'today',quickplan:'plan',stats:'plan',groups:'plan',plan:'plan',confirm:'plan',publish:'plan',
     week:'week',pdf:'week',team:'team',mytasks:'team',report:'team',discuss:'team',
     more:'more',students:'more',classes:'more',coaches:'more',templates:'more',import:'more',settings:'more'},
   areaDefault(key){
@@ -1067,7 +1207,7 @@ const App={
     window.scrollTo(0,0);
     const el=$('#view');const fn='view_'+v;
     if(Views[fn]){el.innerHTML='';Views[fn](el);}else el.innerHTML='<div class="empty">頁面建置中</div>';
-    if(this.area==='plan'&&['stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v);
+    if(this.area==='plan'&&['quickplan','stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v==='quickplan'?'stats':v);
   },
   /* ----- sync pill ----- */
   syncText(){if(navigator.onLine===false)return['bad','網路離線'];if(!SYNC.enabled())return['off','離線・單機模式'];
@@ -1076,6 +1216,12 @@ const App={
     if(SYNC.lastSuccess)return['ok','已同步 '+new Date(SYNC.lastSuccess).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})];
     return['ok','雲端已連線'];},
   updateSyncPill(){const [cls,txt]=this.syncText();['ctxPill','sidePill'].forEach(id=>{const e=document.getElementById(id);if(e){e.className='sync-pill '+cls;e.innerHTML='<span class="d"></span><span>'+esc(txt)+'</span>';}});},
+  async applyPwaUpdate(){
+    await reload('sync_outbox');
+    if(!this._waitingWorker){Modal.close();return;}
+    this._waitingWorker.postMessage({type:'SKIP_WAITING'});
+    Modal.close();
+  },
   hasFormalData(){return DATA_STORES.filter(s=>s!=='settings'&&s!=='audit_logs').some(s=>C(s).length>0);},
   async requireAdminPin(options){
     const opt=options||{};
@@ -1085,7 +1231,7 @@ const App={
     return new Promise(resolve=>{
       const id=uid('pin');
       Modal.open('管理者安全驗證',`
-        <div class="warnbox" style="margin-top:0"><b>${esc(opt.actionName||'危險操作')}</b><br>${esc(opt.impact||'此操作可能覆蓋或刪除資料。')}</div>
+        <div data-danger="1" class="warnbox" style="margin-top:0"><b>${esc(opt.actionName||'危險操作')}</b><br>${esc(opt.impact||'此操作可能覆蓋或刪除資料。')}</div>
         ${opt.confirmText?`<div class="field"><label>文字確認</label><input id="${id}_txt" autocomplete="off" placeholder="${esc(opt.confirmText)}"><div class="help">請輸入「${esc(opt.confirmText)}」</div></div>`:''}
         <div class="field"><label>管理者 PIN</label><input id="${id}_pin" type="password" inputmode="numeric" autocomplete="off"><div class="err" id="${id}_err" style="display:none">管理者 PIN 錯誤，未執行任何操作。</div></div>
         <div class="row"><button class="btn secondary grow" id="${id}_cancel">取消</button><button class="btn danger grow" id="${id}_ok">確認執行</button></div>`,()=>{
@@ -1182,7 +1328,18 @@ const Modal={
     let m=$('#modal'); if(!m){m=document.createElement('div');m.id='modal';document.body.appendChild(m);}
     m.innerHTML=`<div class="m"><h3>${title}<span class="x" onclick="Modal.close()">×</span></h3>${html}</div>`;
     m.onclick=e=>{if(e.target===m)Modal.close();};
+    m.onkeydown=e=>{
+      const dangerous=!!m.querySelector('[data-danger="1"]');
+      if(e.key==='Escape'&&!dangerous){Modal.close();return;}
+      if(e.key!=='Tab')return;
+      const f=[...m.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(x=>!x.disabled&&x.offsetParent!==null);
+      if(!f.length)return;
+      const first=f[0],last=f[f.length-1];
+      if(e.shiftKey&&document.activeElement===first){last.focus();e.preventDefault();}
+      else if(!e.shiftKey&&document.activeElement===last){first.focus();e.preventDefault();}
+    };
     if(onOpen)onOpen(m);
+    setTimeout(()=>{const first=m.querySelector('input,textarea,select,button');first&&first.focus();},0);
   },
   close(){const m=$('#modal');if(m)m.remove();}
 };
@@ -1233,6 +1390,16 @@ function computeTodos(date,classId){
   if(ps.steps.publish&&!rep)t.push({level:'info',title:'課後紀錄未完成',sub:'課後填寫實到與下堂銜接',view:'report'});
   return {todos:t,ps};
 }
+async function touchEditLock(dpId){
+  if(!State.user||!dpId)return;
+  const lock={id:'lock_'+dpId,daily_plan_id:dpId,user_id:State.user.id,user_name:State.user.name,updated_at:Date.now(),device_id:DEVICE_ID};
+  await save('edit_locks',lock);
+}
+function currentEditLock(dpId){
+  const locks=C('edit_locks').filter(l=>l.daily_plan_id===dpId&&l.user_id!==State.user?.id&&Date.now()-(l.updated_at||0)<10*60*1000)
+    .sort((a,b)=>(b.updated_at||0)-(a.updated_at||0));
+  return locks[0]||null;
+}
 
 /* ---------- TODAY workspace ---------- */
 Views.view_home=function(el){
@@ -1247,6 +1414,11 @@ Views.view_home=function(el){
   const sug=ps.list.length&&!ps.groups.length?Grouping.suggest(ps.list,'smart',coaches).groups.length:0;
   const suggN=ps.groups.length||sug;
   const status=ps.dp?statusMeta(ps.dp.status)[1]:'未建立';
+  const latestBackup=BackupManager.list()[0];
+  const backupOld=!latestBackup||Date.now()-latestBackup.created_at>24*60*60*1000;
+  const exceptionCount=todos.filter(t=>['block','warn'].includes(t.level)).length+(SYNC.lastError?1:0)+(backupOld?1:0);
+  const head=C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active);
+  const assistants=C('profiles').filter(p=>p.role==='assistant'&&p.active).slice(0,2).map(p=>p.name).join('、')||'—';
   const hour=new Date().getHours(),hi=hour<11?'早安':hour<18?'午安':'晚安';
   let cta={label:'繼續完成今日備課',view:'stats',area:'plan'};
   if(ps.dp&&ps.dp.status==='pub')cta={label:'進入現場執行',view:'live',area:'today'};
@@ -1265,11 +1437,17 @@ Views.view_home=function(el){
     </div>
     <div class="metrics">
       <div class="metric"><div class="n">${ps.list.length}</div><div class="l">預計人數</div></div>
+      <div class="metric"><div class="n">${suggN}</div><div class="l">分組數</div></div>
       <div class="metric"><div class="n">${coaches}</div><div class="l">可出席教練</div></div>
-      <div class="metric"><div class="n">${suggN}</div><div class="l">${ps.groups.length?'目前組別':'建議分組'}</div></div>
-      <div class="metric"><div class="n" style="font-size:15px;padding-top:5px">${status}</div><div class="l">課程狀態</div></div>
+      <div class="metric"><div class="n" style="font-size:15px;padding-top:5px">${exceptionCount}</div><div class="l">未處理異常</div></div>
     </div>
-    <button class="btn block lg" onclick="App.go('${cta.view}','${cta.area}')">${cta.label}</button>
+    <div class="grid g2" style="margin-top:8px">
+      <div class="kv"><b>主教練</b><span>${esc(head?.name||'—')}</span></div><div class="kv"><b>助教</b><span>${esc(assistants)}</span></div>
+      <div class="kv"><b>備課完成率</b><span>${ps.pct}%</span></div><div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div>
+      <div class="kv"><b>最近備份</b><span>${latestBackup?new Date(latestBackup.created_at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</span></div><div class="kv"><b>狀態</b><span>${status}</span></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="btn grow" onclick="App.go('${cta.view}','${cta.area}')">繼續備課</button><button class="btn ok grow" onclick="App.go('live','today')">開始上課</button><button class="btn secondary grow" onclick="App.go('groups','plan')">查看今日配置</button></div>
+    <button class="btn g block" style="margin-top:8px" onclick="App.go('quickplan','plan')">快速備課</button>
     ${ps.dp&&ps.dp._u?`<div style="text-align:center;font-size:11px;color:#8aa0b6;margin-top:8px">最後更新：${new Date(ps.dp._u).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`:''}
   </div>
   <div class="sect-head"><h3>待完成事項</h3><span class="sp"></span><span class="muted">${todos.length} 項</span></div>
@@ -1881,6 +2059,116 @@ async function ensureDaily(date,classId){
 </script>
 
 <script>
+/* ---------- QUICK PLAN ---------- */
+Views.view_quickplan=function(el){
+  ensureClassCtx();
+  const cls=C('classes').filter(c=>c.active);
+  if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  el.innerHTML=`<div class="card"><h3 style="margin-top:0">快速備課</h3>
+    <div class="row"><div class="grow field"><label class="sm">班級</label><select id="qClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div>
+      <div class="grow field"><label class="sm">日期</label><input type="date" id="qDate" value="${State.ctx.date}"></div></div>
+    <div class="field"><label class="sm">今日主目標</label><select id="qGoal">${['基本動作穩定','腿法速度與準確度','品勢路線與節奏','對練反應與距離','晉級考重點','比賽選手強化'].map(x=>`<option>${x}</option>`).join('')}</select></div>
+    <div class="row"><div class="grow field"><label class="sm">分組方式</label><select id="qGroup"><option value="level">白帶 / 中色帶 / 高色帶</option><option value="smart">系統智慧分組</option><option value="custom">自訂分組（保留既有分組）</option></select></div>
+      <div class="grow field"><label class="sm">課程強度</label><select id="qIntensity">${['低','中','高'].map(x=>`<option>${x}</option>`).join('')}</select></div></div>
+    <div class="grid g2">
+      <button class="tile" onclick="Views.quickCopyPrev()">${svg('clipboard',22)}<span><b>複製上一堂課</b><span>用最近一次同班內容</span></span></button>
+      <button class="tile" onclick="Views.quickCopyLastWeek()">${svg('calendar',22)}<span><b>複製上週同一天</b><span>保留週期銜接</span></span></button>
+      <button class="tile" onclick="Views.quickApplyTemplate()">${svg('database',22)}<span><b>套用館內模板</b><span>帶入常用課程</span></span></button>
+      <button class="tile" onclick="Views.quickCarryUnfinished()">${svg('clock',22)}<span><b>帶入未完成內容</b><span>依課後紀錄銜接</span></span></button>
+    </div>
+    <button class="btn block lg" style="margin-top:12px" onclick="Views.generateQuickPlan()">產生五階段初稿</button>
+  </div>
+  <div class="card"><h3 style="margin-top:0">初稿內容</h3><div id="quickPreview" class="muted">選擇條件後產生課程初稿。</div></div>`;
+  $('#qClass').onchange=e=>{State.ctx.classId=e.target.value;};
+  $('#qDate').onchange=e=>{State.ctx.date=e.target.value;};
+};
+Views.quickContext=function(){
+  const classId=$('#qClass')?.value||State.ctx.classId,date=$('#qDate')?.value||State.ctx.date,wd=weekdayOf(date);
+  return {classId,date,wd,goal:$('#qGoal')?.value||'基本動作穩定',groupMode:$('#qGroup')?.value||'level',intensity:$('#qIntensity')?.value||'中',
+    list:Stats.studentsFor(classId,wd),coaches:Stats.coachesAvailable(wd)};
+};
+Views.quickPreview=function(text){const box=$('#quickPreview');if(box)box.innerHTML=`<pre class="codebox">${esc(text)}</pre>`;};
+Views.generateQuickPlan=async function(){
+  const q=Views.quickContext();if(!q.classId){toast('請先選擇班級','warn');return;}
+  const dp=await ensureDaily(q.date,q.classId);
+  if(q.groupMode!=='custom'){
+    const sug=Grouping.suggest(q.list,q.groupMode==='level'?'level':'smart',q.coaches.length).groups;
+    const old=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+    for(const g of old)await remove('training_groups',g.id);
+    for(let i=0;i<sug.length;i++){
+      const coach=q.coaches[i%Math.max(1,q.coaches.length)];
+      await save('training_groups',{...sug[i],daily_plan_id:dp.id,coach_id:coach?.id||'',assistant_id:'',target:q.goal});
+    }
+  }
+  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const weak=Views.quickWeakStudents(q.classId);
+  const equip=q.intensity==='高'?'踢靶、角錐、敏捷梯、護具':'踢靶、角錐、水壺';
+  const drafts={
+    warmup:{content:`集合禮節、關節活動、慢跑與動態伸展（${q.intensity}強度）`,goal:'收心、提升體溫',equipment:'碼表',safety_notes:'確認場地乾燥，提醒補水。'},
+    fitness:{content:`反應遊戲、核心與折返跑，銜接今日主目標：${q.goal}`,goal:'建立身體控制與專注',equipment:'角錐、敏捷梯',safety_notes:'幼兒降低碰撞風險。'},
+    apply:{content:`分組成果挑戰：${q.goal} 的組合應用與小組競賽`,goal:'把基本動作轉成可執行任務',equipment:equip,safety_notes:'對練距離與護具檢查。'},
+    review:{praise:'點名表揚專注與互助',remind:weak.length?`下次加強：${weak.slice(0,6).join('、')}`:'提醒回家練習今日主目標',homework:`每天 3 分鐘練習 ${q.goal}`,preview:'下堂課延伸今日未完成內容',done:false}
+  };
+  for(const bl of BLOCKS.filter(b=>b.key!=='group')){
+    let cur=C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type===bl.key&&!b.training_group_id);
+    await save('lesson_blocks',{...(cur||{id:uid('lb')}),daily_plan_id:dp.id,training_group_id:null,block_type:bl.key,start_minute:bl.s,end_minute:bl.e,done:false,...drafts[bl.key]});
+  }
+  for(const g of groups){
+    let cur=C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type==='group'&&b.training_group_id===g.id);
+    await save('lesson_blocks',{...(cur||{id:uid('lb')}),daily_plan_id:dp.id,training_group_id:g.id,block_type:'group',start_minute:30,end_minute:60,
+      basic:q.goal,kick:g.group_type==='對練'?'攻防步伐與反應':'前踢、旋踢準確度',poomsae:g.group_type==='品勢'?'指定品勢段落':'依級別複習',spar:g.group_type==='對練'?'條件對練':'距離控制遊戲',
+      goal:`${g.name} 完成 ${q.goal}`,commonErr:'抬頭、重心、收腳',done:false});
+  }
+  await save('discussions',{id:uid('ds'),daily_plan_id:dp.id,author_id:State.user.id,author_name:State.user.name,message:`快速備課已產生：主目標 ${q.goal}；器材 ${equip}；安全提醒已帶入。`,created_at:Date.now(),reads:[State.user.id]});
+  Views.quickPreview(`已建立 ${groups.length} 組與五階段初稿\n助教任務：協助器材、幼兒安全距離、記錄需加強學生\n需加強學生：${weak.join('、')||'無'}\n器材：${equip}`);
+  toast('快速備課初稿已完成','ok');
+};
+Views.quickWeakStudents=function(classId){
+  const plans=C('daily_plans').filter(d=>d.class_id===classId).sort((a,b)=>b.date.localeCompare(a.date));
+  const names=[];
+  for(const dp of plans.slice(0,4)){
+    C('post_class_reports').filter(r=>r.daily_plan_id===dp.id&&(r.weak||r.adjust)).forEach(r=>names.push(...String(r.weak||r.adjust||'').split(/[、,，\s]+/).filter(Boolean)));
+  }
+  return [...new Set(names)].slice(0,10);
+};
+Views.copyPlanBlocks=async function(fromPlan,toPlan){
+  if(!fromPlan||!toPlan)return false;
+  for(const b of C('lesson_blocks').filter(x=>x.daily_plan_id===fromPlan.id&&!x.training_group_id)){
+    let cur=C('lesson_blocks').find(x=>x.daily_plan_id===toPlan.id&&x.block_type===b.block_type&&!x.training_group_id);
+    const copy={...b,id:cur?cur.id:uid('lb'),daily_plan_id:toPlan.id,done:false};await save('lesson_blocks',copy);
+  }
+  return true;
+};
+Views.quickCopyPrev=async function(){
+  const q=Views.quickContext();const prev=C('daily_plans').filter(d=>d.class_id===q.classId&&d.date<q.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  if(!prev){toast('找不到可複製的上一堂課','warn');return;}
+  const dp=await ensureDaily(q.date,q.classId);await Views.copyPlanBlocks(prev,dp);toast('已複製上一堂課內容','ok');App.go('plan','plan');
+};
+Views.quickCopyLastWeek=async function(){
+  const q=Views.quickContext();const prev=C('daily_plans').find(d=>d.class_id===q.classId&&d.date===addDays(q.date,-7));
+  if(!prev){toast('找不到上週同一天課程','warn');return;}
+  const dp=await ensureDaily(q.date,q.classId);await Views.copyPlanBlocks(prev,dp);toast('已複製上週同一天課程','ok');App.go('plan','plan');
+};
+Views.quickApplyTemplate=async function(){
+  const q=Views.quickContext(),dp=await ensureDaily(q.date,q.classId),tpls=C('course_templates');
+  for(const t of tpls.slice(0,5)){
+    const bl=BLOCKS.find(b=>b.key===t.category)||BLOCKS[1];
+    let cur=C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type===bl.key&&!b.training_group_id);
+    await save('lesson_blocks',{...(cur||{id:uid('lb')}),daily_plan_id:dp.id,training_group_id:null,block_type:bl.key,start_minute:bl.s,end_minute:bl.e,content:t.content,goal:t.goal,equipment:t.equipment,done:false});
+  }
+  toast('已套用館內模板','ok');App.go('plan','plan');
+};
+Views.quickCarryUnfinished=async function(){
+  const q=Views.quickContext(),dp=await ensureDaily(q.date,q.classId),prev=C('daily_plans').filter(d=>d.class_id===q.classId&&d.date<q.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+  const rep=prev&&C('post_class_reports').find(r=>r.daily_plan_id===prev.id&&r.next_lesson);
+  if(!rep)return toast('找不到上一堂未完成銜接內容','warn');
+  let cur=C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type==='apply'&&!b.training_group_id);
+  await save('lesson_blocks',{...(cur||{id:uid('lb')}),daily_plan_id:dp.id,training_group_id:null,block_type:'apply',start_minute:60,end_minute:85,content:rep.next_lesson,goal:'完成上次未完成內容',done:false});
+  toast('已帶入未完成內容','ok');App.go('plan','plan');
+};
+</script>
+
+<script>
 /* ---------- PLAN (每日備課 90 分鐘 + 討論) ---------- */
 Views.view_plan=async function(el){
   ensureClassCtx();
@@ -1911,6 +2199,8 @@ Views.renderPlan=function(){
       <button class="btn g block sm" onclick="Views.copyPrev()">📋 複製上一堂課</button>`;
     return;
   }
+  touchEditLock(dp.id);
+  const otherLock=currentEditLock(dp.id);
   const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
   const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
   const canEdit=dp.status!=='lock'&&(can('plan')||State.user.role==='head'||can('*'));
@@ -1920,6 +2210,7 @@ Views.renderPlan=function(){
     <div class="card">
       <div class="row"><h3 style="margin:0">${WEEKDAYS[wd]} 課程 ${badge(dp.status)}</h3><div style="flex:1"></div>
         <span class="muted">預計 ${dp.expected_count} 人・${groups.length} 組・修訂 v${dp.revision}</span></div>
+      ${otherLock?`<div class="warnbox" style="margin-top:8px">目前 ${esc(otherLock.user_name)} 也正在編輯此課程。若超過 10 分鐘無活動，編輯狀態會自動失效。</div>`:''}
       <div class="row" style="margin-top:8px">
         ${dp.status==='lock'?'<div class="warnbox" style="margin:0">課程已鎖定，如需修改請由管理者解鎖。</div>':`
         <button class="btn sm g" onclick="App.go('groups')">🧩 調整分組</button>
@@ -2389,6 +2680,8 @@ Views.view_settings=function(el){
   const s=settings();
   const counts=dataCounts();
   const backups=BackupManager.list();
+  const outbox=C('sync_outbox').slice().sort((a,b)=>(b.updated_at||b.created_at||0)-(a.updated_at||a.created_at||0));
+  const conflicts=C('sync_conflicts').filter(c=>c.status!=='resolved').sort((a,b)=>(b.created_at||0)-(a.created_at||0));
   const syncLast=SYNC.lastSuccess?new Date(SYNC.lastSuccess).toLocaleString('zh-TW'):'—';
   el.innerHTML=`<div class="card"><h3>⚙️ 系統設定</h3>
     <div class="kv"><b>版本</b><span>${APP_VERSION}</span></div>
@@ -2418,6 +2711,13 @@ Views.view_settings=function(el){
       <div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div>
       <div class="kv"><b>最後錯誤</b><span>${esc(SYNC.lastError||'—')}</span></div>
     </div>
+    <div class="row" style="margin-top:10px"><button class="btn sm g" onclick="SYNC.retryFailed()">重新傳送失敗項目</button><span class="muted">失敗 ${outbox.filter(x=>x.status==='failed').length} 筆・衝突 ${conflicts.length} 筆</span></div>
+    <div class="scroll" style="margin-top:10px"><table class="tbl"><tr><th>狀態</th><th>資料</th><th>操作</th><th>重試</th><th>錯誤</th></tr>
+      ${outbox.slice(0,20).map(o=>`<tr><td>${esc(o.status||'queued')}</td><td>${esc(o.store)} / ${esc(o.record_id)}</td><td>${esc(o.operation)}</td><td>${o.retry_count||0}</td><td>${esc(o.last_error||'—')}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">目前沒有待同步項目</td></tr>'}
+    </table></div>
+    <div class="scroll" style="margin-top:10px"><table class="tbl"><tr><th>衝突資料</th><th>雲端修改者</th><th>時間</th><th>操作</th></tr>
+      ${conflicts.map(c=>`<tr><td>${esc(c.store)} / ${esc(c.record_id)}</td><td>${esc(c.updated_by?.name||'—')}</td><td>${new Date(c.created_at).toLocaleString('zh-TW')}</td><td><button class="btn xs warn" onclick="SYNC.showConflict('${c.id}')">處理衝突</button></td></tr>`).join('')||'<tr><td colspan=4 class="muted">目前沒有同步衝突</td></tr>'}
+    </table></div>
   </div>
   <div class="card"><h3>資料管理</h3>
     <div class="row"><button class="btn g sm" onclick="Views.exportData()">⬇️ 匯出備份(JSON)</button>
@@ -2500,6 +2800,29 @@ Views.importData=function(e){
 /* ---------- BOOT ---------- */
 window.addEventListener('DOMContentLoaded',()=>App.boot());
 if('serviceWorker' in navigator && location.protocol!=='file:'){
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  window.addEventListener('load',async()=>{
+    try{
+      const reg=await navigator.serviceWorker.register('./sw.js');
+      let refreshing=false;
+      navigator.serviceWorker.addEventListener('controllerchange',()=>{if(refreshing)return;refreshing=true;location.reload();});
+      const showUpdate=worker=>{
+        if(!worker)return;
+        Modal.open('系統已有新版本',`
+          <p class="muted">新版本已下載完成。更新前系統會確認待同步資料已寫入本機永久佇列。</p>
+          <div class="kv"><b>目前版本</b><span>${APP_VERSION}</span></div>
+          <div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div>
+          <div class="row"><button class="btn secondary grow" onclick="Modal.close()">稍後</button><button class="btn grow" onclick="App.applyPwaUpdate()">立即更新</button></div>`);
+        App._waitingWorker=worker;
+      };
+      if(reg.waiting)showUpdate(reg.waiting);
+      reg.addEventListener('updatefound',()=>{
+        const worker=reg.installing;
+        worker&&worker.addEventListener('statechange',()=>{if(worker.state==='installed'&&navigator.serviceWorker.controller)showUpdate(worker);});
+      });
+      navigator.serviceWorker.addEventListener('message',e=>{
+        if(e.data&&e.data.type==='APP_UPDATED')toast('已更新至 '+(e.data.version||APP_VERSION),'ok');
+      });
+    }catch(e){}
+  });
 }
 </script>

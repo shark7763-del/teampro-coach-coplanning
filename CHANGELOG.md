@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 1.2.0-internal
+
+- IndexedDB 版本升級為 `3`，新增 `sync_outbox`、`sync_conflicts`，並將 `edit_locks` 納入同步資料。
+- `save()` / `remove()` 改為在同一個 IndexedDB transaction 內寫入正式資料與永久同步佇列。
+- `SYNC._q` 記憶體佇列移除，改由 `sync_outbox` 持久保存，支援失敗重試、指數退避、失敗項目重新傳送。
+- Google Apps Script 後端新增 `request_id` 去重、`_rev/base_rev` 衝突偵測與 409 conflict 回覆。
+- 新增 `sync_conflicts` 衝突處理：顯示我的內容、雲端內容、修改者與時間，支援使用我的版本、使用雲端版本、合併後儲存。
+- 同步資料新增 `_rev`、`base_rev`、`updated_by`、`updated_device`、`updated_at`。
+- 課程編輯頁新增同步編輯鎖提示，10 分鐘無活動自動失效。
+- 新增「快速備課」入口，可產生五階段初稿、分組 block、器材、安全提醒、助教任務與需加強學員提示。
+- 首頁改為今日教練工作台，第一屏顯示下一堂課、預計人數、分組數、教練、備課完成率、異常、待同步與最近備份。
+- PWA 更新流程改為有提示更新：發現新版本時顯示「系統已有新版本」，按「立即更新」才切換 Service Worker。
+- Service Worker cache 升級為 `teampro-coplanning-v8`，保留 Network First 導覽與 Cache First 靜態資源。
+- Modal 新增 focus trap，非危險 Modal 支援 Esc 關閉。
+- 新增 Playwright 測試檔與 `tools/check-html-js.cjs` 語法檢查。
+
 ## 1.1.5-internal
 
 - 學員管理新增批量選取與批量刪除。
@@ -65,8 +81,19 @@
 - `SYNC.pull`
 - `SYNC.replaceAll`
 - `SYNC._replaceAllUnsafe`
+- `SYNC.retryFailed`
+- `SYNC.resolveConflict`
+- `SYNC.showConflict`
 - `SYNC.immediate`
 - `SYNC.bindNetwork`
+- `Views.view_quickplan`
+- `Views.generateQuickPlan`
+- `Views.quickCopyPrev`
+- `Views.quickCopyLastWeek`
+- `Views.quickApplyTemplate`
+- `Views.quickCarryUnfinished`
+- `touchEditLock`
+- `currentEditLock`
 - `Views.view_settings`
 - `Views.cloudUpload`
 - `Views.syncNow`
@@ -80,6 +107,9 @@
 
 ## IndexedDB
 
+- `DB_VER`: `2` -> `3`
+- 新增 object store: `sync_outbox`, `sync_conflicts`
+- 新增同步資料 store: `edit_locks`
 - `DB_VER`: `1` -> `2`
 - 新增 object store: `backups`
 - 正式資料 store 保持原資料格式不變。

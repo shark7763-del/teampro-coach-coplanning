@@ -1,0 +1,13 @@
+{
+  "name": "teampro-coach-coplanning",
+  "version": "1.2.0-internal",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "check:js": "node tools/check-html-js.cjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "http-server": "^14.1.1"
+  }
+}

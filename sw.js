@@ -1,5 +1,5 @@
-const APP_VERSION = '1.1.5-internal';
-const CACHE_NAME = 'teampro-coplanning-v7';
+const APP_VERSION = '1.2.0-internal';
+const CACHE_NAME = 'teampro-coplanning-v8';
 const STATIC_ASSETS = [
   './manifest.webmanifest',
   './共同備課logo.png',
@@ -19,7 +19,6 @@ self.addEventListener('install', event => {
       if (res && res.ok) return cache.put(url, res.clone());
       return null;
     }).catch(() => null)));
-    await self.skipWaiting();
   })());
 });
 
@@ -28,7 +27,13 @@ self.addEventListener('activate', event => {
     const keys = await caches.keys();
     await Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key)));
     await self.clients.claim();
+    const clients = await self.clients.matchAll({ type: 'window' });
+    clients.forEach(client => client.postMessage({ type: 'APP_UPDATED', version: APP_VERSION }));
   })());
+});
+
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 async function networkFirst(request) {

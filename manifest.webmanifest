@@ -2,6 +2,7 @@
   "name": "TeamPro 教練共同備課系統",
   "short_name": "TeamPro 備課",
   "description": "TeamPro 教練共同備課、分組、課程發布與課後紀錄系統。",
+  "version": "1.2.0-internal",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
