@@ -1,5 +1,5 @@
-const APP_VERSION = '1.11.1-internal';
-const CACHE_NAME = 'teampro-coplanning-v21';
+const APP_VERSION = '1.11.2-internal';
+const CACHE_NAME = 'teampro-coplanning-v22';
 const STATIC_ASSETS = [
   './manifest.webmanifest',
   './共同備課logo.png',
