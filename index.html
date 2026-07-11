@@ -378,7 +378,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.3.2-internal';
+const APP_VERSION='1.3.3-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1017,17 +1017,17 @@ async function seedDemo(){
   ];
   await DB.bulk('profiles',profiles);
   // classes
-  const classes=[
-    {id:'cl_mon',name:'週一晚班',start_time:'19:00',end_time:'20:30',weekdays:['星期一','星期三','星期五'],active:true},
-    {id:'cl_tue',name:'週二晚班',start_time:'19:00',end_time:'20:30',weekdays:['星期二','星期四'],active:true},
-    {id:'cl_sat',name:'週六上午班',start_time:'09:00',end_time:'10:30',weekdays:['星期六'],active:true},
-  ];
+  const clIdOrder=['cl_summer','cl_fitness','cl_athlete','cl_sat','cl_black'];
+  const classes=HSIUNGCHI_PRESETS.map((d,idx)=>({id:clIdOrder[idx],name:d.name,class_type:d.class_type,
+    weekdays:d.jsdays.map(jsdayToWeekday),start_time:d.start_time,end_time:d.end_time,duration_minutes:d.duration_minutes,
+    active:true,seasonal:!!d.seasonal,active_from:d.active_from||'',active_until:d.active_until||'',
+    default_theme:'',default_intensity:'中',default_grouping_mode:'smart',default_coach_ids:[],created_at:Date.now(),updated_at:Date.now()}));
   await DB.bulk('classes',classes);
   // students —— 40 位
   const first=['宥','子','品','承','宸','語','梓','詠','冠','宇','昱','家','思','若','芯','柏','俊','奕','睿','翊','沛','妍','恩','安','浩','庭','蕎','羽','喬','紹'];
   const last=['廷','安','妤','翰','希','恩','睿','辰','宏','彤','綺','豪','嘉','瑄','宸','霖','蓉','榕','傑','琪'];
   const names=[]; for(let i=0;i<40;i++){names.push('學員'+String(i+1).padStart(2,'0')+first[i%first.length]+last[i%last.length]);}
-  const clIds=['cl_mon','cl_tue','cl_sat'];
+  const clIds=clIdOrder;
   const students=names.map((nm,i)=>{
     const age=AGE_GROUPS[i<6?0 : i<20?1 : i<32?2 : 3];
     const belt=BELTS[i%BELTS.length];
@@ -1035,7 +1035,7 @@ async function seedDemo(){
     if(age==='幼兒')spec='基礎';
     else if(i%5===0)spec='品勢'; else if(i%5===1)spec='對練'; else if(i%7===0)spec='比賽選手';
     else if(age==='成人')spec='健身'; else spec='基礎';
-    const cl=clIds[i%3];
+    const cl=clIds[i%clIds.length];
     const wd=classes.find(c=>c.id===cl).weekdays;
     const bi=BELTS.indexOf(belt);
     const poom=age==='幼兒'?'':(bi<3?'太極一章':bi<6?'太極三章':bi<9?'太極八章':'高麗');
@@ -1046,15 +1046,16 @@ async function seedDemo(){
   });
   await DB.bulk('students',students);
   await reloadAll(); // 讓 Stats/Grouping 讀得到剛匯入的名單，否則分組會抓不到學員
-  // 一週示範課程（週一晚班）
+  // 一週示範課程（健身班，週一～五）
+  const DEMO_CLASS='cl_fitness';
   const wkStart=mondayOf(todayStr());
   const wp=await save('weekly_plans',{id:uid('wp'),week_start:wkStart,week_end:addDays(wkStart,6),
-    class_id:'cl_mon',weekly_goal:'本週主軸：前踢與旋踢的基本動作到組合應用，強化核心與敏捷。',
+    class_id:DEMO_CLASS,weekly_goal:'本週主軸：前踢與旋踢的基本動作到組合應用，強化核心與敏捷。',
     status:'pub',created_by:'u_head',approved_by:'u_admin'});
   for(const wIdx of [0,2,4]){ // 一三五
     const date=addDays(wkStart,wIdx);
-    const list=Stats.studentsFor('cl_mon',wIdx);
-    const dp=await save('daily_plans',{id:uid('dp'),weekly_plan_id:wp.id,date,class_id:'cl_mon',
+    const list=Stats.studentsFor(DEMO_CLASS,wIdx);
+    const dp=await save('daily_plans',{id:uid('dp'),weekly_plan_id:wp.id,date,class_id:DEMO_CLASS,
       expected_count:list.length,actual_count:null,status:wIdx===0?'pub':'draft',revision:1,created_by:'u_head'});
     // 分組（smart）—— 合併成最多 4 組、指派 4 位不重複教練，符合每堂最多 4 位上限（示範資料須合規）
     const sug=Grouping.suggest(list,'smart',4);
@@ -1902,9 +1903,9 @@ Views.view_import=function(el){
 };
 Views.dlTemplate=function(){
   const rows=[['姓名','年齡層','級別段位','專項','固定上課日','班別','品勢進度','技術動作','備註','是否準備晉級','是否為比賽選手','狀態'],
-    ['王小明','國小','黃帶','基礎','一、三、五','週一晚班','太極一章','前踢、旋踢','認真','否','否','啟用'],
-    ['陳大華','國中','藍帶','品勢','星期二、星期四','週二晚班','太極三章','橫踢、後踢','','是','否','啟用'],
-    ['林阿成','幼兒','白帶','基礎','週六','週六上午班','','基本站姿、前踢','需家長陪同','否','否','啟用']];
+    ['王小明','國小','黃帶','基礎','一、二、三、四、五','健身班','太極一章','前踢、旋踢','認真','否','否','啟用'],
+    ['陳大華','國中','藍帶','比賽選手','一、二、三、四、五','選手班','太極三章','橫踢、後踢','','是','是','啟用'],
+    ['林阿成','幼兒','白帶','基礎','六','週六健身班','','基本站姿、前踢','需家長陪同','否','否','啟用']];
   const ws=XLSX.utils.aoa_to_sheet(rows);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'學員名單');
   XLSX.writeFile(wb,'學員名單範本.xlsx');
