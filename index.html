@@ -300,6 +300,10 @@ textarea{resize:vertical;min-height:60px}
 /* modal → centered on tablet/desktop */
 @media(min-width:768px){#modal{align-items:center}#modal .m{border-radius:var(--radius-lg);max-width:560px}}
 .sheet-title{font-size:12px;color:var(--sub);font-weight:600}
+/* 手機浮動新增鈕（統一新增入口，桌機用頁面右上「＋新增」） */
+.fab{position:fixed;right:16px;bottom:calc(84px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;background:var(--color-brand-600);color:#fff;box-shadow:var(--shadow-floating);z-index:46;display:flex;align-items:center;justify-content:center}
+.fab:active{transform:scale(.94)}
+@media(min-width:1024px){.fab{display:none!important}}
 /* ---------- print / PDF ---------- */
 #print{display:none}
 @media print{
@@ -369,6 +373,7 @@ textarea{resize:vertical;min-height:60px}
   </div>
 </div>
 <nav id="bnav" class="hide" aria-label="底部導覽"></nav>
+<button id="fab" class="fab hide" aria-label="新增" title="新增"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
 
 <div id="print"></div>
 <div id="toast"></div>
@@ -378,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.6.0-internal';
+const APP_VERSION='1.7.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1253,7 +1258,7 @@ const App={
   },
   logout(msg){this.stopIdleLock();State.user=null;if(this._syncTimer)clearInterval(this._syncTimer);
     const pin=$('#pinInput');if(pin)pin.value='';
-    $('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();
+    $('#shell').classList.add('hide');$('#bnav').classList.add('hide');$('#fab')&&$('#fab').classList.add('hide');$('#login').classList.remove('hide');this.renderLogin();
     if(msg)toast(msg,'warn');},
   startIdleLock(){
     if(this._idleBound)return this.resetIdleLock();
@@ -1285,6 +1290,14 @@ const App={
     const el=$('#view');const fn='view_'+v;
     if(Views[fn]){el.innerHTML='';Views[fn](el);}else el.innerHTML='<div class="empty">頁面建置中</div>';
     if(['quickplan','stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v==='quickplan'?'stats':v);
+    const fab=$('#fab');if(fab){const act=this.FAB_ACTIONS[v];if(act){fab.classList.remove('hide');fab.onclick=act;fab.setAttribute('aria-label',act.label||'新增');fab.title=act.label||'新增';}else fab.classList.add('hide');}
+  },
+  FAB_ACTIONS:{
+    students:Object.assign(()=>Views.editStudent(),{label:'新增學員'}),
+    classes:Object.assign(()=>Views.editClass(),{label:'新增班別'}),
+    coaches:Object.assign(()=>Views.editCoach(),{label:'新增教練'}),
+    templates:Object.assign(()=>Views.editTpl(),{label:'新增模板'}),
+    warmups:Object.assign(()=>Views.wCustom('__manage__'),{label:'新增熱身'}),
   },
   /* ----- sync pill ----- */
   syncText(){if(navigator.onLine===false)return['bad','網路離線'];if(!SYNC.enabled())return['off','離線・單機模式'];
@@ -2068,7 +2081,7 @@ Views.view_classes=function(el){
     <div class="kv"><b>上課日</b><span>${(c.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('、')}</span></div>
     ${c.seasonal?`<div class="kv"><b>季節區間</b><span>${esc(c.active_from||'—')} ~ ${esc(c.active_until||'—')}</span></div>`:''}
     <div class="kv"><b>學員數</b><span>${C('students').filter(s=>s.class_id===c.id&&s.active).length} 人</span></div>
-    <button class="btn g sm" style="margin-top:8px" onclick="Views.editClass('${c.id}')">編輯</button></div>`;}).join('')||'<div class="empty">尚無班別，可點「建立雄麒預設班別」快速建立。</div>'}</div>`;
+    <div class="row" style="margin-top:8px"><button class="btn g xs" onclick="Views.editClass('${c.id}')">編輯</button><button class="btn g xs" onclick="Views.dupClass('${c.id}')">複製</button><button class="btn ${c.active===false?'ok':'warn'} xs" onclick="Views.toggleClassActive('${c.id}')">${c.active===false?'啟用':'停用'}</button></div></div>`;}).join('')||'<div class="empty">尚無班別，可點「建立雄麒預設班別」快速建立。</div>'}</div>`;
 };
 Views.editClass=function(id){
   const c=id?C('classes').find(x=>x.id===id):{start_time:'19:00',end_time:'20:30',weekdays:[],active:true,class_type:'一般',seasonal:false};
@@ -2103,6 +2116,8 @@ Views.saveClass=async function(id){
   Modal.close();toast('已儲存','ok');App.go('classes');
 };
 Views.delClass=async function(id){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'刪除班別',impact:'刪除班別不會刪除學員，但會影響班別選單。',confirmText:'確認刪除',onConfirm:async()=>{await remove('classes',id);Modal.close();App.go('classes');}});};
+Views.dupClass=async function(id){const c=C('classes').find(x=>x.id===id);if(!c)return;await save('classes',{...c,id:uid('cl'),name:c.name+'（複製）',created_at:Date.now(),updated_at:Date.now()});toast('已複製班別','ok');App.go('classes');};
+Views.toggleClassActive=async function(id){const c=C('classes').find(x=>x.id===id);if(!c)return;await save('classes',{...c,active:c.active===false,updated_at:Date.now()});toast(c.active===false?'已啟用':'已停用','ok');App.go('classes');};
 
 /* ---------- 班別季節性 / 雄麒預設班別 ---------- */
 // 該班別在指定日期是否應出現在「今日班表」（啟用中 + 若季節性則落在啟用區間內）
@@ -2149,7 +2164,7 @@ Views.view_coaches=function(el){
     <div class="kv"><b>PIN</b><span>${esc(p.pin||'1234')}</span></div>
     ${p.specialties?`<div class="kv"><b>專長</b><span>${(p.specialties||[]).join('、')||'—'}</span></div>`:''}
     <div class="kv"><b>可出席</b><span>${(p.available_weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')||'不限'}</span></div>
-    <button class="btn g sm" style="margin-top:8px" onclick="Views.editCoach('${p.id}')">編輯</button></div>`).join('')}</div>`;
+    <div class="row" style="margin-top:8px"><button class="btn g xs" onclick="Views.editCoach('${p.id}')">編輯</button><button class="btn g xs" onclick="Views.dupCoach('${p.id}')">複製</button>${p.id!==State.user.id?`<button class="btn ${p.active===false?'ok':'warn'} xs" onclick="Views.toggleCoachActive('${p.id}')">${p.active===false?'啟用':'停用'}</button>`:''}</div></div>`).join('')}</div>`;
 };
 Views.editCoach=function(id){
   const p=id?C('profiles').find(x=>x.id===id):{role:'assistant',pin:'1234',active:true,specialties:[],available_weekdays:[]};
@@ -2176,6 +2191,8 @@ Views.saveCoach=async function(id){
   Modal.close();toast('已儲存','ok');App.go('coaches');
 };
 Views.delCoach=async function(id){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'刪除教練帳號',impact:'將刪除此教練帳號。',confirmText:'確認刪除',onConfirm:async()=>{await remove('profiles',id);Modal.close();App.go('coaches');}});};
+Views.dupCoach=async function(id){const p=C('profiles').find(x=>x.id===id);if(!p)return;await save('profiles',{...p,id:uid('u'),name:p.name+'（複製）'});toast('已複製教練帳號','ok');App.go('coaches');};
+Views.toggleCoachActive=async function(id){if(id===State.user.id){toast('不可停用自己','warn');return;}const p=C('profiles').find(x=>x.id===id);if(!p)return;await save('profiles',{...p,active:p.active===false});toast(p.active===false?'已啟用':'已停用','ok');App.go('coaches');};
 </script>
 
 <script>
