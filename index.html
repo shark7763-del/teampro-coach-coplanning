@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.11.2-internal';
+const APP_VERSION='1.12.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -2014,17 +2014,18 @@ Views.view_students=function(el){
     const selected=[...Views._studentSelected].filter(id=>C('students').some(s=>s.id===id&&s.active));
     Views._studentSelected=new Set(selected);
     $('#stuList').innerHTML=list.length?`<div class="card" style="margin-top:12px">
-      ${can('*')?`<div class="row" style="margin-bottom:8px"><button class="btn xs g" onclick="Views.selectVisibleStudents()">全選目前篩選 ${list.length} 人</button><button class="btn xs g" onclick="Views.clearStudentSelection()">清除選取</button><button id="bulkDelBtn" class="btn xs bad ${selected.length?'':'disabled'}" onclick="Views.deleteSelectedStudents()">刪除選取 ${selected.length} 人</button></div>`:''}
+      ${can('*')?`<div class="row" style="margin-bottom:8px"><button class="btn xs g" onclick="Views.selectVisibleStudents()">全選目前篩選 ${list.length} 人</button><button class="btn xs g" onclick="Views.clearStudentSelection()">清除選取</button><button class="btn xs ${selected.length?'':'disabled'}" onclick="Views.bulkSetClass()">設定班別 ${selected.length} 人</button><button id="bulkDelBtn" class="btn xs bad ${selected.length?'':'disabled'}" onclick="Views.deleteSelectedStudents()">刪除選取 ${selected.length} 人</button></div>`:''}
       <div class="scroll"><table class="tbl">
-      <tr>${can('*')?'<th style="width:34px">選</th>':''}<th>姓名</th><th>年齡</th><th>級別</th><th>專項</th><th>進度</th><th>上課日</th><th></th></tr>
+      <tr>${can('*')?'<th style="width:34px">選</th>':''}<th>姓名</th><th>年齡</th><th>級別</th><th>專項</th><th>班別</th><th>進度</th><th>上課日</th><th></th></tr>
       ${list.map(s=>`<tr>
         ${can('*')?`<td><input type="checkbox" class="stuChk" data-id="${s.id}" ${Views._studentSelected.has(s.id)?'checked':''} onchange="Views.toggleStudentSelection('${s.id}',this.checked)"></td>`:''}
         <td><b>${esc(s.name)}</b>${s.promotion_status?' 🎯':''}${s.competition_athlete?' 🏅':''}</td>
         <td><span class="tag age">${s.age_group}</span></td>
         <td><span class="tag belt">${normBelt(s.belt_rank)}</span></td>
         <td><span class="tag spec">${s.specialty}</span></td>
+        <td class="muted">${s.class_id&&C('classes').find(x=>x.id===s.class_id)?esc(C('classes').find(x=>x.id===s.class_id).name):'<span style="color:var(--color-danger)">未設定</span>'}</td>
         <td class="muted" style="font-size:11px">${[s.current_progress&&('品勢:'+esc(s.current_progress)),s.tech&&('技術:'+esc(s.tech))].filter(Boolean).join('<br>')||'—'}</td>
-        <td class="muted">${(s.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')}</td>
+        <td class="muted">${(s.weekdays||[]).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('')||'—'}</td>
         <td>${can('*')?`<button class="btn xs g" onclick="Views.editStudent('${s.id}')">編輯</button>`:''}</td>
       </tr>`).join('')}
     </table></div><div class="muted" style="margin-top:8px">共 ${list.length} 人${can('*')?`・已選 ${selected.length} 人`:''}</div></div>`:'<div class="empty"><div class="ic">👥</div>沒有符合的學員</div>';
@@ -2037,6 +2038,19 @@ Views.toggleStudentSelection=function(id,on){Views._studentSelected=Views._stude
 Views.selectVisibleStudents=function(){Views._studentSelected=Views._studentSelected||new Set();(Views._studentVisibleIds||[]).forEach(id=>Views._studentSelected.add(id));Views.view_students($('#view'));};
 Views.clearStudentSelection=function(){Views._studentSelected=new Set();Views.view_students($('#view'));};
 Views.deleteSelectedStudents=async function(){const ids=[...(Views._studentSelected||new Set())];if(!ids.length){toast('請先勾選學員','warn');return;}await App.deleteStudentsByIds(ids,{actionName:'批量刪除學員',confirmText:'確認刪除',backupReason:'批量刪除學員前自動備份',auditAction:'delete_students_bulk'});Views._studentSelected=new Set();};
+Views.bulkSetClass=function(){
+  const ids=[...(Views._studentSelected||new Set())];if(!ids.length){toast('請先勾選學員','warn');return;}
+  const cls=C('classes').filter(c=>c.active!==false);
+  Modal.open('設定班別（'+ids.length+' 人）',`<div class="field"><label>指定班別</label><select id="bkClass">${cls.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')||'<option value="">（尚無班別）</option>'}</select></div>
+    <p class="muted">套用後，這些學員的班別會設為所選班別；沒設「固定上課日」的學員會自動跟隨該班上課日，就會出現在今日名單。</p>
+    <button class="btn block" onclick="Views.doBulkSetClass()">套用</button>`);
+};
+Views.doBulkSetClass=async function(cidArg){
+  const cid=cidArg||$('#bkClass').value;if(!cid){toast('請先建立班別','warn');return;}
+  const ids=[...(Views._studentSelected||new Set())];let n=0;
+  for(const id of ids){const s=C('students').find(x=>x.id===id);if(s){await save('students',{...s,class_id:cid});n++;}}
+  Modal.close();toast('已設定 '+n+' 位學員的班別','ok');Views.view_students($('#view'));
+};
 Views.editStudent=function(id){
   const s=id?C('students').find(x=>x.id===id):{age_group:'國小',belt_rank:'白帶',specialty:'基礎',weekdays:[]};
   Modal.open(id?'編輯學員':'新增學員',`
