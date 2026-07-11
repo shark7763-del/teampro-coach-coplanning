@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.7.0-internal';
+const APP_VERSION='1.8.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1165,7 +1165,7 @@ const App={
   ],
   // 內部 area -> 底部/側邊要高亮的分頁（備課流程、討論歸「今日」；課後歸「我的任務」；模板/熱身/PDF 歸「課程庫」）
   navOf(area){return {plan:'today',team:'today',discuss:'today',report:'mytasks',pdf:'library',templates:'library',warmups:'library'}[area]||area;},
-  VIEW_AREA:{home:'today',live:'today',quickplan:'plan',stats:'plan',groups:'plan',plan:'plan',confirm:'plan',publish:'plan',
+  VIEW_AREA:{home:'today',live:'today',quickplan:'plan',classinfo:'plan',stats:'plan',groups:'plan',plan:'plan',coachtasks:'plan',confirm:'plan',publish:'plan',
     week:'week',pdf:'library',library:'library',templates:'library',warmups:'library',
     mytasks:'mytasks',report:'mytasks',team:'today',discuss:'today',
     more:'more',students:'more',classes:'more',coaches:'more',import:'more',settings:'more'},
@@ -1289,7 +1289,7 @@ const App={
     window.scrollTo(0,0);
     const el=$('#view');const fn='view_'+v;
     if(Views[fn]){el.innerHTML='';Views[fn](el);}else el.innerHTML='<div class="empty">頁面建置中</div>';
-    if(['quickplan','stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v==='quickplan'?'stats':v);
+    if(['quickplan','classinfo','stats','groups','plan','coachtasks','confirm','publish','report'].includes(v))decoratePlan(v==='quickplan'?'stats':v);
     const fab=$('#fab');if(fab){const act=this.FAB_ACTIONS[v];if(act){fab.classList.remove('hide');fab.onclick=act;fab.setAttribute('aria-label',act.label||'新增');fab.title=act.label||'新增';}else fab.classList.add('hide');}
   },
   FAB_ACTIONS:{
@@ -1510,7 +1510,7 @@ Views.view_home=function(el){
   const head=C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active);
   const assistants=C('profiles').filter(p=>p.role==='assistant'&&p.active).slice(0,2).map(p=>p.name).join('、')||'—';
   const hour=new Date().getHours(),hi=hour<11?'早安':hour<18?'午安':'晚安';
-  let cta={label:ps.dp?'繼續完成今日備課':'建立今日課程',view:'stats',area:'plan'};
+  let cta={label:ps.dp?'繼續完成今日備課':'建立今日課程',view:'classinfo',area:'plan'};
   if(ps.dp&&ps.dp.status==='pub')cta={label:'查看今日執行內容',view:'live',area:'today'};
   else if(ps.dp&&['done','lock'].includes(ps.dp.status))cta={label:'完成課後回報',view:'report',area:'today'};
   el.innerHTML=`
@@ -1596,23 +1596,37 @@ function countMyTasks(){
   dps.forEach(dp=>{C('training_groups').filter(g=>g.daily_plan_id===dp.id&&(g.coach_id===uid2||g.assistant_id===uid2)).forEach(()=>n++);});
   return n;
 }
-function planStepMeta(view){
-  return [
-    ['stats','人數',svg('chart',16)],
-    ['groups','分組',svg('layers',16)],
-    ['plan','備課',svg('clipboard',16)],
-    ['confirm','確認',svg('check',16)],
-    ['publish','發布',svg('play',16)],
-  ].map((s,i)=>({key:s[0],label:s[1],icon:s[2],num:i+1,on:s[0]===view}));
+const PLAN_STEP_DEFS=[
+  ['classinfo','課程',svg('school',16)],
+  ['stats','人數',svg('chart',16)],
+  ['groups','分組',svg('layers',16)],
+  ['plan','內容',svg('clipboard',16)],
+  ['coachtasks','教練',svg('users',16)],
+  ['publish','發布',svg('check',16)],
+  ['report','課後',svg('edit',16)],
+];
+const PLAN_STEP_KEYS=PLAN_STEP_DEFS.map(s=>s[0]);
+function planStepMeta(view){return PLAN_STEP_DEFS.map((s,i)=>({key:s[0],label:s[1],icon:s[2],num:i+1,on:s[0]===view}));}
+function planStepDone(ps){
+  const dp=ps.dp;
+  return {
+    classinfo:!!dp,
+    stats:ps.steps.stats&&Stats.attendanceConfirmed(ps.dp?ps.dp.date:State.ctx.date,State.ctx.classId),
+    groups:ps.steps.groups,
+    plan:ps.steps.plan,
+    coachtasks:ps.groups.length>0&&!ps.val.issues.some(i=>i.t==='nocoach'),
+    publish:ps.steps.publish,
+    report:!!(dp&&C('post_class_reports').some(pr=>pr.daily_plan_id===dp.id)),
+  };
 }
 function decoratePlan(view){
   const el=$('#view'); if(!el)return;
   const ps=planStatus(State.ctx.date,State.ctx.classId);
-  const done={stats:ps.steps.stats,groups:ps.steps.groups,plan:ps.steps.plan,confirm:ps.steps.confirm,publish:ps.steps.publish};
+  const done=planStepDone(ps);
   const steps=planStepMeta(view);
   const idx=Math.max(0,steps.findIndex(s=>s.on));
   const desktop=`<div class="stepper">${steps.map(s=>`<button class="stp ${s.on?'on':done[s.key]?'done':''}" onclick="App.go('${s.key}','plan')"><span class="num">${done[s.key]?svg('check',14):s.num}</span><span class="lbl">${s.label}</span></button>`).join('')}</div>`;
-  const mobile=`<div class="stepper-m"><div class="ring" style="--p:${ps.pct}"><i>${ps.pct}%</i></div><div class="now"><b>${steps[idx].label}</b><br><span>步驟 ${idx+1}/5・${State.ctx.date}</span></div><span class="sp"></span><button class="iconbtn" onclick="App.go('home','today')" title="回今日">${svg('home',20)}</button></div>`;
+  const mobile=`<div class="stepper-m"><div class="ring" style="--p:${ps.pct}"><i>${ps.pct}%</i></div><div class="now"><b>${steps[idx].label}</b><br><span>步驟 ${idx+1}/${steps.length}・${State.ctx.date}</span></div><span class="sp"></span><button class="iconbtn" onclick="App.go('home','today')" title="回今日">${svg('home',20)}</button></div>`;
   el.insertAdjacentHTML('afterbegin',desktop+mobile);
 }
 function stageFilled(blocks,key){
@@ -1786,6 +1800,61 @@ Views.view_more=function(el){
   ${items.length?`<div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}','more')"><span class="mi">${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span class="chev">${svg('chevron',18)}</span></button>`).join('')}</div>`:'<div class="empty">助教無管理權限，請至「今日」與「我的任務」查看課程。</div>'}
   <div style="text-align:center;margin-top:16px"><button class="btn ghost sm" onclick="App.logout()">登出目前帳號</button></div>`;
 };
+/* ---------- 步驟1：課程資料 ---------- */
+Views.view_classinfo=function(el){
+  const td=State.ctx.date;
+  const cls=C('classes').filter(c=>classActiveOn(c,td));
+  if((!State.ctx.classId||!cls.some(c=>c.id===State.ctx.classId))&&cls.length)State.ctx.classId=cls[0].id;
+  const cl=C('classes').find(c=>c.id===State.ctx.classId);
+  const head=C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active);
+  const dp=findDaily(td,State.ctx.classId);
+  el.innerHTML=`
+  <div class="ctxrow" style="margin-bottom:14px"><div class="grow"><label class="sm">日期</label><input type="date" id="ciDate" value="${td}"></div></div>
+  <div class="sect-head" style="margin-top:0"><h3>選擇今日班別</h3><span class="sp" style="flex:1"></span><span class="muted">${WEEKDAYS[weekdayOf(td)]}</span></div>
+  ${cls.length?cls.map(c=>`<button class="todo ${c.id===State.ctx.classId?'info':''}" onclick="Views.ciPick('${c.id}')">
+    <span class="tc" style="color:var(--color-brand-600)">${svg('school',20)}</span>
+    <span class="body"><span class="t">${esc(c.name)}${c.id===State.ctx.classId?' ✓':''}</span><span class="s">${c.start_time}–${c.end_time}・${c.duration_minutes||90}分・${esc(c.class_type||'')}</span></span>
+    <span class="tc" style="color:var(--color-text-disabled)">${svg('chevron',18)}</span></button>`).join('')
+   :'<div class="empty">今日沒有排定的班別（過季或尚無班別）。可到「更多 → 班別管理」新增。</div>'}
+  ${cl?`<div class="card" style="margin-top:8px"><div class="kv"><b>班別</b><span>${esc(cl.name)}</span></div><div class="kv"><b>時間</b><span>${cl.start_time}–${cl.end_time}（${cl.duration_minutes||90} 分）</span></div><div class="kv"><b>類型</b><span>${esc(cl.class_type||'—')}</span></div><div class="kv"><b>主教練</b><span>${esc(head?.name||'—')}</span></div><div class="kv"><b>備課狀態</b><span>${statusAction(dp?dp.status:'draft')}</span></div></div>`:''}
+  <div class="actionbar"><button class="btn ghost" onclick="App.go('home','today')">回今日</button><span class="sp"></span><button class="btn ${cl?'':'disabled'}" ${cl?'':'disabled'} onclick="Views.ciNext()">下一步：確認人數</button></div>`;
+  $('#ciDate').onchange=e=>{State.ctx.date=e.target.value;App.go('classinfo','plan');};
+};
+Views.ciPick=function(id){State.ctx.classId=id;App.go('classinfo','plan');};
+Views.ciNext=async function(){if(!State.ctx.classId){toast('請先選班別','warn');return;}await ensureDaily(State.ctx.date,State.ctx.classId);App.go('stats','plan');};
+
+/* ---------- 步驟5：教練任務 ---------- */
+Views.view_coachtasks=function(el){
+  ensureClassCtx();const cls=C('classes').filter(c=>c.active);if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
+  const dp=findDaily(State.ctx.date,State.ctx.classId);
+  el.innerHTML=`<div class="ctxrow" style="margin-bottom:14px"><div class="grow"><label class="sm">班別</label><select id="ctClass">${cls.map(c=>`<option value="${c.id}" ${c.id===State.ctx.classId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div class="grow"><label class="sm">日期</label><input type="date" id="ctDate" value="${State.ctx.date}"></div></div><div id="ctBody"></div>`;
+  $('#ctClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('coachtasks','plan');};
+  $('#ctDate').onchange=e=>{State.ctx.date=e.target.value;App.go('coachtasks','plan');};
+  const body=$('#ctBody');
+  if(!dp){body.innerHTML='<div class="empty">尚未建立備課，請先完成分組。</div>';return;}
+  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
+  const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
+  const val=Grouping.validate(groups.map(g=>({...g,students:[...(g.students||[])]})),list,dp);
+  const nm=id=>{const p=C('profiles').find(x=>x.id===id);return p?esc(p.name):'—';};
+  const stName=id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'';};
+  const warns=val.issues.filter(i=>['nocoach','conflict','toomany','sameperson','dualrole','inactive'].includes(i.t));
+  body.innerHTML=`
+  ${warns.length?warns.map(w=>`<div class="warnbox">⚠️ ${esc(w.msg)}</div>`).join(''):'<div class="okbox">✅ 教練任務檢查通過</div>'}
+  ${groups.length?groups.map(g=>{const gb=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};
+    return `<div class="card"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">${esc(g.name)}</h3><span class="sp" style="flex:1"></span><span class="tag">${(g.students||[]).length}人</span></div>
+    <div class="kv"><b>主責教練</b><span>${g.coach_id?nm(g.coach_id):'<span style="color:var(--color-danger)">未指派</span>'}</span></div>
+    <div class="kv"><b>助教</b><span>${g.assistant_id?nm(g.assistant_id):'—'}</span></div>
+    <div class="kv"><b>學員</b><span style="text-align:right">${(g.students||[]).map(stName).join('、')||'—'}</span></div>
+    <div class="kv"><b>今日目標</b><span>${esc(gb.goal||g.target||'—')}</span></div>
+    <div class="kv"><b>內容</b><span>${esc([gb.basic&&('基本:'+gb.basic),gb.kick&&('腿法:'+gb.kick),gb.poomsae&&('品勢:'+gb.poomsae),gb.spar&&('對練:'+gb.spar)].filter(Boolean).join('・')||'—')}</span></div>
+    <div class="kv"><b>器材</b><span>${esc(gb.equipment||'—')}</span></div>
+    <div class="kv"><b>注意</b><span>${esc(gb.commonErr||gb.safety_notes||'—')}</span></div>
+    <button class="btn g xs" style="margin-top:6px" onclick="App.go('groups','plan')">調整教練 / 內容</button></div>`;}).join('')
+   :'<div class="empty">尚未分組，請先完成訓練分組。</div>'}
+  <div class="actionbar"><button class="btn secondary" onclick="App.go('plan','plan')">上一步</button><span class="sp"></span><button class="btn" onclick="App.go('publish','plan')">下一步：確認發布</button></div>`;
+};
+
 Views.view_confirm=function(el){
   ensureClassCtx();
   const cls=C('classes').filter(c=>c.active); if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
@@ -1828,7 +1897,7 @@ Views.view_publish=function(el){
     ${issues.length?issues.map(x=>`<div class="chk">${svg('alert',18)}<span>${esc(x)}</span></div>`).join(''):`<div class="chk">${svg('check',18)}<span>必要項目已完成，可以發布給教練現場使用。</span></div>`}
     <button class="btn block ${issues.length?'warn':'ok'}" ${!dp?'disabled':''} onclick="Views.publishFromFlow('${dp?.id||''}',${issues.length})">${issues.length?'仍要發布':'發布今日課程'}</button>
   </div>
-  <div class="actionbar"><button class="btn secondary" onclick="App.go('confirm','plan')">返回確認</button><span class="sp"></span><button class="btn" onclick="App.go('live','today')">進入現場</button></div>`;
+  <div class="actionbar"><button class="btn secondary" onclick="App.go('coachtasks','plan')">上一步</button><span class="sp"></span><button class="btn ok" onclick="App.go('report','plan')">下一步：課後紀錄</button></div>`;
   $('#pbDate').onchange=e=>{State.ctx.date=e.target.value;App.go('publish','plan');};
   $('#pbClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('publish','plan');};
 };
