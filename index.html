@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.8.0-internal';
+const APP_VERSION='1.9.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1905,24 +1905,53 @@ Views.publishFromFlow=async function(dpId,hasIssues){
   if(hasIssues&&!confirm('仍有未完成或需注意的項目，確定要發布？'))return;
   await Views.publish(dpId); App.go('publish','plan');
 };
+/* ---------- 上課模式（大字大鈕；只顯示現場需要的，不含任何管理功能 §四） ---------- */
 Views.view_live=function(el){
   ensureClassCtx();
   const dp=findDaily(State.ctx.date,State.ctx.classId);
-  if(!dp){el.innerHTML='<div class="empty">尚未建立今日課程，無法進入現場模式。</div>';return;}
+  if(!dp){el.innerHTML='<div class="empty">尚未建立今日課程，無法進入現場模式。<br><br><button class="btn" onclick="App.go(\'classinfo\',\'plan\')">前往備課</button></div>';return;}
+  const cl=C('classes').find(c=>c.id===State.ctx.classId);
   const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
-  const start=Date.now();
-  el.innerHTML=`<div class="live"><div class="muted">${State.ctx.date}</div><div class="stage" id="liveStage">準備開始</div><div class="clock" id="liveClock">00:00</div><div class="nxt" id="liveNext"></div>
-    <div class="live-btns"><button class="btn secondary" onclick="App.go('mytasks','mytasks')">查看任務</button><button class="btn ok" onclick="App.go('report','mytasks')">課後回報</button></div></div>
-    <div class="sect-head"><h3>課程時間軸</h3></div>
-    ${BLOCKS.map(bl=>{const b=blocks.find(x=>x.block_type===bl.key&&!x.training_group_id)||{};return `<div class="tcard"><div class="th"><span class="time">${bl.s}-${bl.e}′</span><span><span class="nm">${bl.name}</span><br><span class="sub">${esc(b.content||b.goal||'')}</span></span></div></div>`;}).join('')}`;
-  const tick=()=>{const min=Math.floor((Date.now()-start)/60000), sec=Math.floor((Date.now()-start)/1000)%60;
-    const cur=BLOCKS.find(b=>min>=b.s&&min<b.e)||BLOCKS[BLOCKS.length-1];
-    $('#liveClock').textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
-    $('#liveStage').textContent=cur.name;
-    $('#liveNext').textContent=cur.e<90?'下一段：'+(BLOCKS.find(b=>b.s===cur.e)?.name||''):'課程收尾';
-  };
-  tick(); App._liveTimer=setInterval(tick,1000);
+  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  if(App._liveIdx==null){App._liveIdx=0;App._liveStart=Date.now();App._liveDur=(BLOCKS[0].e-BLOCKS[0].s)*60;}
+  const idx=App._liveIdx,bl=BLOCKS[idx];
+  const sb=blocks.find(b=>b.block_type===bl.key&&!b.training_group_id)||{};
+  const coach=id=>{const p=C('profiles').find(x=>x.id===id);return p?p.name:'—';};
+  const focus=bl.key==='group'
+    ? (groups.length?groups.map(g=>{const gb=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};return `<div class="kv"><b>${esc(g.name)}（${esc(coach(g.coach_id))}）</b><span>${esc([gb.basic,gb.kick].filter(Boolean).join('・')||g.target||'—')}</span></div>`;}).join(''):'<div class="muted">尚未分組</div>')
+    : `<div class="kv"><b>內容</b><span>${esc(sb.content||[sb.praise,sb.remind].filter(Boolean).join('；')||'—')}</span></div>`;
+  el.innerHTML=`
+  <div class="live"><div class="nxt">第 ${idx+1}/5 階段・${cl?esc(cl.name):''}</div>
+    <div class="stage">${bl.s}–${bl.e}′　${esc(bl.name)}</div>
+    <div class="clock" id="liveClock" aria-live="polite">--:--</div>
+    <div class="nxt">${idx<4?'下一段：'+BLOCKS[idx+1].name:'最後一段'}　｜　負責：${esc(coach(sb.responsible_coach_id))}</div></div>
+  <div class="card" style="margin-top:12px"><div class="sect-head" style="margin-top:0"><h3>本階段重點</h3></div>
+    ${focus}<div class="kv"><b>器材</b><span>${esc(sb.equipment||'—')}</span></div>
+    <div class="kv"><b>安全提醒</b><span>${esc(sb.safety_notes||'—')}</span></div></div>
+  <div class="live-btns">
+    <button class="btn ok" onclick="Views.liveDone()">完成本階段</button>
+    <button class="btn" onclick="Views.liveStep(1)">提前下一階段</button>
+    <button class="btn secondary" onclick="Views.liveExtend(1)">延長 1 分鐘</button>
+    <button class="btn secondary" onclick="Views.liveExtend(5)">延長 5 分鐘</button>
+    <button class="btn secondary" onclick="Views.liveStep(-1)">上一階段</button>
+    <button class="btn secondary" onclick="Views.liveGroups()">查看分組</button>
+  </div>
+  <button class="btn danger block" style="margin-top:10px" onclick="Views.liveNote('${dp.id}','傷勢')">發生傷勢 / 安全事件</button>
+  <button class="btn secondary block" style="margin-top:6px" onclick="Views.liveNote('${dp.id}','')">臨時紀錄現場狀況</button>
+  <button class="btn ghost block" style="margin-top:6px" onclick="App.go('report','plan')">結束上課 → 課後紀錄</button>`;
+  App._liveDur=App._liveDur||(bl.e-bl.s)*60;
+  const tick=()=>{const cE=document.getElementById('liveClock');if(!cE){clearInterval(App._liveTimer);return;}
+    let left=App._liveDur-Math.floor((Date.now()-App._liveStart)/1000),over=false;if(left<0){over=true;left=-left;}
+    cE.textContent=(over?'+':'')+String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0');
+    cE.style.color=over?'var(--color-accent-500)':'';};
+  tick();App._liveTimer=setInterval(tick,1000);
 };
+Views.liveStep=function(d){App._liveIdx=Math.max(0,Math.min(4,(App._liveIdx||0)+d));App._liveStart=Date.now();App._liveDur=(BLOCKS[App._liveIdx].e-BLOCKS[App._liveIdx].s)*60;App.go('live','today');};
+Views.liveExtend=function(min){App._liveDur=(App._liveDur||0)+min*60;toast('本階段延長 '+min+' 分鐘','ok');};
+Views.liveDone=async function(){const dp=findDaily(State.ctx.date,State.ctx.classId);const bl=BLOCKS[App._liveIdx||0];if(dp&&bl.key!=='group')await Views.saveBlockField(dp.id,bl.key,null,'done',true);toast('已完成本階段','ok');Views.liveStep(1);};
+Views.liveGroups=function(){const dp=findDaily(State.ctx.date,State.ctx.classId);const groups=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];const stName=id=>{const s=C('students').find(x=>x.id===id);return s?esc(s.name):'';};const coach=id=>{const p=C('profiles').find(x=>x.id===id);return p?esc(p.name):'—';};Modal.open('今日分組',groups.length?groups.map(g=>`<div class="card" style="margin-bottom:8px;box-shadow:none"><b>${esc(g.name)}（${coach(g.coach_id)}）</b><div class="muted" style="margin-top:4px">${(g.students||[]).map(stName).join('、')||'—'}</div></div>`).join(''):'<div class="empty">尚未分組</div>');};
+Views.liveNote=function(dpId,kind){Modal.open(kind==='傷勢'?'紀錄傷勢 / 安全事件':'紀錄現場狀況',`${kind!=='傷勢'?`<div class="chips" style="margin-bottom:10px">${['人數異動','器材問題','課程延遲','學員不適','臨時調整'].map(t=>`<span class="chip" onclick="var i=document.getElementById('lnMsg');i.value=(i.value?i.value+'；':'')+'${t}'">${t}</span>`).join('')}</div>`:''}<textarea id="lnMsg" placeholder="描述…" aria-label="現場狀況"></textarea><button class="btn ${kind==='傷勢'?'danger':''} block" style="margin-top:8px" onclick="Views.saveLiveNote('${dpId}','${kind}')">送出</button>`);};
+Views.saveLiveNote=async function(dpId,kind){const msg=$('#lnMsg').value.trim();if(!msg){toast('請輸入內容','warn');return;}await save('discussions',{id:uid('ds'),daily_plan_id:dpId,author_id:State.user.id,author_name:State.user.name+'（現場）',message:(kind==='傷勢'?'【傷勢/安全】':'【現場】')+msg,parent_id:null,created_at:Date.now(),reads:[State.user.id]});Modal.close();toast(kind==='傷勢'?'已紀錄傷勢事件':'現場狀況已紀錄','ok');};
 
 /* ---------- STUDENTS ---------- */
 Views.view_students=function(el){

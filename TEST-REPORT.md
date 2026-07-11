@@ -1,6 +1,30 @@
 # TEST REPORT
 
-版本：`1.2.0-internal`
+版本：`1.8.0-internal`
+
+## 1.8.0 自動化測試（real-IndexedDB E2E）
+
+以 Node `vm` + `fake-indexeddb` 對「真實 IndexedDB 資料層＋所有 view render」跑 **89/89 全數通過**（`scratchpad/e2e-real.js`），涵蓋：
+
+- 核心手順：種子→出席→分組→五階段備課→討論→發布→課後銜接→PDF（無 undefined）。
+- 資料相容：DB v3→v4→v5 遷移後既有 store 保留，新增 warmup_library / attendance_records。
+- 域規則：4 教練上限偵測（toomany/dualrole/sameperson/inactive）、發布不硬擋（只警告）、saveGroups 允許但警告。
+- 雄麒 5 班：冪等建立（0 新增 5 已存在）、週六 120 分、暑期班季節內外判斷。
+- 熱身庫：18 預設含 Tabata、冪等、班別推薦、加入寫快照、歷史快照不受模板改動、自訂即時可用、平均分配=20。
+- 出席：未點名退回名單、attendingFor 只含已確認＋臨時、多維度三軸各自總和=出席數。
+- 角色首頁：管理者/主教練總覽可產生、助教無總覽且更多無管理項目。
+- 首次精靈：建立道館/管理者/教練/所選班別/示範學員並自動登入（只新增不覆蓋）。
+- 統一 CRUD：FAB 動作齊全、班別/教練可複製與停用。
+- 七步驟：`classinfo,stats,groups,plan,coachtasks,publish,report` 且新步驟 view 正常 render。
+- 上課模式：render、下一階段、延長分鐘。
+
+每次改單檔後皆先跑 `node vm` 語法檢查（12 段全通過、無重複頂層宣告），再跑上述 E2E。
+
+## 待補：Playwright 全瀏覽器互動測試（§十）
+
+`tests/`＋`playwright.config.js` 已就位；瀏覽器層（點擊/PWA 更新/離線/PDF 列印）之完整 Playwright 套件為後續工作，目前由上述 89 項 node 自動化 + 手機實測覆蓋。
+
+## 1.2.0 自動化測試（歷史）
 
 ## 自動化測試
 
