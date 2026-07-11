@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.11.0-internal';
+const APP_VERSION='1.11.1-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1498,10 +1498,10 @@ function currentEditLock(dpId){
 Views.view_home=function(el){
   const s=settings();
   ensureClassCtx();
-  const cls=C('classes').filter(c=>classActiveOn(c,State.ctx.date)); // 今日班表：季節性班別過季不顯示
+  const cls=C('classes').filter(c=>classOnDay(c,State.ctx.date)); // 今日班表：只顯示今天這個星期幾有課、且在啟用/季節內的班別
   if((!State.ctx.classId||!cls.some(c=>c.id===State.ctx.classId))&&cls.length)State.ctx.classId=cls[0].id;
   const wd=weekdayOf(State.ctx.date);
-  const cl=C('classes').find(c=>c.id===State.ctx.classId);
+  const cl=cls.find(c=>c.id===State.ctx.classId)||cls[0]||null;
   const {todos,ps}=computeTodos(State.ctx.date,State.ctx.classId);
   const coaches=Stats.coachesAvailable(wd).length;
   const sug=ps.list.length&&!ps.groups.length?Grouping.suggest(ps.list,'smart',coaches).groups.length:0;
@@ -1806,7 +1806,7 @@ Views.view_more=function(el){
 /* ---------- 步驟1：課程資料 ---------- */
 Views.view_classinfo=function(el){
   const td=State.ctx.date;
-  const cls=C('classes').filter(c=>classActiveOn(c,td));
+  const cls=C('classes').filter(c=>classOnDay(c,td));
   if((!State.ctx.classId||!cls.some(c=>c.id===State.ctx.classId))&&cls.length)State.ctx.classId=cls[0].id;
   const cl=C('classes').find(c=>c.id===State.ctx.classId);
   const head=C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active);
@@ -2249,6 +2249,8 @@ function classActiveOn(c,dateStr){
   }
   return true;
 }
+// 該日「今日班表」是否應出現此班：啟用/季節內 + 該星期幾有這個班
+function classOnDay(c,dateStr){return classActiveOn(c,dateStr)&&(c.weekdays||[]).includes(WEEKDAYS[weekdayOf(dateStr)]);}
 // 建立雄麒預設班別（冪等：依名稱+上課日+起訖時間判重，不覆蓋已修改過的班別）
 async function applyHsiungchiPresets(){
   const now=Date.now();let added=0,exists=0,failed=0;const existing=C('classes');
