@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.9.0-internal';
+const APP_VERSION='1.10.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1817,11 +1817,30 @@ Views.view_classinfo=function(el){
     <span class="tc" style="color:var(--color-text-disabled)">${svg('chevron',18)}</span></button>`).join('')
    :'<div class="empty">今日沒有排定的班別（過季或尚無班別）。可到「更多 → 班別管理」新增。</div>'}
   ${cl?`<div class="card" style="margin-top:8px"><div class="kv"><b>班別</b><span>${esc(cl.name)}</span></div><div class="kv"><b>時間</b><span>${cl.start_time}–${cl.end_time}（${cl.duration_minutes||90} 分）</span></div><div class="kv"><b>類型</b><span>${esc(cl.class_type||'—')}</span></div><div class="kv"><b>主教練</b><span>${esc(head?.name||'—')}</span></div><div class="kv"><b>備課狀態</b><span>${statusAction(dp?dp.status:'draft')}</span></div></div>`:''}
+  ${dp?`<button class="btn ghost sm block" style="margin-top:8px;color:var(--color-danger)" onclick="Views.resetDailyPlan('${State.ctx.date}','${State.ctx.classId}')">🗑️ 清除今日課程，重新排課</button>`:''}
   <div class="actionbar"><button class="btn ghost" onclick="App.go('home','today')">回今日</button><span class="sp"></span><button class="btn ${cl?'':'disabled'}" ${cl?'':'disabled'} onclick="Views.ciNext()">下一步：確認人數</button></div>`;
   $('#ciDate').onchange=e=>{State.ctx.date=e.target.value;App.go('classinfo','plan');};
 };
 Views.ciPick=function(id){State.ctx.classId=id;App.go('classinfo','plan');};
 Views.ciNext=async function(){if(!State.ctx.classId){toast('請先選班別','warn');return;}await ensureDaily(State.ctx.date,State.ctx.classId);App.go('stats','plan');};
+Views.resetDailyPlan=function(date,classId){
+  const dp=findDaily(date,classId);if(!dp){toast('此日尚無課程','warn');return;}
+  const cl=C('classes').find(c=>c.id===classId);
+  Modal.open('清除並重新排課',`<div class="danger-zone"><h4>清除「${esc(cl?cl.name:'')}・${date}」這一堂的備課</h4>
+    <p style="font-size:13px;color:#7f1d1d;margin:6px 0 0">會刪除此堂的：分組、五階段課程內容、教練任務、討論、課後紀錄。<b>學員與班別不受影響</b>。清除後可從頭重新排。</p></div>
+    <button class="btn danger block" style="margin-top:12px" onclick="Views.doResetDailyPlan('${dp.id}')">確定清除，重新排課</button>
+    <button class="btn ghost block sm" style="margin-top:6px" onclick="Modal.close()">取消</button>`);
+};
+Views.doResetDailyPlan=async function(dpId){
+  const dp=C('daily_plans').find(d=>d.id===dpId);if(!dp)return;
+  for(const g of C('training_groups').filter(x=>x.daily_plan_id===dpId))await remove('training_groups',g.id);
+  for(const b of C('lesson_blocks').filter(x=>x.daily_plan_id===dpId))await remove('lesson_blocks',b.id);
+  for(const d of C('discussions').filter(x=>x.daily_plan_id===dpId))await remove('discussions',d.id);
+  for(const r of C('post_class_reports').filter(x=>x.daily_plan_id===dpId))await remove('post_class_reports',r.id);
+  await remove('daily_plans',dpId);
+  await audit('reset_plan','daily_plans',dpId,dp,null);
+  Modal.close();toast('已清除，可重新排課','ok');App.go('classinfo','plan');
+};
 
 /* ---------- 步驟5：教練任務 ---------- */
 Views.view_coachtasks=function(el){
@@ -2994,7 +3013,7 @@ Views.buildPDFHtml=function(ver){
       ${ver==='full'?`<div style="font-size:11px;margin-bottom:4px">年齡：幼兒${sm.age.幼兒}／國小${sm.age.國小}／國中${sm.age.國中}／成人${sm.age.成人}　｜　級別：${BELTS.filter(b=>sm.belt[b]).map(b=>b+sm.belt[b]).join(' ')}</div>`:''}
       <table class="ptbl"><tr><th style="width:14%">時段</th><th>內容</th><th style="width:20%">目標/器材</th></tr>
         <tr><td>0–10′ 做操慢跑</td><td>${esc(warm.content||'集合、禮節、做操、慢跑')}</td><td>${esc(warm.goal||'暖身')}</td></tr>
-        <tr><td>10–30′ 熱身體能</td><td>${(fit.warmups&&fit.warmups.length)?esc(fit.warmups.map(w=>w.name+' '+(w.minutes||0)+'分').join('、'))+'　':''}${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
+        <tr><td>10–30′ 熱身體能</td><td>${fit.warmupMode&&fit.warmupMode!=='全體一起'?'<b>['+esc(fit.warmupMode)+']</b> ':''}${(fit.warmups&&fit.warmups.length)?esc(fit.warmups.map(w=>w.name+(w.target&&w.target!=='全體'?'('+w.target+')':'')+' '+(w.minutes||0)+'分').join('、'))+'　':''}${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
         <tr><td colspan="3" style="background:#eef2ff"><b>30–60′ 分組訓練</b></td></tr>
         ${groupRows||'<tr><td colspan="3">（未分組）</td></tr>'}
         <tr><td>60–85′ 應用挑戰</td><td>${esc(app.applyType?('['+app.applyType+'] '):'')}${esc(app.content||'')}</td><td>${esc(app.equipment||'')}</td></tr>
@@ -3194,20 +3213,28 @@ const Warmup={
 };
 function getFitBlock(dpId){let b=C('lesson_blocks').find(x=>x.daily_plan_id===dpId&&x.block_type==='fitness'&&!x.training_group_id);
   return b?{...b,warmups:[...(b.warmups||[])]}:{id:uid('lb'),daily_plan_id:dpId,training_group_id:null,block_type:'fitness',start_minute:10,end_minute:30,warmups:[]};}
+const WARMUP_MODES=['全體一起','幼兒分開','常態分開','分兩區','依分組'];
+const WARMUP_TARGETS=['全體','幼兒','常態班'];
 Views.warmupPanel=function(dp,b){
   const ws=b.warmups||[];const total=ws.reduce((a,w)=>a+(+w.minutes||0),0);const target=(b.end_minute||30)-(b.start_minute||10);
   const col=total===target?'var(--color-success)':total>target?'var(--color-danger)':'var(--color-warning)';
+  const mode=b.warmupMode||'全體一起';const split=mode!=='全體一起';
   return `<div class="card" style="background:var(--color-surface-soft);margin:6px 0;box-shadow:none">
     <div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">熱身快選</h3><span class="sp" style="flex:1"></span><b style="font-size:13px;color:${col}">已安排 ${total}/${target} 分鐘</b></div>
+    <div class="row" style="margin-bottom:8px;align-items:center"><label class="sm" style="margin:0;flex:0 0 auto">進行方式</label><select onchange="Views.wSetMode('${dp.id}',this.value)" style="flex:1">${WARMUP_MODES.map(m=>`<option ${m===mode?'selected':''}>${m}</option>`).join('')}</select></div>
     ${ws.length?ws.map((w,i)=>`<div class="row" style="margin-bottom:6px;align-items:center;flex-wrap:nowrap">
       <b style="flex:1;min-width:0">${esc(w.name)}${w.tabata?' <span class="tag">Tabata</span>':''}</b>
-      <input type="number" style="width:60px" value="${+w.minutes||0}" min="0" aria-label="分鐘" onchange="Views.wSetMin('${dp.id}',${i},this.value)"><span class="muted">分</span>
+      ${split?`<select style="width:auto;flex:0 0 auto" aria-label="對象" onchange="Views.wSetTarget('${dp.id}',${i},this.value)">${WARMUP_TARGETS.map(t=>`<option ${(w.target||'全體')===t?'selected':''}>${t}</option>`).join('')}</select>`:''}
+      <input type="number" style="width:56px" value="${+w.minutes||0}" min="0" aria-label="分鐘" onchange="Views.wSetMin('${dp.id}',${i},this.value)"><span class="muted">分</span>
       <button class="btn xs g" onclick="Views.wRemove('${dp.id}',${i})">移除</button></div>`).join(''):'<div class="muted" style="margin-bottom:6px">尚未選擇熱身項目</div>'}
     <div class="row"><button class="btn sm secondary" onclick="Views.wOpenPicker('${dp.id}')">＋ 熱身快選</button>
       <button class="btn sm ghost" onclick="Views.wCustom('${dp.id}')">＋ 自訂熱身</button>
       ${ws.length&&total!==target?`<button class="btn sm ghost" onclick="Views.wAutoBalance('${dp.id}')">平均分配 ${target} 分</button>`:''}</div>
+    ${split?`<div class="muted" style="margin-top:4px">「${esc(mode)}」：用每個項目右側的「對象」把不同熱身指定給幼兒或常態班。</div>`:''}
     ${total>target?`<div class="warnbox" style="margin-top:6px">熱身已超過 ${target} 分鐘，請調整分鐘或延長階段。</div>`:total<target&&ws.length?`<div class="muted" style="margin-top:4px">還差 ${target-total} 分鐘。</div>`:''}</div>`;
 };
+Views.wSetMode=async function(dpId,v){const b=getFitBlock(dpId);b.warmupMode=v;await save('lesson_blocks',b);Views.renderPlan();};
+Views.wSetTarget=async function(dpId,i,v){const b=getFitBlock(dpId);if(b.warmups[i]){b.warmups[i].target=v;await save('lesson_blocks',b);Views.renderPlan();}};
 Views.wSetMin=async function(dpId,i,val){const b=getFitBlock(dpId);if(b.warmups[i]){b.warmups[i].minutes=Math.max(0,+val||0);await save('lesson_blocks',b);Views.renderPlan();}};
 Views.wRemove=async function(dpId,i){const b=getFitBlock(dpId);b.warmups.splice(i,1);await save('lesson_blocks',b);Views.renderPlan();};
 Views.wAutoBalance=async function(dpId){const b=getFitBlock(dpId);const ws=b.warmups;if(!ws.length)return;const target=(b.end_minute||30)-(b.start_minute||10);const each=Math.max(1,Math.floor(target/ws.length));let rem=target-each*ws.length;ws.forEach((w,i)=>w.minutes=each+(i<rem?1:0));await save('lesson_blocks',b);Views.renderPlan();};
