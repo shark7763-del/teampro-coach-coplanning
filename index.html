@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.12.3-internal';
+const APP_VERSION='1.12.4-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1736,7 +1736,7 @@ Views.attListHtml=function(){
   if(!list.length)return '<div class="muted" style="padding:8px 0">沒有符合的學員</div>';
   return list.map(s=>{const st=rmap[s.id]||'expected';const isWalk=walkins.some(w=>w.id===s.id);
     return `<div class="row" style="align-items:center;border-bottom:1px solid var(--line);padding:7px 0;flex-wrap:nowrap">
-      <div style="flex:1;min-width:0"><b>${esc(s.name)}</b>${isWalk?' <span class="tag" style="background:#E0F2FE;color:#0369A1">臨時</span>':''}
+      <div style="flex:1;min-width:0"><b>${beltDot(s.belt_rank)}${esc(s.name)}</b>${isWalk?' <span class="tag" style="background:#E0F2FE;color:#0369A1">臨時</span>':''}
         <div class="muted">${ageDim(s)}・${levelDim(s)}・${specDim(s)}</div></div>
       <button class="btn xs ${st==='confirmed'||st==='walk_in'?'ok':'g'}" onclick="Views.attSet('${s.id}','${isWalk?'walk_in':'confirmed'}')">到</button>
       <button class="btn xs ${st==='leave'?'warn':'g'}" onclick="Views.attSet('${s.id}','leave')">假</button>
@@ -1894,7 +1894,7 @@ Views.view_coachtasks=function(el){
     return `<div class="card"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">${esc(g.name)}</h3><span class="sp" style="flex:1"></span><span class="tag">${(g.students||[]).length}人</span></div>
     <div class="kv"><b>主責教練</b><span>${g.coach_id?nm(g.coach_id):'<span style="color:var(--color-danger)">未指派</span>'}</span></div>
     <div class="kv"><b>助教</b><span>${g.assistant_id?nm(g.assistant_id):'—'}</span></div>
-    <div class="kv"><b>學員</b><span style="text-align:right">${(g.students||[]).map(stName).join('、')||'—'}</span></div>
+    <div class="kv"><b>學員</b><span style="text-align:right">${(g.students||[]).map(sid=>beltDot(stBelt(sid))+stName(sid)).join(' ')||'—'}</span></div>
     <div class="kv"><b>今日目標</b><span>${esc(gb.goal||g.target||'—')}</span></div>
     <div class="kv"><b>內容</b><span>${esc([gb.basic&&('基本:'+gb.basic),gb.kick&&('腿法:'+gb.kick),gb.poomsae&&('品勢:'+gb.poomsae),gb.spar&&('對練:'+gb.spar)].filter(Boolean).join('・')||'—')}</span></div>
     <div class="kv"><b>器材</b><span>${esc(gb.equipment||'—')}</span></div>
@@ -2660,7 +2660,7 @@ Views.renderGroupBlocks=function(dp,groups,blocks,canEdit,stName){
       const b=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};
       const coach=C('profiles').find(p=>p.id===g.coach_id);
       return `<div class="gcard"><div class="gh"><b>${esc(g.name)}</b><span class="tag">${g.group_type}</span><span class="muted">${(g.students||[]).length}人・${coach?esc(coach.name):'未指派'}</span></div>
-      <div class="muted" style="margin-bottom:6px">${(g.students||[]).map(stName).join('、')||'（空組）'}</div>
+      <div class="muted" style="margin-bottom:6px">${(g.students||[]).map(sid=>beltDot(stBelt(sid))+stName(sid)).join(' ')||'（空組）'}</div>
       ${canEdit?`
       <div class="row"><div class="grow"><label class="sm">基本動作</label><input value="${esc(b.basic||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','basic',this.value)"></div>
         <div class="grow"><label class="sm">腿法</label><input value="${esc(b.kick||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','kick',this.value)"></div></div>
@@ -2908,7 +2908,7 @@ Views.view_mytasks=function(el){
     return `<div class="card"><h3>🧩 ${esc(g.name)} <span class="tag">${g.group_type}</span></h3>
       <div class="kv"><b>班別</b><span>${esc(c?.name||'')} ${c?.start_time||''}</span></div>
       <div class="kv"><b>人數</b><span>${(g.students||[]).length} 人</span></div>
-      <div class="kv"><b>學員</b><span style="text-align:right">${(g.students||[]).map(stName).join('、')||'—'}</span></div>
+      <div class="kv"><b>學員</b><span style="text-align:right">${(g.students||[]).map(sid=>beltDot(stBelt(sid))+stName(sid)).join(' ')||'—'}</span></div>
       <div class="divider"></div>
       <div class="kv"><b>30–60′ 基本動作</b><span>${esc(gblk.basic||'—')}</span></div>
       <div class="kv"><b>腿法/品勢</b><span>${esc([gblk.kick,gblk.poomsae].filter(Boolean).join('/')||'—')}</span></div>
