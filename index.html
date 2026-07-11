@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.12.4-internal';
+const APP_VERSION='1.13.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1537,8 +1537,11 @@ Views.view_home=function(el){
   const latestBackup=BackupManager.list()[0];
   const backupOld=!latestBackup||Date.now()-latestBackup.created_at>24*60*60*1000;
   const exceptionCount=todos.filter(t=>['block','warn'].includes(t.level)).length+(SYNC.lastError?1:0)+(backupOld?1:0);
-  const head=C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active);
-  const assistants=C('profiles').filter(p=>p.role==='assistant'&&p.active).slice(0,2).map(p=>p.name).join('、')||'—';
+  const teamIds=ps.dp?teamCoaches(ps.dp):[];
+  const leadId=ps.dp&&ps.dp.lead_coach_id?ps.dp.lead_coach_id:(teamIds[0]||'');
+  const head=leadId?C('profiles').find(p=>p.id===leadId):(C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active));
+  const others=teamIds.filter(id=>id!==leadId).map(id=>{const p=C('profiles').find(x=>x.id===id);return p?p.name:'';}).filter(Boolean);
+  const assistants=teamIds.length?(others.join('、')||'—'):'（未指派，教練任務步驟可設）';
   const hour=new Date().getHours(),hi=hour<11?'早安':hour<18?'午安':'晚安';
   let cta=ps.dp?{label:'繼續完成今日備課',view:'classinfo',area:'plan'}:{label:'⚡ 快速備課（一鍵生成整堂）',view:'quickplan',area:'plan'};
   if(ps.dp&&ps.dp.status==='pub')cta={label:'查看今日執行內容',view:'live',area:'today'};
@@ -1873,6 +1876,38 @@ Views.doResetDailyPlan=async function(dpId){
 };
 
 /* ---------- 步驟5：教練任務 ---------- */
+/* 今日教練團（逐日指派，最多 MAX_COACHES_PER_CLASS 位；dp.team 為 4 格陣列，team[0]=主責）*/
+function teamSlots(dp){
+  if(dp.team&&dp.team.length){const t=dp.team.slice(0,4);while(t.length<4)t.push('');return t;}
+  const derived=[...new Set([dp.lead_coach_id,...(dp.assigned_coach_ids||[])].filter(Boolean))].slice(0,4);
+  while(derived.length<4)derived.push('');return derived;
+}
+function teamCoaches(dp){return teamSlots(dp).filter(Boolean);}
+Views.setTeamSlot=async function(dpId,slot,coachId){
+  const dp=C('daily_plans').find(d=>d.id===dpId);let t=teamSlots(dp);
+  if(coachId)t=t.map((id,i)=>i!==slot&&id===coachId?'':id); // 同一人不重複佔兩格
+  t[slot]=coachId;
+  const assigned=[...new Set(t.filter(Boolean))];
+  if(assigned.length>MAX_COACHES_PER_CLASS)toast('每堂課最多 '+MAX_COACHES_PER_CLASS+' 位教練','warn');
+  dp.team=t;dp.assigned_coach_ids=assigned;dp.lead_coach_id=t[0]||assigned[0]||'';
+  await save('daily_plans',dp);App.go('coachtasks','plan');
+};
+Views.setTeamRole=async function(dpId,cid,role){const dp=C('daily_plans').find(d=>d.id===dpId);dp.team_roles=dp.team_roles||{};dp.team_roles[cid]=role;await save('daily_plans',dp);App.go('coachtasks','plan');};
+function ctTeamCard(dp){
+  const wd=weekdayOf(dp.date);
+  const coaches=C('profiles').filter(p=>p.active&&['admin','head','assistant'].includes(p.role));
+  const avail=coaches.filter(p=>!(p.available_weekdays&&p.available_weekdays.length)||p.available_weekdays.includes(WEEKDAYS[wd]));
+  const t=teamSlots(dp),n=teamCoaches(dp).length;
+  const labels=['主責教練','教練 / 助教 2','教練 / 助教 3','教練 / 助教 4'];
+  const roles4=['固定帶組','全場巡視','個別修正','器材支援','安全支援','機動代班','紀錄與拍攝'];
+  const opt=sel=>avail.map(p=>`<option value="${p.id}" ${p.id===sel?'selected':''}>${esc(p.name)}（${ROLE_LABEL[p.role]}）</option>`).join('');
+  return `<div class="card"><div class="sect-head" style="margin-top:0"><h3>今日教練團</h3><span class="sp" style="flex:1"></span><span class="tag ${n>MAX_COACHES_PER_CLASS?'':'spec'}">${n}/${MAX_COACHES_PER_CLASS} 位</span></div>
+    ${t.map((id,i)=>`<div class="row" style="align-items:center;margin-bottom:6px;flex-wrap:nowrap">
+      <span style="flex:0 0 84px;font-size:12px;font-weight:600;color:var(--sub)">${labels[i]}</span>
+      <select class="grow" onchange="Views.setTeamSlot('${dp.id}',${i},this.value)"><option value="">— 未安排 —</option>${opt(id)}</select></div>
+      ${i===3&&id?`<div class="row" style="margin:0 0 8px 84px"><select class="grow" onchange="Views.setTeamRole('${dp.id}','${id}',this.value)"><option value="">第 4 位角色…</option>${roles4.map(r=>`<option ${(dp.team_roles||{})[id]===r?'selected':''}>${r}</option>`).join('')}</select></div>`:''}`).join('')}
+    <p class="muted" style="margin:2px 0 0">主責教練會顯示在今日卡片；含主責、教練、助教最多 ${MAX_COACHES_PER_CLASS} 位。</p></div>`;
+}
 Views.view_coachtasks=function(el){
   ensureClassCtx();const cls=C('classes').filter(c=>c.active);if(!State.ctx.classId&&cls.length)State.ctx.classId=cls[0].id;
   const dp=findDaily(State.ctx.date,State.ctx.classId);
@@ -1889,6 +1924,7 @@ Views.view_coachtasks=function(el){
   const stName=id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'';};
   const warns=val.issues.filter(i=>['nocoach','conflict','toomany','sameperson','dualrole','inactive'].includes(i.t));
   body.innerHTML=`
+  ${ctTeamCard(dp)}
   ${warns.length?warns.map(w=>`<div class="warnbox">⚠️ ${esc(w.msg)}</div>`).join(''):'<div class="okbox">✅ 教練任務檢查通過</div>'}
   ${groups.length?groups.map(g=>{const gb=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};
     return `<div class="card"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">${esc(g.name)}</h3><span class="sp" style="flex:1"></span><span class="tag">${(g.students||[]).length}人</span></div>
