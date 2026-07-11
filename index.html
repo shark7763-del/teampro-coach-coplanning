@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.12.1-internal';
+const APP_VERSION='1.12.2-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -489,9 +489,22 @@ function ageOK(a){return AGE_GROUPS.includes(a);}
 function normBelt(b){b=String(b||'').trim();return BELT_ALIASES[b]||b;}
 function beltOK(b){return BELTS.includes(normBelt(b));}
 /* 色帶顏色（兩色帶取主色近似）＋名字前的小圓點 */
-const BELT_COLORS={'白帶':'#d1d5db','黃帶':'#facc15','黃藍帶':'#38bdf8','藍帶':'#2563eb','藍紅帶':'#7c3aed','紅帶':'#ef4444','紅一線':'#dc2626','紅二線':'#b91c1c','黑頭':'#6b1a1a','一段':'#111827','兩段':'#111827','三段':'#111827','四段':'#111827'};
+const BELT_COLORS={'白帶':'#ffffff','黃帶':'#facc15','黃藍帶':'#facc15','藍帶':'#2563eb','藍紅帶':'#2563eb','紅帶':'#ef4444','紅一線':'#ef4444','紅二線':'#ef4444','黑頭':'#ef4444','一段':'#111827','兩段':'#111827','三段':'#111827','四段':'#111827'};
+// 多色帶圖案：黃藍=黃底藍段、藍紅=藍底紅段、紅一線=紅底1黑線、紅二線=紅底2黑線、紅黑頭=紅底尾端黑
+const BELT_GRADIENT={
+  '黃藍帶':'linear-gradient(90deg,#facc15 0 62%,#2563eb 62% 100%)',
+  '藍紅帶':'linear-gradient(90deg,#2563eb 0 62%,#ef4444 62% 100%)',
+  '紅一線':'linear-gradient(90deg,#ef4444 0 60%,#111827 60% 76%,#ef4444 76% 100%)',
+  '紅二線':'linear-gradient(90deg,#ef4444 0 42%,#111827 42% 56%,#ef4444 56% 72%,#111827 72% 86%,#ef4444 86% 100%)',
+  '黑頭':'linear-gradient(90deg,#ef4444 0 58%,#111827 58% 100%)',
+  '一段':'radial-gradient(circle,#facc15 0 30%,#111827 30% 100%)',
+  '兩段':'radial-gradient(circle,#facc15 0 30%,#111827 30% 100%)',
+  '三段':'radial-gradient(circle,#facc15 0 30%,#111827 30% 100%)',
+  '四段':'radial-gradient(circle,#facc15 0 30%,#111827 30% 100%)',
+};
 function beltColor(b){return BELT_COLORS[normBelt(b)]||'#9ca3af';}
-function beltDot(b){return `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${beltColor(b)};border:1px solid rgba(0,0,0,.18);margin-right:5px;vertical-align:middle" title="${esc(normBelt(b))}"></span>`;}
+function beltStyle(b){const g=BELT_GRADIENT[normBelt(b)];return g?`background:${g}`:`background:${beltColor(b)}`;}
+function beltDot(b){return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;${beltStyle(b)};border:1px solid rgba(0,0,0,.3);margin-right:5px;vertical-align:middle" title="${esc(normBelt(b))}"></span>`;}
 function stBelt(sid){const s=C('students').find(x=>x.id===sid);return s?s.belt_rank:'';}
 
 /* ---------------- global state ---------------- */
