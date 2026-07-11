@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.12.0-internal';
+const APP_VERSION='1.12.1-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -488,6 +488,11 @@ function normWeekdays(raw){
 function ageOK(a){return AGE_GROUPS.includes(a);}
 function normBelt(b){b=String(b||'').trim();return BELT_ALIASES[b]||b;}
 function beltOK(b){return BELTS.includes(normBelt(b));}
+/* 色帶顏色（兩色帶取主色近似）＋名字前的小圓點 */
+const BELT_COLORS={'白帶':'#d1d5db','黃帶':'#facc15','黃藍帶':'#38bdf8','藍帶':'#2563eb','藍紅帶':'#7c3aed','紅帶':'#ef4444','紅一線':'#dc2626','紅二線':'#b91c1c','黑頭':'#6b1a1a','一段':'#111827','兩段':'#111827','三段':'#111827','四段':'#111827'};
+function beltColor(b){return BELT_COLORS[normBelt(b)]||'#9ca3af';}
+function beltDot(b){return `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${beltColor(b)};border:1px solid rgba(0,0,0,.18);margin-right:5px;vertical-align:middle" title="${esc(normBelt(b))}"></span>`;}
+function stBelt(sid){const s=C('students').find(x=>x.id===sid);return s?s.belt_rank:'';}
 
 /* ---------------- global state ---------------- */
 const State={user:null, cache:{}, ctx:{date:todayStr(),classId:null}};
@@ -2405,10 +2410,10 @@ Views.renderGroups=function(list){
         <select onchange="Views._groupState.groups[${gi}].coach_id=this.value" class="grow"><option value="">選教練</option>${coaches.map(c=>`<option value="${c.id}" ${c.id===g.coach_id?'selected':''}>${esc(c.name)}(${ROLE_LABEL[c.role]})</option>`).join('')}</select>
         <select onchange="Views._groupState.groups[${gi}].assistant_id=this.value" class="grow"><option value="">選助教</option>${coaches.filter(c=>c.role==='assistant').map(c=>`<option value="${c.id}" ${c.id===g.assistant_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
       </div>
-      <div>${(g.students||[]).map(sid=>`<span class="stu ${Views._selStu===sid?'sel':''}" draggable="true" ondragstart="Views._drag='${sid}'" onclick="Views.pickStu('${sid}',${gi})">${esc(stName(sid))}</span>`).join('')||'<span class="muted">（空組）</span>'}</div>
+      <div>${(g.students||[]).map(sid=>`<span class="stu ${Views._selStu===sid?'sel':''}" draggable="true" ondragstart="Views._drag='${sid}'" onclick="Views.pickStu('${sid}',${gi})">${beltDot(stBelt(sid))}${esc(stName(sid))}</span>`).join('')||'<span class="muted">（空組）</span>'}</div>
     </div>`).join('')}
     ${val.unassigned.length?`<div class="gcard" data-gi="-1" ondragover="event.preventDefault();this.classList.add('drop')" ondragleave="this.classList.remove('drop')" ondrop="Views.dropStu(event,-1)"><div class="gh"><b>未分組</b><span class="muted">${val.unassigned.length}人</span></div>
-      <div class="pool">${val.unassigned.map(s=>`<span class="stu ${Views._selStu===s.id?'sel':''}" draggable="true" ondragstart="Views._drag='${s.id}'" onclick="Views.pickStu('${s.id}',-1)">${esc(s.name)}</span>`).join('')}</div></div>`:''}
+      <div class="pool">${val.unassigned.map(s=>`<span class="stu ${Views._selStu===s.id?'sel':''}" draggable="true" ondragstart="Views._drag='${s.id}'" onclick="Views.pickStu('${s.id}',-1)">${beltDot(s.belt_rank)}${esc(s.name)}</span>`).join('')}</div></div>`:''}
     <div class="actionbar"><button class="btn secondary" onclick="App.go('stats','plan')">返回人數</button><span class="sp"></span><button class="btn" onclick="Views.saveGroups(true)">儲存並進入備課</button></div>`;
 };
 Views._selStu=null;Views._drag=null;
