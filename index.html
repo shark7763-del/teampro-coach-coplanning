@@ -378,7 +378,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.3.1-internal';
+const APP_VERSION='1.3.2-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1761,9 +1761,7 @@ Views.view_publish=function(el){
   $('#pbClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('publish','plan');};
 };
 Views.publishFromFlow=async function(dpId,hasIssues){
-  const dp=C('daily_plans').find(d=>d.id===dpId);
-  if(dp){const ps=planStatus(dp.date,dp.class_id);if(hasBlockingIssues(ps.val)){toast('有重大錯誤（教練超過4位／組別缺教練／重複分組等），必須先修正才能發布','bad');return;}}
-  if(hasIssues&&!confirm('仍有未完成項目，確定要發布？'))return;
+  if(hasIssues&&!confirm('仍有未完成或需注意的項目，確定要發布？'))return;
   await Views.publish(dpId); App.go('publish','plan');
 };
 Views.view_live=function(el){
@@ -2214,7 +2212,7 @@ Views.saveGroups=async function(next){
   let dp=findDaily(State.ctx.date,State.ctx.classId);
   const val=Grouping.validate(Views._groupState.groups,list,dp);
   const team=Grouping.coachTeam(Views._groupState.groups,dp);
-  if(team.size>MAX_COACHES_PER_CLASS){toast(`每堂課最多安排 ${MAX_COACHES_PER_CLASS} 位教練，目前 ${team.size} 位，請先移除或更換現有人員`,'bad');return;}
+  if(team.size>MAX_COACHES_PER_CLASS)toast(`提醒：本堂課有 ${team.size} 位教練，超過建議上限 ${MAX_COACHES_PER_CLASS} 位（仍可儲存）`,'warn');
   if(!dp)dp=await ensureDaily(State.ctx.date,State.ctx.classId);
   // 清掉舊 group + 其 group block
   const oldGs=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
@@ -2493,7 +2491,7 @@ Views.applyWarmup=async function(dpId){
   toast('已套用標準暖身','ok');Views.renderPlan();
 };
 Views.setStatus=async function(dpId,st){const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status=st;await save('daily_plans',dp);await audit('status','daily_plans',dpId,old,dp);toast('狀態：'+statusMeta(st)[1]);};
-Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const ps=planStatus(dp.date,dp.class_id);if(hasBlockingIssues(ps.val)){toast('有重大錯誤（教練超過4位／組別缺教練／重複分組等），必須先修正才能發布','bad');return;}const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');if($('#planBody'))Views.renderPlan();else App.go(App.view,App.area);};
+Views.publish=async function(dpId){if(!can('publish')&&!can('*')){toast('無權限發布','bad');return;}const dp=C('daily_plans').find(d=>d.id===dpId);const old={...dp};dp.status='pub';dp.approved_by=State.user.id;await save('daily_plans',dp);await audit('publish','daily_plans',dpId,old,dp);toast('已發布 ✅','ok');if($('#planBody'))Views.renderPlan();else App.go(App.view,App.area);};
 Views.lockPlan=async function(dpId){if(!requireAdminRole())return;await App.requireAdminPin({actionName:'鎖定課程',impact:'鎖定後只有管理者可修改此課程。',confirmText:'確認鎖定',onConfirm:async()=>{const dp=C('daily_plans').find(d=>d.id===dpId);dp.status='lock';await save('daily_plans',dp);await audit('lock','daily_plans',dpId);Modal.close();toast('已鎖定 🔒');Views.renderPlan();}});};
 Views.copyPrev=async function(){
   // 找同班別上一個有備課的日期
