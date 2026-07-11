@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.10.0-internal';
+const APP_VERSION='1.11.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -913,6 +913,9 @@ const Grouping={
     }else if(mode==='level'){
       const m=byKey(list,s=>this.tierOf(s.belt_rank));
       ['初階','中階','高階'].forEach(t=>{if(m[t]&&m[t].length)groups.push(mk(t+'組','基礎',m[t],`${t}（${settings().tiers[t].join('、')}）共 ${m[t].length} 人。`));});
+    }else if(mode==='belt3'){
+      const m=byKey(list,s=>levelDim(s));
+      ['低色帶','中色帶','高色帶','黑帶'].forEach(k=>{if(m[k]&&m[k].length)groups.push(mk(k+'組','基礎',m[k],`${k}共 ${m[k].length} 人。`));});
     }else if(mode==='kids'){
       const kids=list.filter(s=>s.age_group==='幼兒');
       const rest=list.filter(s=>s.age_group!=='幼兒');
@@ -1510,7 +1513,7 @@ Views.view_home=function(el){
   const head=C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active);
   const assistants=C('profiles').filter(p=>p.role==='assistant'&&p.active).slice(0,2).map(p=>p.name).join('、')||'—';
   const hour=new Date().getHours(),hi=hour<11?'早安':hour<18?'午安':'晚安';
-  let cta={label:ps.dp?'繼續完成今日備課':'建立今日課程',view:'classinfo',area:'plan'};
+  let cta=ps.dp?{label:'繼續完成今日備課',view:'classinfo',area:'plan'}:{label:'⚡ 快速備課（一鍵生成整堂）',view:'quickplan',area:'plan'};
   if(ps.dp&&ps.dp.status==='pub')cta={label:'查看今日執行內容',view:'live',area:'today'};
   else if(ps.dp&&['done','lock'].includes(ps.dp.status))cta={label:'完成課後回報',view:'report',area:'today'};
   el.innerHTML=`
@@ -1538,7 +1541,7 @@ Views.view_home=function(el){
     </div>
     <button class="btn block lg" style="margin-top:12px" onclick="App.go('${cta.view}','${cta.area}')">${cta.label}</button>
     <div class="row" style="margin-top:8px">
-      <button class="btn secondary grow" onclick="App.go('quickplan','plan')">快速備課</button>
+      ${ps.dp?`<button class="btn secondary grow" onclick="App.go('quickplan','plan')">重新快速備課</button>`:`<button class="btn secondary grow" onclick="App.go('classinfo','plan')">逐步備課（7 步）</button>`}
       ${ps.dp&&ps.dp.status==='pub'?`<button class="btn ok grow" onclick="App.go('live','today')">開始上課</button>`:`<button class="btn secondary grow" onclick="App.go('groups','plan')">查看分組</button>`}
     </div>
     ${ps.dp&&ps.dp._u?`<div style="text-align:center;font-size:11px;color:#8aa0b6;margin-top:8px">最後更新：${new Date(ps.dp._u).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`:''}
@@ -2330,19 +2333,21 @@ Views.view_groups=function(el){
     <p class="muted" style="margin:8px 0 0">${WEEKDAYS[wd]}・共 ${list.length} 人・可出席教練 ${Stats.coachesAvailable(wd).length} 位</p>
     <div class="sect-title" style="margin-top:12px">選擇分組模式</div>
     <div class="chips" id="gModes">
-      ${[['smart','智慧綜合建議'],['age','依年齡層'],['belt','依級別段位'],['poomsae_spar','品勢/對練'],['level','初中高階'],['kids','幼兒獨立'],['adult','成人獨立'],['promo','晉級加強'],['comp','比賽選手']].map(m=>`<span class="chip" data-m="${m[0]}">${m[1]}</span>`).join('')}
+      ${[['belt3','依色帶（低/中/高）'],['smart','智慧綜合'],['age','依年齡層'],['poomsae_spar','品勢/對練'],['kids','幼兒獨立'],['adult','成人獨立'],['promo','晉級加強'],['comp','比賽選手']].map(m=>`<span class="chip" data-m="${m[0]}">${m[1]}</span>`).join('')}
     </div>
     <button class="btn block" style="margin-top:10px" onclick="Views.genGroups()">🧩 產生分組建議</button>
   </div>
   <div id="gResult"></div>`;
   $('#gDate').onchange=e=>{State.ctx.date=e.target.value;App.go('groups');};
   $('#gClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('groups');};
-  let mode='smart';
-  document.querySelectorAll('#gModes .chip').forEach(c=>{if(c.dataset.m==='smart')c.classList.add('on');c.onclick=()=>{document.querySelectorAll('#gModes .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');mode=c.dataset.m;};});
+  let mode=Views._gModeLast||'belt3';
+  document.querySelectorAll('#gModes .chip').forEach(c=>{if(c.dataset.m===mode)c.classList.add('on');c.onclick=()=>{document.querySelectorAll('#gModes .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');mode=c.dataset.m;Views._gModeLast=mode;};});
   Views._gMode=()=>mode;
-  // 若已存在該日分組，載入
+  // 已存在分組→載入；沒有→自動產生（預設依色帶），教練可直接調整或儲存
   const dp=findDaily(State.ctx.date,State.ctx.classId);
-  if(dp){const gs=C('training_groups').filter(g=>g.daily_plan_id===dp.id);if(gs.length){Views._groupState={groups:gs.map(g=>({...g,students:[...(g.students||[])]})),notes:[]};Views.renderGroups(list);}}
+  const gs=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];
+  if(gs.length){Views._groupState={groups:gs.map(g=>({...g,students:[...(g.students||[])]})),notes:[]};Views.renderGroups(list);}
+  else if(list.length){Views.genGroups();}
 };
 Views.genGroups=function(){
   const wd=weekdayOf(State.ctx.date);
