@@ -378,7 +378,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.4.0-internal';
+const APP_VERSION='1.5.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1199,7 +1199,7 @@ const App={
     this.updateLoginSync();
     if(!ps.length){
       if(auth)auth.style.display='none';
-      $('#loginList').innerHTML='<div style="text-align:center;padding:8px 0"><p class="muted" style="margin:0 0 12px">第一次使用，請先建立示範資料<br>（含教練帳號、40 位學員、一週課程）。</p><button class="btn ok block lg" onclick="App.seedFromLogin()">開始：建立示範資料</button></div>';
+      $('#loginList').innerHTML='<div style="text-align:center;padding:8px 0"><p class="muted" style="margin:0 0 12px">第一次使用？用設定精靈快速建立<br>道館、班別、教練與學員。</p><button class="btn ok block lg" onclick="Setup.start()">開始設定精靈</button><button class="btn ghost block sm" style="margin-top:8px" onclick="App.seedFromLogin()">或直接載入示範資料</button></div>';
       return;
     }
     if(auth)auth.style.display='';
@@ -3169,6 +3169,75 @@ Views.wSaveEdit=async function(id,hasTb){
     favorite:$('#we_fav').classList.contains('on'),updated_at:Date.now()};
   if(hasTb){upd.tabata={work:+$('#tb_work').value||20,rest:+$('#tb_rest').value||10,rounds:+$('#tb_rounds').value||8,sets:+$('#tb_sets').value||1,rest_between:+$('#tb_rb').value||60,moves:$('#tb_moves').value.split(/[、,，]/).map(s=>s.trim()).filter(Boolean)};}
   await save('warmup_library',upd);Modal.close();toast('已儲存','ok');App.go('warmups');
+};
+
+/* ========================================================================
+   首次使用設定精靈（§六）—— 4 步：道館 → 班別 → 教練團 → 學員
+   只新增、不覆蓋既有資料；完成後自動以新管理者登入並進入今日工作台
+   ======================================================================== */
+const Setup={
+  st:null,
+  start(){this.st={step:1,dojo:{name:'雄麒跆拳道館',logo:'🥋',addr:'',dur:90},
+    classes:HSIUNGCHI_PRESETS.map(p=>p.name),adminName:'',adminPin:'1234',coaches:[]};this.render();},
+  cancel(){App.renderLogin();},
+  go(n){this.st.step=Math.max(1,Math.min(4,n));this.render();},
+  render(){
+    const s=this.st,box=$('#loginList'),auth=$('#loginAuth');if(auth)auth.style.display='none';
+    const prog=`<div class="muted" style="margin-bottom:10px">首次設定精靈　第 ${s.step}/4 步</div>`;
+    const nav=(back,next,label)=>`<div class="row" style="margin-top:14px">${back?`<button class="btn secondary" onclick="Setup.go(${s.step-1})">上一步</button>`:`<button class="btn ghost" onclick="Setup.cancel()">取消</button>`}<span style="flex:1"></span>${next?`<button class="btn" onclick="${next}">${label||'下一步'}</button>`:''}</div>`;
+    let html='';
+    if(s.step===1)html=`${prog}<h3 style="margin:0 0 10px">道館資料</h3>
+      <div class="field"><label>道館名稱 <span class="req">*</span></label><input id="su_name" value="${esc(s.dojo.name)}"></div>
+      <div class="row"><div class="grow field"><label>Logo（emoji）</label><input id="su_logo" value="${esc(s.dojo.logo)}"></div>
+        <div class="grow field"><label>預設課程長度(分)</label><input id="su_dur" type="number" value="${s.dojo.dur}"></div></div>
+      <div class="field"><label>地址 <span class="opt">選填</span></label><input id="su_addr" value="${esc(s.dojo.addr)}"></div>${nav(false,'Setup.saveStep1()')}`;
+    else if(s.step===2)html=`${prog}<h3 style="margin:0 0 6px">選擇班別</h3><p class="muted" style="margin:0 0 8px">勾選要建立的雄麒預設班別，稍後可在班別管理調整。</p>
+      <div class="acct-list">${HSIUNGCHI_PRESETS.map(p=>`<label class="acct" style="cursor:pointer"><input type="checkbox" data-cn="${esc(p.name)}" ${s.classes.includes(p.name)?'checked':''} style="width:auto;flex:0 0 auto"><div class="meta"><b>${esc(p.name)}</b><span>${p.jsdays.map(jsdayToWeekday).map(w=>WD_SHORT[WEEKDAYS.indexOf(w)]).join('、')}　${p.start_time}-${p.end_time}（${p.duration_minutes}分）</span></div></label>`).join('')}</div>${nav(true,'Setup.saveStep2()')}`;
+    else if(s.step===3)html=`${prog}<h3 style="margin:0 0 6px">建立管理者與教練團</h3><p class="muted" style="margin:0 0 8px">先建立你（管理者）的帳號；教練/助教可在這裡先加，或稍後在教練管理新增。</p>
+      <div class="field"><label>你的姓名（管理者）<span class="req">*</span></label><input id="su_admin" value="${esc(s.adminName)}" placeholder="例：楊復傑教練"></div>
+      <div class="field"><label>PIN 密碼</label><input id="su_pin" value="${esc(s.adminPin)}"></div>
+      <div class="muted" style="margin-bottom:6px">已加入教練：${s.coaches.map(c=>esc(c.name)+'('+ROLE_LABEL[c.role]+')').join('、')||'（尚無）'}</div>
+      <div class="row"><input id="su_cname" placeholder="教練/助教姓名" class="grow"><select id="su_crole" style="flex:0 0 auto">${Object.entries(ROLE_LABEL).filter(([k])=>k!=='admin').map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><button class="btn sm secondary" onclick="Setup.addCoach()">＋加入</button></div>${nav(true,'Setup.saveStep3()')}`;
+    else html=`${prog}<h3 style="margin:0 0 6px">學員名單</h3><p class="muted" style="margin:0 0 8px">選一種方式（都可稍後調整）。</p>
+      <button class="btn secondary block" style="margin-bottom:8px" onclick="Setup.finish('demo')">載入示範學員（30 位，快速體驗）</button>
+      <button class="btn secondary block" style="margin-bottom:8px" onclick="Views.dlTemplate()">下載 Excel 範本（之後匯入）</button>
+      <button class="btn block" onclick="Setup.finish('empty')">完成設定，稍後自行新增學員</button>${nav(true,'')}`;
+    box.innerHTML=html;
+  },
+  saveStep1(){const n=$('#su_name').value.trim();if(!n){toast('道館名稱必填','bad');return;}this.st.dojo={name:n,logo:$('#su_logo').value.trim()||'🥋',dur:+$('#su_dur').value||90,addr:$('#su_addr').value.trim()};this.go(2);},
+  saveStep2(){this.st.classes=[...document.querySelectorAll('#loginList input[type=checkbox]')].filter(x=>x.checked).map(x=>x.dataset.cn);if(!this.st.classes.length){toast('請至少選一個班別','warn');return;}this.go(3);},
+  addCoach(){const n=$('#su_cname').value.trim();if(!n)return;this.st.coaches.push({name:n,role:$('#su_crole').value,pin:'1234'});this.render();},
+  saveStep3(){const n=$('#su_admin').value.trim();if(!n){toast('請填管理者姓名','bad');return;}this.st.adminName=n;this.st.adminPin=$('#su_pin').value.trim()||'1234';this.go(4);},
+  async finish(mode){
+    const s=this.st;
+    await save('settings',Object.assign(DEFAULT_SETTINGS(),{id:'app',dojo:s.dojo.name,logo:s.dojo.logo,addr:s.dojo.addr,default_duration:s.dojo.dur}));
+    const clIdOrder=['cl_summer','cl_fitness','cl_athlete','cl_sat','cl_black'];const created=[];
+    for(let i=0;i<HSIUNGCHI_PRESETS.length;i++){const p=HSIUNGCHI_PRESETS[i];if(!s.classes.includes(p.name))continue;
+      const dup=C('classes').find(c=>c.name===p.name);
+      if(dup){created.push(dup.id);continue;}
+      const id=C('classes').find(c=>c.id===clIdOrder[i])?uid('cl'):clIdOrder[i];
+      await save('classes',{id,name:p.name,class_type:p.class_type,weekdays:p.jsdays.map(jsdayToWeekday),start_time:p.start_time,end_time:p.end_time,duration_minutes:p.duration_minutes,active:true,seasonal:!!p.seasonal,active_from:p.active_from||'',active_until:p.active_until||'',default_grouping_mode:'smart',default_coach_ids:[],created_at:Date.now(),updated_at:Date.now()});
+      created.push(id);
+    }
+    const admin=await save('profiles',{id:uid('u'),name:s.adminName,role:'admin',pin:s.adminPin,active:true,specialties:[],available_weekdays:WEEKDAYS.slice(0,7)});
+    for(const c of s.coaches)await save('profiles',{id:uid('u'),name:c.name,role:c.role,pin:c.pin||'1234',active:true,specialties:[],available_weekdays:WEEKDAYS.slice(0,7)});
+    if(mode==='demo')await Setup.makeDemoStudents(created);
+    await ensureWarmupDefaults();
+    if(SYNC.enabled()){try{await SYNC.replaceAll();}catch(e){}}
+    toast('基礎設定已完成，現在可以建立第一堂課','ok');
+    localStorage.setItem('tp_user',admin.id);
+    App.enter(admin);
+  },
+  async makeDemoStudents(classIds){
+    if(!classIds||!classIds.length)return;
+    const fnm=['宥','子','品','承','宸','語','梓','詠','冠','宇','昱','家','思','若','芯','柏','俊','奕','睿','翊'];
+    const lnm=['廷','安','妤','翰','希','恩','睿','辰','宏','彤','綺','豪','嘉','瑄','宸','霖','蓉','榕','傑','琪'];
+    for(let i=0;i<30;i++){const age=AGE_GROUPS[i<5?0:i<16?1:i<25?2:3];const belt=BELTS[i%BELTS.length];
+      const cl=classIds[i%classIds.length];const clsObj=C('classes').find(c=>c.id===cl);
+      const spec=age==='幼兒'?'基礎':(i%5===0?'品勢':i%5===1?'對練':age==='成人'?'健身':'基礎');
+      await save('students',{id:uid('st'),name:'學員'+String(i+1).padStart(2,'0')+fnm[i%fnm.length]+lnm[i%lnm.length],age_group:age,belt_rank:belt,specialty:spec,class_id:cl,weekdays:clsObj?clsObj.weekdays:[],active:true,promotion_status:i%9===0,competition_athlete:spec==='比賽選手',current_progress:'',tech:'',notes:''});
+    }
+  }
 };
 
 /* ---------- BOOT ---------- */
