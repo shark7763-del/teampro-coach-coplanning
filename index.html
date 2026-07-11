@@ -378,7 +378,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.3.3-internal';
+const APP_VERSION='1.4.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -467,6 +467,9 @@ function addDays(dateStr,n){const d=new Date(dateStr+'T00:00:00');d.setDate(d.ge
 function mondayOf(dateStr){return addDays(dateStr,-weekdayOf(dateStr));}
 function statusMeta(s){return STATUS.find(x=>x[0]===s)||STATUS[0];}
 function badge(s){const m=statusMeta(s);return `<span class="badge ${m[2]}">${m[1]}</span>`;}
+/* 行動式狀態說明（§八）：畫面顯示「要做什麼」，不只是狀態值 */
+const STATUS_ACTION={draft:'尚未完成備課',disc:'等待教練團補充',wait:'等待主教練確認',pub:'已發布，教練團可以查看',done:'課程已完成，請填課後紀錄',lock:'課程已結案，不可修改'};
+function statusAction(s){return STATUS_ACTION[s]||statusMeta(s)[1];}
 // 標準化上課日字串 -> ["星期一",...]
 function normWeekdays(raw){
   if(!raw) return [];
@@ -1150,18 +1153,21 @@ const App={
   view:'home', area:'today',
   AREAS:[
     {key:'today',label:'今日',icon:'home',roles:['admin','head','assistant']},
-    {key:'plan',label:'備課',icon:'clipboard',roles:['admin','head']},
-    {key:'week',label:'週計畫',icon:'calendar',roles:['admin','head']},
-    {key:'team',label:'團隊',icon:'users',roles:['admin','head','assistant']},
+    {key:'week',label:'本週',icon:'calendar',roles:['admin','head']},
+    {key:'mytasks',label:'我的任務',icon:'clipboard',roles:['admin','head','assistant']},
+    {key:'library',label:'課程庫',icon:'book',roles:['admin','head']},
     {key:'more',label:'更多',icon:'grid',roles:['admin','head','assistant']},
   ],
+  // 內部 area -> 底部/側邊要高亮的分頁（備課流程、討論歸「今日」；課後歸「我的任務」；模板/熱身/PDF 歸「課程庫」）
+  navOf(area){return {plan:'today',team:'today',discuss:'today',report:'mytasks',pdf:'library',templates:'library',warmups:'library'}[area]||area;},
   VIEW_AREA:{home:'today',live:'today',quickplan:'plan',stats:'plan',groups:'plan',plan:'plan',confirm:'plan',publish:'plan',
-    week:'week',pdf:'week',team:'team',mytasks:'team',report:'team',discuss:'team',
-    more:'more',students:'more',classes:'more',coaches:'more',templates:'more',import:'more',settings:'more',warmups:'more'},
+    week:'week',pdf:'library',library:'library',templates:'library',warmups:'library',
+    mytasks:'mytasks',report:'mytasks',team:'today',discuss:'today',
+    more:'more',students:'more',classes:'more',coaches:'more',import:'more',settings:'more'},
   areaDefault(key){
     if(key==='today')return State.user.role==='assistant'?'mytasks':'home';
-    if(key==='plan')return 'stats'; if(key==='week')return 'week';
-    if(key==='team')return 'team'; return 'more';
+    if(key==='week')return 'week'; if(key==='mytasks')return 'mytasks';
+    if(key==='library')return 'library'; return 'more';
   },
   async boot(){
     this.brandMarks();
@@ -1271,13 +1277,14 @@ const App={
     if(this._liveTimer){clearInterval(this._liveTimer);this._liveTimer=null;}
     this.view=v;
     this.area=area||this.VIEW_AREA[v]||this.area;
-    document.querySelectorAll('#sidenav .nav-item,#bnav button').forEach(b=>b.classList.toggle('on',b.dataset.area===this.area));
-    const a=this.AREAS.find(x=>x.key===this.area);
+    const navKey=this.navOf(this.area);
+    document.querySelectorAll('#sidenav .nav-item,#bnav button').forEach(b=>b.classList.toggle('on',b.dataset.area===navKey));
+    const a=this.AREAS.find(x=>x.key===navKey);
     const ct=$('#ctxTitle');if(ct&&a)ct.textContent=a.label;
     window.scrollTo(0,0);
     const el=$('#view');const fn='view_'+v;
     if(Views[fn]){el.innerHTML='';Views[fn](el);}else el.innerHTML='<div class="empty">頁面建置中</div>';
-    if(this.area==='plan'&&['quickplan','stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v==='quickplan'?'stats':v);
+    if(['quickplan','stats','groups','plan','confirm','publish'].includes(v))decoratePlan(v==='quickplan'?'stats':v);
   },
   /* ----- sync pill ----- */
   syncText(){if(navigator.onLine===false)return['bad','網路離線'];if(!SYNC.enabled())return['off','離線・單機模式'];
@@ -1490,9 +1497,9 @@ Views.view_home=function(el){
   const head=C('profiles').find(p=>p.id===cl?.head_coach_id)||C('profiles').find(p=>p.role==='head'&&p.active);
   const assistants=C('profiles').filter(p=>p.role==='assistant'&&p.active).slice(0,2).map(p=>p.name).join('、')||'—';
   const hour=new Date().getHours(),hi=hour<11?'早安':hour<18?'午安':'晚安';
-  let cta={label:'繼續完成今日備課',view:'stats',area:'plan'};
-  if(ps.dp&&ps.dp.status==='pub')cta={label:'進入現場執行',view:'live',area:'today'};
-  else if(ps.dp&&['done','lock'].includes(ps.dp.status))cta={label:'填寫課後紀錄',view:'report',area:'team'};
+  let cta={label:ps.dp?'繼續完成今日備課':'建立今日課程',view:'stats',area:'plan'};
+  if(ps.dp&&ps.dp.status==='pub')cta={label:'查看今日執行內容',view:'live',area:'today'};
+  else if(ps.dp&&['done','lock'].includes(ps.dp.status))cta={label:'完成課後回報',view:'report',area:'today'};
   el.innerHTML=`
   <div style="margin-bottom:14px"><div style="font-size:13px;color:var(--sub)">${hi}，${esc(State.user.name)}</div>
     <div style="font-size:20px;font-weight:800">${esc(s.dojo)}</div></div>
@@ -1514,10 +1521,13 @@ Views.view_home=function(el){
     <div class="grid g2" style="margin-top:8px">
       <div class="kv"><b>主教練</b><span>${esc(head?.name||'—')}</span></div><div class="kv"><b>助教</b><span>${esc(assistants)}</span></div>
       <div class="kv"><b>備課完成率</b><span>${ps.pct}%</span></div><div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div>
-      <div class="kv"><b>最近備份</b><span>${latestBackup?new Date(latestBackup.created_at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</span></div><div class="kv"><b>狀態</b><span>${status}</span></div>
+      <div class="kv"><b>最近備份</b><span>${latestBackup?new Date(latestBackup.created_at).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—'}</span></div><div class="kv"><b>狀態</b><span>${statusAction(ps.dp?ps.dp.status:'draft')}</span></div>
     </div>
-    <div class="row" style="margin-top:10px"><button class="btn grow" onclick="App.go('${cta.view}','${cta.area}')">繼續備課</button><button class="btn ok grow" onclick="App.go('live','today')">開始上課</button><button class="btn secondary grow" onclick="App.go('groups','plan')">查看今日配置</button></div>
-    <button class="btn g block" style="margin-top:8px" onclick="App.go('quickplan','plan')">快速備課</button>
+    <button class="btn block lg" style="margin-top:12px" onclick="App.go('${cta.view}','${cta.area}')">${cta.label}</button>
+    <div class="row" style="margin-top:8px">
+      <button class="btn secondary grow" onclick="App.go('quickplan','plan')">快速備課</button>
+      ${ps.dp&&ps.dp.status==='pub'?`<button class="btn ok grow" onclick="App.go('live','today')">開始上課</button>`:`<button class="btn secondary grow" onclick="App.go('groups','plan')">查看分組</button>`}
+    </div>
     ${ps.dp&&ps.dp._u?`<div style="text-align:center;font-size:11px;color:#8aa0b6;margin-top:8px">最後更新：${new Date(ps.dp._u).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`:''}
   </div>
   <div class="sect-head"><h3>待完成事項</h3><span class="sp"></span><span class="muted">${todos.length} 項</span></div>
@@ -1526,7 +1536,7 @@ Views.view_home=function(el){
       <span class="body"><span class="t">${esc(t.title)}</span><span class="s">${esc(t.sub)}</span></span>
       <span class="tc" style="color:var(--color-text-disabled)">${svg('chevron',18)}</span></button>`).join('')
     :`<div class="todo ok"><span class="tc" style="color:var(--color-success)">${svg('check',20)}</span><span class="body"><span class="t">今日課程已就緒</span><span class="s">所有必要項目都完成了</span></span></div>`}</div>
-  <div class="sect-head"><h3>最近討論</h3><span class="sp"></span><button class="btn ghost sm" onclick="App.goArea('team')">前往團隊</button></div>
+  <div class="sect-head"><h3>最近討論</h3><span class="sp"></span><button class="btn ghost sm" onclick="App.go('team','today')">共同討論</button></div>
   <div class="card" id="homeDisc"></div>`;
   $('#hClass')&&($('#hClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('home','today');});
   $('#hDate').onchange=e=>{State.ctx.date=e.target.value;App.go('home','today');};
@@ -1693,27 +1703,43 @@ Views.view_team=function(el){
   const recent=C('discussions').filter(m=>!m.parent_id).sort((a,b)=>b.created_at-a.created_at).slice(0,8);
   el.innerHTML=`<div class="sect-head"><h3>團隊協作</h3><span class="sp"></span><span class="muted">今日 ${plans.length} 堂課</span></div>
   <div class="grid g3">
-    <button class="tile" onclick="App.go('mytasks','team')">${svg('clipboard',24)}<span><b>我的任務</b><span>${countMyTasks()} 個指派項目</span></span></button>
-    <button class="tile" onclick="App.go('report','team')">${svg('edit',24)}<span><b>課後紀錄</b><span>填寫實到與下堂銜接</span></span></button>
+    <button class="tile" onclick="App.go('mytasks','mytasks')">${svg('clipboard',24)}<span><b>我的任務</b><span>${countMyTasks()} 個指派項目</span></span></button>
+    <button class="tile" onclick="App.go('report','mytasks')">${svg('edit',24)}<span><b>課後紀錄</b><span>填寫實到與下堂銜接</span></span></button>
     <button class="tile" onclick="App.go('plan','plan')">${svg('message',24)}<span><b>共同討論</b><span>${unread} 則未讀</span></span></button>
   </div>
   <div class="sect-head"><h3>最近討論</h3></div>
   <div class="card">${recent.length?recent.map(m=>`<div class="kv"><b>${esc(m.author_name)}</b><span style="text-align:right;flex:1">${esc(m.message).slice(0,60)}</span></div>`).join(''):'<div class="empty">尚無討論</div>'}</div>`;
 };
+/* ---------- 課程庫（模板 / 熱身 / 歷史 / PDF） ---------- */
+Views.view_library=function(el){
+  const head=can('*')||State.user.role==='head';
+  const items=[
+    ['templates','課程模板','常用段落與教材庫，可重複套用',svg('book',22),head],
+    ['warmups','熱身動作庫','熱身快選項目與 Tabata 設定',svg('play',22),head],
+    ['week','歷史課程','用本週檢視切換週次查看過往課程',svg('calendar',22),head],
+    ['pdf','PDF／列印','週課程計畫、單堂課程輸出',svg('printer',22),head],
+  ].filter(x=>x[4]);
+  el.innerHTML=`<div class="sect-head"><h3>課程庫</h3></div>
+  <p class="muted" style="margin:0 0 10px">備課用到的教材、熱身與輸出都在這裡；每日備課請從「今日」開始。</p>
+  <div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}')"><span class="mi">${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span class="chev">${svg('chevron',18)}</span></button>`).join('')}</div>`;
+};
+/* ---------- 管理中心（更多） ---------- */
 Views.view_more=function(el){
   const admin=can('*');
   const items=[
-    ['students','學員管理','名單、程度、出席日',svg('users',22),admin||can('view')],
-    ['classes','班別設定','上課時段與可出席日',svg('school',22),admin],
-    ['coaches','教練帳號','PIN、角色與權限',svg('user',22),admin],
-    ['templates','課程模板','常用段落與教材庫',svg('book',22),admin||State.user.role==='head'],
-    ['warmups','熱身資料庫','快選熱身項目與 Tabata',svg('play',22),admin||State.user.role==='head'],
+    ['students','學員管理','新增／編輯學員、程度、出席日',svg('users',22),admin||can('view')],
+    ['classes','班別管理','上課時段、可出席日、雄麒預設班',svg('school',22),admin],
+    ['coaches','教練團管理','帳號、角色、PIN 與權限',svg('user',22),admin],
+    ['settings','系統設定','道館資訊、分組上限',svg('settings',22),admin],
+    ['settings','同步、備份與資料管理','雲端同步、自動備份、危險操作',svg('database',22),admin],
     ['import','Excel 匯入','批次建立或更新學員',svg('upload',22),admin],
-    ['settings','系統設定','同步、備份與資料管理',svg('settings',22),admin],
   ].filter(x=>x[4]);
-  el.innerHTML=`<div class="sect-head"><h3>更多功能</h3></div>
-  <div class="card"><div class="kv"><b>版本</b><span>${APP_VERSION}</span></div><div class="kv"><b>同步狀態</b><span>${esc(App.syncText()[1])}</span></div><div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div><div class="kv"><b>最後錯誤</b><span>${esc(SYNC.lastError||'—')}</span></div></div>
-  <div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}','more')"><span>${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span>${svg('chevron',18)}</span></button>`).join('')}</div>`;
+  const [sc,stx]=App.syncText();
+  el.innerHTML=`<div class="sect-head"><h3>管理中心</h3></div>
+  <div class="card"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">系統狀態</h3><span class="sp" style="flex:1"></span><span class="sync-pill ${sc}"><span class="d"></span>${esc(stx)}</span></div>
+    <div class="kv"><b>版本</b><span>${APP_VERSION}</span></div><div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div><div class="kv"><b>最後錯誤</b><span>${esc(SYNC.lastError||'—')}</span></div></div>
+  <div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}','more')"><span class="mi">${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span class="chev">${svg('chevron',18)}</span></button>`).join('')}</div>
+  <div style="text-align:center;margin-top:16px"><button class="btn ghost sm" onclick="App.logout()">登出目前帳號</button></div>`;
 };
 Views.view_confirm=function(el){
   ensureClassCtx();
@@ -1772,7 +1798,7 @@ Views.view_live=function(el){
   const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
   const start=Date.now();
   el.innerHTML=`<div class="live"><div class="muted">${State.ctx.date}</div><div class="stage" id="liveStage">準備開始</div><div class="clock" id="liveClock">00:00</div><div class="nxt" id="liveNext"></div>
-    <div class="live-btns"><button class="btn secondary" onclick="App.go('mytasks','team')">查看任務</button><button class="btn ok" onclick="App.go('report','team')">課後回報</button></div></div>
+    <div class="live-btns"><button class="btn secondary" onclick="App.go('mytasks','mytasks')">查看任務</button><button class="btn ok" onclick="App.go('report','mytasks')">課後回報</button></div></div>
     <div class="sect-head"><h3>課程時間軸</h3></div>
     ${BLOCKS.map(bl=>{const b=blocks.find(x=>x.block_type===bl.key&&!x.training_group_id)||{};return `<div class="tcard"><div class="th"><span class="time">${bl.s}-${bl.e}′</span><span><span class="nm">${bl.name}</span><br><span class="sub">${esc(b.content||b.goal||'')}</span></span></div></div>`;}).join('')}`;
   const tick=()=>{const min=Math.floor((Date.now()-start)/60000), sec=Math.floor((Date.now()-start)/1000)%60;
