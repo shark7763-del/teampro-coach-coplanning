@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.12.2-internal';
+const APP_VERSION='1.12.3-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -505,6 +505,7 @@ const BELT_GRADIENT={
 function beltColor(b){return BELT_COLORS[normBelt(b)]||'#9ca3af';}
 function beltStyle(b){const g=BELT_GRADIENT[normBelt(b)];return g?`background:${g}`:`background:${beltColor(b)}`;}
 function beltDot(b){return `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;${beltStyle(b)};border:1px solid rgba(0,0,0,.3);margin-right:5px;vertical-align:middle" title="${esc(normBelt(b))}"></span>`;}
+function beltLegend(){return `<details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;color:var(--sub)">色帶圖例（點開）</summary><div style="display:flex;flex-wrap:wrap;gap:8px 12px;font-size:12px;margin-top:8px;padding:8px 10px;background:var(--color-surface-soft);border-radius:var(--radius-md)">${BELTS.map(b=>`<span style="display:inline-flex;align-items:center;white-space:nowrap">${beltDot(b)}${esc(b)}</span>`).join('')}</div></details>`;}
 function stBelt(sid){const s=C('students').find(x=>x.id===sid);return s?s.belt_rank:'';}
 
 /* ---------------- global state ---------------- */
@@ -2378,6 +2379,7 @@ Views.view_groups=function(el){
       ${[['belt3','依色帶（低/中/高）'],['smart','智慧綜合'],['age','依年齡層'],['poomsae_spar','品勢/對練'],['kids','幼兒獨立'],['adult','成人獨立'],['promo','晉級加強'],['comp','比賽選手']].map(m=>`<span class="chip" data-m="${m[0]}">${m[1]}</span>`).join('')}
     </div>
     <button class="btn block" style="margin-top:10px" onclick="Views.genGroups()">🧩 產生分組建議</button>
+    ${beltLegend()}
   </div>
   <div id="gResult"></div>`;
   $('#gDate').onchange=e=>{State.ctx.date=e.target.value;App.go('groups');};
