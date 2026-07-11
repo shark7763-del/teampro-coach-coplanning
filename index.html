@@ -378,7 +378,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.5.0-internal';
+const APP_VERSION='1.6.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1530,7 +1530,8 @@ Views.view_home=function(el){
     </div>
     ${ps.dp&&ps.dp._u?`<div style="text-align:center;font-size:11px;color:#8aa0b6;margin-top:8px">最後更新：${new Date(ps.dp._u).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>`:''}
   </div>
-  <div class="sect-head"><h3>待完成事項</h3><span class="sp"></span><span class="muted">${todos.length} 項</span></div>
+  ${roleDashboard()}
+  <div class="sect-head"><h3>今日待完成事項</h3><span class="sp"></span><span class="muted">${todos.length} 項</span></div>
   <div>${todos.length?todos.map(t=>`<button class="todo ${t.level}" onclick="App.go('${t.view}')">
       <span class="tc" style="color:var(--color-${t.level==='block'?'danger':t.level==='warn'?'warning':'info'})">${svg(t.level==='info'?'clock':'alert',20)}</span>
       <span class="body"><span class="t">${esc(t.title)}</span><span class="s">${esc(t.sub)}</span></span>
@@ -1543,6 +1544,37 @@ Views.view_home=function(el){
   const recent=C('discussions').filter(d=>!d.parent_id).sort((a,b)=>b.created_at-a.created_at).slice(0,4);
   $('#homeDisc').innerHTML=recent.length?recent.map(d=>`<div class="kv"><b>${esc(d.author_name)}</b><span style="text-align:right;flex:1">${esc(d.message).slice(0,44)}</span></div>`).join(''):'<div class="empty">尚無討論</div>';
 };
+/* §七 依角色的首頁總覽（管理者 / 主教練）；助教走「我的任務」 */
+function roleDashboard(){
+  const r=State.user.role,td=todayStr(),wkStart=mondayOf(td),wkEnd=addDays(wkStart,6);
+  const wp=C('daily_plans').filter(d=>d.date>=wkStart&&d.date<=wkEnd);
+  const noReport=d=>['pub','done','lock'].includes(d.status)&&d.date<=td&&!C('post_class_reports').some(pr=>pr.daily_plan_id===d.id);
+  const row=(level,title,count,sub,onclick)=>`<button class="todo ${level}" onclick="${onclick}"><span class="tc" style="color:var(--color-${level==='block'?'danger':level==='warn'?'warning':level==='bad'?'danger':level==='ok'?'success':'info'})">${svg(count?'alert':'check',20)}</span><span class="body"><span class="t">${title}${count?'（'+count+'）':''}</span><span class="s">${sub}</span></span><span class="tc" style="color:var(--color-text-disabled)">${svg('chevron',18)}</span></button>`;
+  if(r==='admin'){
+    const draftN=wp.filter(d=>['draft','disc'].includes(d.status)).length;
+    const waitN=wp.filter(d=>d.status==='wait').length;
+    const reportN=wp.filter(noReport).length;
+    const dataIssue=C('students').filter(s=>s.active&&(!s.class_id||!s.belt_rank||!(s.weekdays&&s.weekdays.length))).length;
+    const syncErr=SYNC.lastError?1:0;
+    const lb=BackupManager.list()[0];const backupOld=!lb||Date.now()-lb.created_at>24*3600*1000;
+    return `<div class="sect-head"><h3>管理者總覽</h3></div>`
+      +row(draftN?'warn':'ok','尚未完成備課',draftN,draftN?'本週仍有課程未完成備課':'本週備課皆完成',"App.goArea('week')")
+      +row(waitN?'info':'ok','等待發布',waitN,waitN?'有課程待確認發布':'沒有待發布課程',"App.goArea('week')")
+      +row(reportN?'warn':'ok','未填課後紀錄',reportN,reportN?'已上課但未填課後紀錄':'課後紀錄皆完成',"App.goArea('mytasks')")
+      +row(dataIssue?'warn':'ok','學員資料問題',dataIssue,dataIssue?'有學員缺班別／級別／上課日':'學員資料完整',"App.go('students','more')")
+      +row(syncErr?'bad':'ok','同步狀態',syncErr,syncErr?esc(SYNC.lastError):'雲端同步正常',"App.go('settings','more')")
+      +row(backupOld?'warn':'ok','備份狀態',backupOld?1:0,backupOld?'超過 24 小時未自動備份':'備份正常',"App.go('settings','more')");
+  }
+  if(r==='head'){
+    const waitN=wp.filter(d=>d.status==='wait').length;
+    const reportN=wp.filter(noReport).length;
+    return `<div class="sect-head"><h3>主教練總覽</h3></div>`
+      +row(waitN?'info':'ok','等待我確認',waitN,waitN?'有課程等待確認':'沒有待確認課程',"App.go('confirm','plan')")
+      +row(reportN?'warn':'ok','未完成課後紀錄',reportN,reportN?'有課程尚未填課後':'課後紀錄皆完成',"App.goArea('mytasks')")
+      +row(0,'教練團留言',0,'查看最新共同備課討論',"App.go('team','today')");
+  }
+  return '';
+}
 function findDaily(date,classId){return C('daily_plans').find(d=>d.date===date&&(!classId||d.class_id===classId));}
 function countMyTasks(){
   const uid2=State.user.id, td=todayStr();
@@ -1725,9 +1757,9 @@ Views.view_library=function(el){
 };
 /* ---------- 管理中心（更多） ---------- */
 Views.view_more=function(el){
-  const admin=can('*');
+  const admin=can('*'),head=State.user.role==='head';
   const items=[
-    ['students','學員管理','新增／編輯學員、程度、出席日',svg('users',22),admin||can('view')],
+    ['students','學員管理','新增／編輯學員、程度、出席日',svg('users',22),admin||head],
     ['classes','班別管理','上課時段、可出席日、雄麒預設班',svg('school',22),admin],
     ['coaches','教練團管理','帳號、角色、PIN 與權限',svg('user',22),admin],
     ['settings','系統設定','道館資訊、分組上限',svg('settings',22),admin],
@@ -1738,7 +1770,7 @@ Views.view_more=function(el){
   el.innerHTML=`<div class="sect-head"><h3>管理中心</h3></div>
   <div class="card"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">系統狀態</h3><span class="sp" style="flex:1"></span><span class="sync-pill ${sc}"><span class="d"></span>${esc(stx)}</span></div>
     <div class="kv"><b>版本</b><span>${APP_VERSION}</span></div><div class="kv"><b>待同步</b><span>${SYNC.pendingCount()} 筆</span></div><div class="kv"><b>最後錯誤</b><span>${esc(SYNC.lastError||'—')}</span></div></div>
-  <div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}','more')"><span class="mi">${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span class="chev">${svg('chevron',18)}</span></button>`).join('')}</div>
+  ${items.length?`<div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}','more')"><span class="mi">${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span class="chev">${svg('chevron',18)}</span></button>`).join('')}</div>`:'<div class="empty">助教無管理權限，請至「今日」與「我的任務」查看課程。</div>'}
   <div style="text-align:center;margin-top:16px"><button class="btn ghost sm" onclick="App.logout()">登出目前帳號</button></div>`;
 };
 Views.view_confirm=function(el){
