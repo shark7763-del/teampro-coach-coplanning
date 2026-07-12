@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.13.0-internal';
+const APP_VERSION='1.13.1-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1774,7 +1774,7 @@ Stats.show=function(kind,val){
   else if(kind==='comp'){list=list.filter(s=>s.competition_athlete);title='比賽選手';}
   Modal.open(title+`（${list.length} 人）`,
     `<div class="scroll"><table class="tbl"><tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th></tr>
-    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td><span class="tag belt">${normBelt(s.belt_rank)}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')}
+    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td style="white-space:nowrap">${beltDot(s.belt_rank)}<span style="font-size:12px">${normBelt(s.belt_rank)}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')}
     </table></div>`);
 };
 Stats.showDim=function(dim,key){
@@ -1783,7 +1783,7 @@ Stats.showDim=function(dim,key){
   const fn=dim==='age'?ageDim:dim==='level'?levelDim:specDim;
   const list=statList.filter(s=>fn(s)===key);
   Modal.open(key+`（${list.length} 人）`,`<div class="scroll"><table class="tbl"><tr><th>姓名</th><th>年齡</th><th>級別</th><th>專項</th></tr>
-    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td><span class="tag belt">${normBelt(s.belt_rank)}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')||'<tr><td colspan=4 class="muted">無</td></tr>'}</table></div>`);
+    ${list.map(s=>`<tr><td>${esc(s.name)}</td><td><span class="tag age">${s.age_group}</span></td><td style="white-space:nowrap">${beltDot(s.belt_rank)}<span style="font-size:12px">${normBelt(s.belt_rank)}</span></td><td><span class="tag spec">${s.specialty}</span></td></tr>`).join('')||'<tr><td colspan=4 class="muted">無</td></tr>'}</table></div>`);
 };
 function ensureClassCtx(){if(State.ctx.classId&&!C('classes').find(c=>c.id===State.ctx.classId&&c.active))State.ctx.classId=null;}
 
@@ -2076,7 +2076,7 @@ Views.view_students=function(el){
         ${can('*')?`<td><input type="checkbox" class="stuChk" data-id="${s.id}" ${Views._studentSelected.has(s.id)?'checked':''} onchange="Views.toggleStudentSelection('${s.id}',this.checked)"></td>`:''}
         <td><b>${esc(s.name)}</b>${s.promotion_status?' 🎯':''}${s.competition_athlete?' 🏅':''}</td>
         <td><span class="tag age">${s.age_group}</span></td>
-        <td><span class="tag belt">${normBelt(s.belt_rank)}</span></td>
+        <td style="white-space:nowrap">${beltDot(s.belt_rank)}<span style="font-size:12px">${normBelt(s.belt_rank)}</span></td>
         <td><span class="tag spec">${s.specialty}</span></td>
         <td class="muted">${s.class_id&&C('classes').find(x=>x.id===s.class_id)?esc(C('classes').find(x=>x.id===s.class_id).name):'<span style="color:var(--color-danger)">未設定</span>'}</td>
         <td class="muted" style="font-size:11px">${[s.current_progress&&('品勢:'+esc(s.current_progress)),s.tech&&('技術:'+esc(s.tech))].filter(Boolean).join('<br>')||'—'}</td>
