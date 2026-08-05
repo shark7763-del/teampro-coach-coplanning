@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.13.1-internal';
+const APP_VERSION='1.14.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1342,7 +1342,9 @@ const App={
     this._waitingWorker.postMessage({type:'SKIP_WAITING'});
     Modal.close();
   },
-  hasFormalData(){return DATA_STORES.filter(s=>s!=='settings'&&s!=='audit_logs').some(s=>C(s).length>0);},
+  /* 判斷是否已有「使用者建立的」資料。settings / audit_logs / warmup_library 由系統自動預設，
+     不能算成正式資料，否則全新裝置會被誤判成已有資料，種子與精靈按鈕會變成沒反應的死鈕。 */
+  hasFormalData(){const auto=['settings','audit_logs','warmup_library'];return DATA_STORES.filter(s=>!auto.includes(s)).some(s=>C(s).length>0);},
   async requireAdminPin(options){
     const opt=options||{};
     if(!State.user||State.user.role!=='admin'){adminOnlyWarn();return false;}
@@ -1472,7 +1474,9 @@ const Modal={
 const Views={};
 
 /* ---------- HOME ---------- */
-/* 計算某日某班的備課狀態（五步驟完成度＋待辦） */
+/* 計算某日某班的備課狀態（步驟完成度＋待辦）
+   pct＝「備課完成率」，只算上課前必須完成的 6 步（課程→人數→分組→內容→教練→發布），
+   走完發布就是 100%；「課後」是課後才填，另外用 planStepDone().report 顯示打勾。 */
 function planStatus(date,classId){
   const dp=findDaily(date,classId);
   const wd=weekdayOf(date);
@@ -1492,8 +1496,12 @@ function planStatus(date,classId){
     confirm:!!(dp&&(dp.confirms||[]).length>0),
     publish:!!(dp&&['pub','done','lock'].includes(dp.status)),
   };
-  const doneCount=Object.values(steps).filter(Boolean).length;
-  return {dp,list,groups,blocks,val,steps,stagesFilled,pct:Math.round(doneCount/5*100)};
+  const ps={date,classId,dp,list,groups,blocks,val,steps,stagesFilled,pct:0};
+  const done=planStepDone(ps);
+  const planning=PLAN_STEP_KEYS.filter(k=>k!=='report');
+  ps.pct=Math.round(planning.filter(k=>done[k]).length/planning.length*100);
+  ps.done=done;
+  return ps;
 }
 function computeTodos(date,classId){
   const ps=planStatus(date,classId);const t=[];
@@ -1504,7 +1512,8 @@ function computeTodos(date,classId){
     const m=map[i.t]; if(m)t.push({level:m[0],title:m[1],sub:i.msg,view:'groups'});
   });
   if(ps.stagesFilled<5)t.push({level:'info',title:'五階段課程尚未完成',sub:`已完成 ${ps.stagesFilled}/5 段`,view:'plan'});
-  if(ps.groups.length&&!ps.steps.confirm)t.push({level:'info',title:'尚有教練未確認',sub:'請教練群共同確認課程',view:'confirm'});
+  if(ps.dp&&!ps.dp.lead_coach_id)t.push({level:'warn',title:'尚未指定主責教練',sub:'第5步「教練」可指定今日主責與助教',view:'coachtasks'});
+  if(ps.groups.length&&!ps.steps.confirm)t.push({level:'info',title:'尚有教練未確認（選配）',sub:'讓教練群確認已看過今日課表',view:'coachtasks'});
   if(!ps.steps.publish)t.push({level:'info',title:'課程尚未發布',sub:'完成發布前檢查即可發布',view:'publish'});
   const rep=C('post_class_reports').find(r=>r.daily_plan_id===ps.dp.id);
   if(ps.steps.publish&&!rep)t.push({level:'info',title:'課後紀錄未完成',sub:'課後填寫實到與下堂銜接',view:'report'});
@@ -1543,7 +1552,11 @@ Views.view_home=function(el){
   const others=teamIds.filter(id=>id!==leadId).map(id=>{const p=C('profiles').find(x=>x.id===id);return p?p.name:'';}).filter(Boolean);
   const assistants=teamIds.length?(others.join('、')||'—'):'（未指派，教練任務步驟可設）';
   const hour=new Date().getHours(),hi=hour<11?'早安':hour<18?'午安':'晚安';
-  let cta=ps.dp?{label:'繼續完成今日備課',view:'classinfo',area:'plan'}:{label:'⚡ 快速備課（一鍵生成整堂）',view:'quickplan',area:'plan'};
+  /* 直接帶到「下一個沒完成的步驟」，教練不用自己從第1步一路點過去 */
+  const nextStep=PLAN_STEP_DEFS.filter(s=>s[0]!=='report').find(s=>!(ps.done||{})[s[0]]);
+  let cta=ps.dp
+    ?{label:nextStep?`繼續備課：${nextStep[1]}（第 ${PLAN_STEP_KEYS.indexOf(nextStep[0])+1} 步）`:'今日備課已完成',view:nextStep?nextStep[0]:'publish',area:'plan'}
+    :{label:'⚡ 快速備課（一鍵生成整堂）',view:'quickplan',area:'plan'};
   if(ps.dp&&ps.dp.status==='pub')cta={label:'查看今日執行內容',view:'live',area:'today'};
   else if(ps.dp&&['done','lock'].includes(ps.dp.status))cta={label:'完成課後回報',view:'report',area:'today'};
   el.innerHTML=`
@@ -1642,12 +1655,14 @@ const PLAN_STEP_KEYS=PLAN_STEP_DEFS.map(s=>s[0]);
 function planStepMeta(view){return PLAN_STEP_DEFS.map((s,i)=>({key:s[0],label:s[1],icon:s[2],num:i+1,on:s[0]===view}));}
 function planStepDone(ps){
   const dp=ps.dp;
+  const date=ps.date||(dp?dp.date:State.ctx.date),classId=ps.classId||(dp?dp.class_id:State.ctx.classId);
   return {
     classinfo:!!dp,
-    stats:ps.steps.stats&&Stats.attendanceConfirmed(ps.dp?ps.dp.date:State.ctx.date,State.ctx.classId),
+    stats:ps.steps.stats&&Stats.attendanceConfirmed(date,classId),
     groups:ps.steps.groups,
+    /* 第 5 步「教練」＝每組都有教練 ＋ 已指定當日主責教練（教練確認為此步驟內的選配動作） */
+    coachtasks:ps.groups.length>0&&!ps.val.issues.some(i=>i.t==='nocoach')&&!!(dp&&dp.lead_coach_id),
     plan:ps.steps.plan,
-    coachtasks:ps.groups.length>0&&!ps.val.issues.some(i=>i.t==='nocoach'),
     publish:ps.steps.publish,
     report:!!(dp&&C('post_class_reports').some(pr=>pr.daily_plan_id===dp.id)),
   };
@@ -1655,8 +1670,9 @@ function planStepDone(ps){
 function decoratePlan(view){
   const el=$('#view'); if(!el)return;
   const ps=planStatus(State.ctx.date,State.ctx.classId);
-  const done=planStepDone(ps);
-  const steps=planStepMeta(view);
+  const done=ps.done||planStepDone(ps);
+  /* 教練確認併入第 5 步「教練」，在確認頁時仍要高亮該步驟，不能讓步驟條沒有任何一格亮著 */
+  const steps=planStepMeta(view==='confirm'?'coachtasks':view);
   const idx=Math.max(0,steps.findIndex(s=>s.on));
   const desktop=`<div class="stepper">${steps.map(s=>`<button class="stp ${s.on?'on':done[s.key]?'done':''}" onclick="App.go('${s.key}','plan')"><span class="num">${done[s.key]?svg('check',14):s.num}</span><span class="lbl">${s.label}</span></button>`).join('')}</div>`;
   const mobile=`<div class="stepper-m"><div class="ring" style="--p:${ps.pct}"><i>${ps.pct}%</i></div><div class="now"><b>${steps[idx].label}</b><br><span>步驟 ${idx+1}/${steps.length}・${State.ctx.date}</span></div><span class="sp"></span><button class="iconbtn" onclick="App.go('home','today')" title="回今日">${svg('home',20)}</button></div>`;
@@ -1937,6 +1953,7 @@ Views.view_coachtasks=function(el){
     <div class="kv"><b>注意</b><span>${esc(gb.commonErr||gb.safety_notes||'—')}</span></div>
     <button class="btn g xs" style="margin-top:6px" onclick="App.go('groups','plan')">調整教練 / 內容</button></div>`;}).join('')
    :'<div class="empty">尚未分組，請先完成訓練分組。</div>'}
+  ${ctConfirmCard(dp)}
   <div class="actionbar"><button class="btn secondary" onclick="App.go('plan','plan')">上一步</button><span class="sp"></span><button class="btn" onclick="App.go('publish','plan')">下一步：確認發布</button></div>`;
 };
 
@@ -1952,22 +1969,28 @@ Views.view_confirm=function(el){
   $('#cfClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('confirm','plan');};
   const body=$('#confirmBody');
   if(!dp){body.innerHTML='<div class="empty">尚未建立備課，請先完成前面步驟。</div>';return;}
+  body.innerHTML=`${ctConfirmCard(dp)}
+  <div class="actionbar"><button class="btn secondary" onclick="App.go('coachtasks','plan')">返回教練分工</button><span class="sp"></span><button class="btn" onclick="App.go('publish','plan')">下一步：發布</button></div>`;
+};
+/* 教練確認卡：教練分工頁（第5步）與教練確認頁共用同一份，避免兩邊行為不一致 */
+function ctConfirmCard(dp){
   const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
-  const ids=[...new Set(groups.flatMap(g=>[g.coach_id,g.assistant_id]).filter(Boolean))];
+  const ids=[...new Set([...groups.flatMap(g=>[g.coach_id,g.assistant_id]),...teamCoaches(dp)].filter(Boolean))];
   const confirms=dp.confirms||[];
-  body.innerHTML=`<div class="card"><h3>教練確認</h3>
-    <p class="muted">確認後會記錄在此課程，發布前可檢查尚未確認的人員。</p>
+  const doneN=ids.filter(id=>confirms.some(c=>c.user_id===id)).length;
+  const mine=confirms.some(c=>c.user_id===State.user.id);
+  return `<div class="card"><div class="sect-head" style="margin-top:0"><h3>教練確認</h3><span class="sp" style="flex:1"></span><span class="tag ${doneN&&doneN===ids.length?'spec':''}">${doneN}/${ids.length||0} 已確認</span></div>
+    <p class="muted">選配項目：確認後會記錄在此課程，發布前可檢查誰還沒看過課表。未全部確認也可以發布。</p>
     ${ids.length?ids.map(id=>{const p=C('profiles').find(x=>x.id===id);const on=confirms.some(c=>c.user_id===id);
       return `<div class="confirm-coach"><div class="av">${esc(initials(p?.name||''))}</div><div class="grow"><b>${esc(p?.name||id)}</b><br><span class="muted">${on?'已確認':'尚未確認'}</span></div>${on?svg('check',20):''}</div>`;}).join(''):'<div class="empty">尚未指派教練，請先完成分組。</div>'}
-    <button class="btn block" onclick="Views.confirmPlan('${dp.id}')">${svg('check',18)} 我已確認</button>
-  </div>
-  <div class="actionbar"><button class="btn secondary" onclick="App.go('plan','plan')">返回備課</button><span class="sp"></span><button class="btn" onclick="App.go('publish','plan')">下一步：發布</button></div>`;
-};
+    <button class="btn block ${mine?'secondary':''}" ${mine?'disabled':''} onclick="Views.confirmPlan('${dp.id}')">${svg('check',18)} ${mine?'你已確認':'我已確認'}</button>
+  </div>`;
+}
 Views.confirmPlan=async function(dpId){
   const dp=C('daily_plans').find(d=>d.id===dpId); dp.confirms=dp.confirms||[];
   if(!dp.confirms.some(c=>c.user_id===State.user.id))dp.confirms.push({user_id:State.user.id,name:State.user.name,at:Date.now()});
   if(dp.status==='draft')dp.status='wait';
-  await save('daily_plans',dp); toast('已確認','ok'); App.go('confirm','plan');
+  await save('daily_plans',dp); toast('已確認','ok'); App.go(App.view==='confirm'?'confirm':'coachtasks','plan');
 };
 Views.view_publish=function(el){
   ensureClassCtx();
@@ -2543,10 +2566,19 @@ Views.quickContext=function(){
   return {classId,date,wd,goal:$('#qGoal')?.value||'基本動作穩定',groupMode:$('#qGroup')?.value||'level',intensity:$('#qIntensity')?.value||'中',
     list:Stats.studentsFor(classId,wd),coaches:Stats.coachesAvailable(wd)};
 };
-Views.quickPreview=function(text){const box=$('#quickPreview');if(box)box.innerHTML=`<pre class="codebox">${esc(text)}</pre>`;};
+Views.quickPreview=function(text,withNext){const box=$('#quickPreview');if(!box)return;
+  box.innerHTML=`<pre class="codebox">${esc(text)}</pre>`+(withNext===false?'':
+    `<div class="row" style="margin-top:10px">
+      <button class="btn secondary grow" onclick="App.go('plan','plan')">微調內容</button>
+      <button class="btn grow" onclick="App.go('publish','plan')">前往發布</button>
+    </div>`);};
 Views.generateQuickPlan=async function(){
   const q=Views.quickContext();if(!q.classId){toast('請先選擇班級','warn');return;}
   const dp=await ensureDaily(q.date,q.classId);
+  /* 尚未點名時預設全班到課（已請假／未到者不會被覆蓋），教練可到「人數」步驟再調整。
+     否則快速備課完出席仍是未確認，備課完成率會一直卡住。 */
+  const autoAtt=!Stats.attendanceConfirmed(q.date,q.classId);
+  if(autoAtt)await Attendance.allPresent(q.date,q.classId);
   if(q.groupMode!=='custom'){
     const sug=Grouping.suggest(q.list,q.groupMode==='level'?'level':'smart',q.coaches.length).groups;
     const old=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
@@ -2557,6 +2589,17 @@ Views.generateQuickPlan=async function(){
     }
   }
   const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  /* 依各組主責教練自動組出今日教練團與主責教練，教練可在第5步調整；
+     不自動帶的話首頁「主教練」會一直是「—」，第5步也永遠不會打勾。 */
+  const teamIds=[...new Set(groups.map(g=>g.coach_id).filter(Boolean))].slice(0,MAX_COACHES_PER_CLASS);
+  let autoTeam=0;
+  if(teamIds.length&&!teamCoaches(dp).length){
+    const slots=teamIds.slice(0,MAX_COACHES_PER_CLASS);while(slots.length<MAX_COACHES_PER_CLASS)slots.push('');
+    const fresh=C('daily_plans').find(d=>d.id===dp.id)||dp;
+    fresh.team=slots;fresh.assigned_coach_ids=teamIds;fresh.lead_coach_id=teamIds[0];
+    await save('daily_plans',fresh);
+    autoTeam=teamIds.length;
+  }
   const weak=Views.quickWeakStudents(q.classId);
   const equip=q.intensity==='高'?'踢靶、角錐、敏捷梯、護具':'踢靶、角錐、水壺';
   const drafts={
@@ -2576,7 +2619,15 @@ Views.generateQuickPlan=async function(){
       goal:`${g.name} 完成 ${q.goal}`,commonErr:'抬頭、重心、收腳',done:false});
   }
   await save('discussions',{id:uid('ds'),daily_plan_id:dp.id,author_id:State.user.id,author_name:State.user.name,message:`快速備課已產生：主目標 ${q.goal}；器材 ${equip}；安全提醒已帶入。`,created_at:Date.now(),reads:[State.user.id]});
-  Views.quickPreview(`已建立 ${groups.length} 組與五階段初稿\n助教任務：協助器材、幼兒安全距離、記錄需加強學生\n需加強學生：${weak.join('、')||'無'}\n器材：${equip}`);
+  const leadName=(id=>{const p=C('profiles').find(x=>x.id===id);return p?p.name:'';})(teamIds[0]);
+  Views.quickPreview([
+    `已建立 ${groups.length} 組與五階段初稿`,
+    autoAtt?`出席：已預設全班到課（${Stats.attendingFor(q.date,q.classId).length} 人），請假請到「人數」步驟調整`:'出席：沿用你已確認的名單',
+    autoTeam?`教練團：已帶入 ${autoTeam} 位，主責教練 ${leadName}`:'教練團：沿用既有安排',
+    `助教任務：協助器材、幼兒安全距離、記錄需加強學生`,
+    `需加強學生：${weak.join('、')||'無'}`,
+    `器材：${equip}`
+  ].join('\n'));
   toast('快速備課初稿已完成','ok');
 };
 Views.quickWeakStudents=function(classId){
@@ -2686,7 +2737,7 @@ Views.renderPlan=function(){
     }).join('')}
     <div class="sect-title">💬 教練共同備課討論室</div>
     <div class="card" id="discBox"></div>
-    <div class="actionbar"><button class="btn secondary" onclick="App.go('groups','plan')">返回分組</button><span class="sp"></span><button class="btn" onclick="App.go('confirm','plan')">下一步：教練確認</button></div>`;
+    <div class="actionbar"><button class="btn secondary" onclick="App.go('groups','plan')">返回分組</button><span class="sp"></span><button class="btn" onclick="App.go('coachtasks','plan')">下一步：教練分工</button></div>`;
   Views.renderDisc(dp);
 };
 Views.renderGroupBlocks=function(dp,groups,blocks,canEdit,stName){
