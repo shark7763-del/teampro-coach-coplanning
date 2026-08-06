@@ -26,8 +26,12 @@ for (const d of READONLY) {
   const abs = resolve(ROOT, d);
   if (!existsSync(abs)) continue;
   for (const f of walk(abs)) {
+    /* 對「正規化換行後」的內容做雜湊：git 在 checkout/merge 時會依 autocrlf
+       把 LF 轉成 CRLF，直接雜湊原始位元組會產生誤判。守門員一旦會亂叫就會被
+       忽略，等於沒有防護，所以這裡只比對真正的內容差異。 */
+    const norm = readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
     digest[relative(ROOT, f).replace(/\\/g, '/')] =
-      createHash('sha256').update(readFileSync(f)).digest('hex').slice(0, 16);
+      createHash('sha256').update(norm, 'utf8').digest('hex').slice(0, 16);
   }
 }
 

@@ -117,3 +117,48 @@ test('首頁大按鈕帶到下一個未完成步驟', async ({ page }) => {
   // 已建立課程但尚未確認出席 → 大按鈕應指向第 2 步「人數」
   await expect(page.locator('#view')).toContainText('繼續備課：人數（第 2 步）');
 });
+
+/* 「立即同步」必須把佇列推完再 pull。
+   _flush() 一次只送 25 筆，舊版 immediate() 只呼叫一次就 pull，
+   超過 25 筆離線變更時未送出的部分會被雲端資料蓋回去，
+   教練會看到「按了同步卻沒生效」。 */
+test('立即同步：超過25筆離線變更全部推出且不被雲端蓋掉', async ({ page }) => {
+  const pushed = new Set();
+  await page.route('https://script.google.com/**', async route => {
+    const req = route.request();
+    if (req.method() === 'POST') {
+      const body = req.postDataJSON();
+      if (body.action === 'pull') return route.fulfill({ json: { ok: true, records: [], srv: Date.now(), maxSrv: 0 } });
+      if (body.action === 'push') {
+        (body.records || []).forEach(r => pushed.add(r.id));
+        return route.fulfill({ json: { ok: true, results: (body.records || []).map(r => ({ ok: true, request_id: r.request_id, srv: Date.now() })) } });
+      }
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: { ok: true, msg: 'mock' } });
+  });
+  await page.goto('/index.html?fresh=' + Date.now(), { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.clear());
+  await page.waitForTimeout(1200);
+  await page.getByRole('button', { name: /載入示範資料/ }).click();
+  await expect(page.getByText('楊復傑教練').first()).toBeVisible({ timeout: 15000 });
+  await page.getByText('楊復傑教練').first().click();
+  await page.locator('#pinInput').fill('1234');
+  await page.getByRole('button', { name: '登入', exact: true }).click();
+  await expect(page.locator('#shell')).toBeVisible();
+
+  // 先清空既有佇列，再製造 40 筆變更（超過單次 25 筆上限）
+  await page.evaluate(async () => {
+    await SYNC._drain();
+    for (const s of C('students').slice(0, 40)) await save('students', { ...s, notes: 'drain-test' });
+  });
+  const before = await page.evaluate(() => SYNC.pendingCount());
+  expect(before).toBeGreaterThan(25);
+
+  await page.evaluate(async () => { await SYNC.immediate(); });
+
+  const after = await page.evaluate(() => SYNC.pendingCount());
+  expect(after).toBe(0);                       // 佇列必須清空
+  const kept = await page.evaluate(() => C('students').filter(s => s.notes === 'drain-test').length);
+  expect(kept).toBe(40);                       // 本機變更不得被 pull 蓋掉
+});

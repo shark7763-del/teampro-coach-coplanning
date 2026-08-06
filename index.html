@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.15.0-internal';
+const APP_VERSION='1.15.1-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -805,11 +805,31 @@ const SYNC={
       if(changed)App.refresh();
     },15000);
   },
+  /* 一次 _flush 只送 25 筆。若沒推完就 pull，未送出的本機變更會被雲端資料蓋回去，
+     教練會看到「按了立即同步卻沒生效」。因此改為先把佇列推到清空（或不再有進展）再 pull。 */
+  async _waitIdle(maxMs=10000){
+    const t0=Date.now();
+    while(SYNC._busy&&Date.now()-t0<maxMs)await new Promise(r=>setTimeout(r,50));
+  },
+  async _drain(maxRounds=200){
+    let rounds=0;
+    while(SYNC.pendingCount()>0&&rounds++<maxRounds){
+      await SYNC._waitIdle();               // 每次 save() 都會排背景 flush，要等它結束才推得動
+      const before=SYNC.pendingCount();
+      await SYNC._flush();
+      if(SYNC.pendingCount()>=before)break; // 沒有進展（重試退避中／離線），交給背景重試，不空轉
+    }
+    return {rounds,pending:SYNC.pendingCount()};
+  },
   async immediate(){
-    if(SYNC._busy)return;
-    await SYNC._flush();
+    /* 舊版開頭是 if(SYNC._busy)return;，但每次 save() 都會 kick 出背景 flush，
+       教練按「立即同步」時 _busy 經常為 true → 整個函式直接返回、什麼都沒做。
+       改為等背景結束再接手排空。 */
+    await SYNC._waitIdle();
+    const d=await SYNC._drain();
     const r=await SYNC.pull();
     if(r.changed)App.refresh();
+    if(d.pending)toast('尚有 '+d.pending+' 筆待同步，將於背景自動重試','warn');
   },
   async retryFailed(){
     const items=C('sync_outbox').filter(x=>x.status==='failed');
@@ -844,7 +864,7 @@ const SYNC={
   bindNetwork(){
     if(SYNC._netBound)return;SYNC._netBound=true;
     window.addEventListener('offline',()=>{SYNC.status='網路離線';App.updateSyncPill?.();});
-    window.addEventListener('online',async()=>{SYNC.status='同步中';App.updateSyncPill?.();await SYNC._flush();const r=await SYNC.pull();if(r.changed)App.refresh();});
+    window.addEventListener('online',async()=>{SYNC.status='同步中';App.updateSyncPill?.();await SYNC._drain();const r=await SYNC.pull();if(r.changed)App.refresh();});
   }
 };
 
