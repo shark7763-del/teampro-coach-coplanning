@@ -7,3 +7,11 @@ playwright-report/
 
 # 實驗流水帳不進 git：commit 後 hash 才確定，追蹤會造成記錄與實際 commit 不符
 autoresearch/experiments.tsv
+
+# 學員個資：本 repo 為 public，真實名單一律不得進版控
+學員名單.xlsx
+上課統計*.xlsx
+暑期班名單_匯入.csv
+健身班名單_匯入.csv
+週六班名單_匯入.csv
+~$*
