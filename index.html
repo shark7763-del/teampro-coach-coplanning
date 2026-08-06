@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.15.1-internal';
+const APP_VERSION='1.16.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -921,8 +921,15 @@ const Stats={
     });
     return r;
   },
+  /* 是否列入教練排班（可被指派帶組）。主教練／助教預設列入；
+     管理者預設不列入（可能是不授課的行政帳號），但道館長常常自己也帶課，
+     所以改成可在帳號設定逐一開啟，而不是用角色硬判定。 */
+  countsAsCoach(p){
+    if(p.coach_enabled!=null)return !!p.coach_enabled;
+    return p.role==='head'||p.role==='assistant';
+  },
   coachesAvailable(weekdayIdx){
-    return C('profiles').filter(p=>p.active&&(p.role==='head'||p.role==='assistant')&&
+    return C('profiles').filter(p=>p.active&&Stats.countsAsCoach(p)&&
       (!p.available_weekdays||!p.available_weekdays.length||p.available_weekdays.includes(WEEKDAYS[weekdayIdx])));
   },
   // 實際用於分組的名單：已確認出席(confirmed)+臨時到課(walk_in)；若尚未點名則暫用預計名單
@@ -2446,10 +2453,12 @@ Views.editCoach=function(id){
     <div class="field"><label>PIN 密碼</label><input id="ph_pin" value="${esc(p.pin||'1234')}"></div>
     <div class="field"><label>專長</label><div class="chips" id="ph_spec">${SPECIALTIES.concat(['幼兒']).map(s=>`<span class="chip ${(p.specialties||[]).includes(s)?'on':''}" data-s="${s}">${s}</span>`).join('')}</div></div>
     <div class="field"><label>可出席日</label><div class="chips" id="ph_wd">${WEEKDAYS.map(w=>`<span class="chip ${(p.available_weekdays||[]).includes(w)?'on':''}" data-w="${w}">${w}</span>`).join('')}</div></div>
-    <label class="chip ${p.active!==false?'on':''}" id="ph_act">啟用中</label>
+    <div class="row"><label class="chip ${p.active!==false?'on':''}" id="ph_act">啟用中</label>
+      <label class="chip ${(p.coach_enabled!=null?p.coach_enabled:(p.role==='head'||p.role==='assistant'))?'on':''}" id="ph_coach">列入教練排班</label></div>
+    <p class="muted" style="margin:4px 0 0">「列入教練排班」開啟後才會出現在可出席教練、分組指派與快速備課。管理者若同時帶課請開啟。</p>
     <div class="row" style="margin-top:10px"><button class="btn block" onclick="Views.saveCoach('${id||''}')">儲存</button>
     ${id&&id!==State.user.id?`<button class="btn bad sm" onclick="Views.delCoach('${id}')">刪除</button>`:''}</div>`,
-    m=>{['ph_spec','ph_wd'].forEach(g=>m.querySelectorAll('#'+g+' .chip').forEach(x=>x.onclick=()=>x.classList.toggle('on')));$('#ph_act').onclick=()=>$('#ph_act').classList.toggle('on');});
+    m=>{['ph_spec','ph_wd'].forEach(g=>m.querySelectorAll('#'+g+' .chip').forEach(x=>x.onclick=()=>x.classList.toggle('on')));$('#ph_act').onclick=()=>$('#ph_act').classList.toggle('on');$('#ph_coach').onclick=()=>$('#ph_coach').classList.toggle('on');});
 };
 Views.saveCoach=async function(id){
   const name=$('#ph_name').value.trim();if(!name){toast('姓名必填','bad');return;}
@@ -2458,6 +2467,7 @@ Views.saveCoach=async function(id){
     pin:$('#ph_pin').value.trim()||'1234',
     specialties:[...document.querySelectorAll('#ph_spec .chip.on')].map(x=>x.dataset.s),
     available_weekdays:[...document.querySelectorAll('#ph_wd .chip.on')].map(x=>x.dataset.w),
+    coach_enabled:$('#ph_coach').classList.contains('on'),
     active:$('#ph_act').classList.contains('on')}));
   Modal.close();toast('已儲存','ok');App.go('coaches');
 };

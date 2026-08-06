@@ -162,3 +162,27 @@ test('立即同步：超過25筆離線變更全部推出且不被雲端蓋掉', 
   const kept = await page.evaluate(() => C('students').filter(s => s.notes === 'drain-test').length);
   expect(kept).toBe(40);                       // 本機變更不得被 pull 蓋掉
 });
+
+/* 管理者同時帶課時，必須能被列入教練排班。
+   舊版 Stats.coachesAvailable 只取 role==head/assistant，
+   身為 admin 的道館長永遠不會出現在可出席教練與分組指派裡。 */
+test('管理者開啟「列入教練排班」後會進入可出席教練名單', async ({ page }) => {
+  await seedAndLogin(page);
+  const admin = await page.evaluate(() => C('profiles').find(p => p.role === 'admin').name);
+
+  const before = await page.evaluate(() =>
+    [0, 1, 2, 3, 4, 5].some(d => Stats.coachesAvailable(d).some(p => p.role === 'admin')));
+  expect(before).toBe(false);                    // 預設不列入
+
+  await page.evaluate(async () => {
+    const a = C('profiles').find(p => p.role === 'admin');
+    await save('profiles', { ...a, coach_enabled: true, available_weekdays: [...WEEKDAYS] });
+  });
+  const after = await page.evaluate(nm =>
+    [0, 1, 2, 3, 4, 5].every(d => Stats.coachesAvailable(d).some(p => p.name === nm)), admin);
+  expect(after).toBe(true);                      // 開啟後每天都在名單裡
+
+  // 主教練/助教不受影響，維持預設列入
+  const heads = await page.evaluate(() => Stats.coachesAvailable(0).filter(p => p.role === 'head').length);
+  expect(heads).toBeGreaterThan(0);
+});
