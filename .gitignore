@@ -4,3 +4,6 @@ Thumbs.db
 node_modules/
 test-results/
 playwright-report/
+
+# 實驗流水帳不進 git：commit 後 hash 才確定，追蹤會造成記錄與實際 commit 不符
+autoresearch/experiments.tsv
