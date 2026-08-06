@@ -1,0 +1,26 @@
+{
+  "_README": "教練評分 Rubric。凍結：實驗中不得修改權重或定義，否則新舊版本不可比。修改必須由教練明確指示並重建 baseline。",
+  "_frozen_at": "2026-08-06",
+  "_scoring": "每維度 0–100 分，加權平均後為 rubric_score。總分 = rubric_score − 安全性扣分 − 規則衝突扣分。",
+  "_hard_veto": "安全性維度若判定為『不安全』，該版本直接 revert，不進入平均（避免平均分洗掉安全問題）。",
+  "_evaluator": "單一評分者（楊復傑教練）。必須盲評：課表隨機排序、不標版本，評完才揭曉。",
+  "_batch": "每批 6 份 = 3 案例 × 2 版本，同批配對比較（跨批絕對分數會漂移，不可比）。",
+  "dimensions": [
+    { "key": "goal_fit", "label": "符合選手目標", "weight": 0.20, "judge": "coach" },
+    { "key": "completeness", "label": "訓練內容完整性", "weight": 0.15, "judge": "coach+auto", "auto_part": "五階段皆非空、每階段有強度與組間休息" },
+    { "key": "time_allocation", "label": "課程時間配置合理性", "weight": 0.15, "judge": "auto", "auto_part": "階段總和=班別時長、無重疊、無空窗" },
+    { "key": "intensity_recovery", "label": "強度與恢復安排", "weight": 0.15, "judge": "coach" },
+    { "key": "progression", "label": "技術進程與前後連貫", "weight": 0.15, "judge": "coach" },
+    { "key": "safety", "label": "安全性及傷病限制", "weight": 0.10, "judge": "auto+coach", "auto_part": "傷病禁忌黑名單零命中", "veto": true },
+    { "key": "readability", "label": "教練可讀性與可執行性", "weight": 0.05, "judge": "coach" },
+    { "key": "personalization", "label": "個人化程度", "weight": 0.05, "judge": "coach+auto", "auto_part": "內容是否隨案例變動，非千篇一律" }
+  ],
+  "case_rotation": {
+    "_README": "預先寫死的輪替表。不得由 Agent 決定送哪些案例給教練評分（防止挑選有利案例）。",
+    "batch1": ["C01", "C04", "C07"],
+    "batch2": ["C02", "C05", "C08"],
+    "batch3": ["C03", "C06", "C09"],
+    "batch4": ["C10", "C01", "C07"],
+    "_note": "C01 與 C07 在 batch4 重複出現，用於量測評分漂移；漂移過大代表 Rubric 定義不清，須先修 Rubric 再繼續實驗。"
+  }
+}
