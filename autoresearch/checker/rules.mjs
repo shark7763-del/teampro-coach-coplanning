@@ -44,11 +44,26 @@ export function checkCase(caseDef, plan) {
   // R5 發布前檢查
   (plan.publishIssues || []).forEach(m => v.push({ rule: 'R5_publish', severity: 'warn', msg: m }));
 
-  // R6 每個階段必須有強度與組間休息（教練已確認的記錄粒度）
+  /* R6 記錄粒度（教練 2026-08-06 確認）：
+       強度 → 除講評外的四個階段都要有
+       組間休息 → 只有「分組訓練」與「應用組合」兩段適用（3~5 分鐘），
+                  做操慢跑與熱身體能是連續進行，不適用；講評不需要。
+     註：本規則於 exp2a 依教練口述修訂，修訂後已用新規則重新量測既有版本，
+        再與新版本比較，避免用「放寬標準」製造假進步。 */
+  const REST_STAGES = ['group', 'apply'];
   for (const b of stageBlocks) {
-    if (b.block_type === 'review') continue; // 講評不需強度
+    if (b.block_type === 'review') continue;
     if (!b.intensity) v.push({ rule: 'R6_no_intensity', severity: 'block', msg: `階段 ${b.block_type} 缺強度` });
-    if (b.rest_seconds == null || b.rest_seconds === '') v.push({ rule: 'R6_no_rest', severity: 'block', msg: `階段 ${b.block_type} 缺組間休息` });
+  }
+  for (const k of REST_STAGES) {
+    const bs = k === 'group' ? groupBlocks : stageBlocks.filter(x => x.block_type === k);
+    if (!bs.length) continue;
+    for (const b of bs) {
+      if (b.rest_seconds == null || b.rest_seconds === '')
+        v.push({ rule: 'R6_no_rest', severity: 'block', msg: `階段 ${k} 缺組間休息` });
+      else if (b.rest_seconds < 180 || b.rest_seconds > 300)
+        v.push({ rule: 'R6_rest_out_of_range', severity: 'warn', msg: `階段 ${k} 組間休息 ${b.rest_seconds}秒 不在教練指定的 180~300 秒範圍` });
+    }
   }
 
   // R7 到課學員必須全部被分組

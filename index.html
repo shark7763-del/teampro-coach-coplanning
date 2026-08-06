@@ -426,6 +426,14 @@ function classMinutes(classId){const c=C('classes').find(x=>x.id===classId);retu
 function timelineFor(classId){return stageTimeline(classMinutes(classId));}
 function timelineOfPlan(dp){return dp?timelineFor(dp.class_id):BLOCKS;}
 function timelineWarning(classId){const m=classMinutes(classId);return m<90?`此班別 ${m} 分鐘短於基準 90 分，課表仍以 90 分結構呈現，請自行調整。`:'';}
+/* 訓練量記錄粒度（教練 2026-08-06 確認）：每階段一組數字。
+   強度＝低/中/高，沿用快速備課選的值；組間休息 3~5 分鐘，
+   只有「分組訓練」與「應用組合」兩段適用（前兩段連續進行、講評不需要）。 */
+const INTENSITIES=['低','中','高'];
+const REST_STAGES=['group','apply'];
+const REST_OPTIONS=[{v:180,l:'3 分鐘'},{v:240,l:'4 分鐘'},{v:300,l:'5 分鐘'}];
+const DEFAULT_REST=180;
+function stageNeedsRest(key){return REST_STAGES.includes(key);}
 /* 每堂課教練/助教合計硬性上限（主教練+教練+助教都計入） */
 const MAX_COACHES_PER_CLASS=4;
 const CLASS_TYPES=['暑期訓練','一般健身','選手訓練','黑帶培訓','一般'];
@@ -2624,9 +2632,9 @@ Views.generateQuickPlan=async function(){
   const weak=Views.quickWeakStudents(q.classId);
   const equip=q.intensity==='高'?'踢靶、角錐、敏捷梯、護具':'踢靶、角錐、水壺';
   const drafts={
-    warmup:{content:`集合禮節、關節活動、慢跑與動態伸展（${q.intensity}強度）`,goal:'收心、提升體溫',equipment:'碼表',safety_notes:'確認場地乾燥，提醒補水。'},
-    fitness:{content:`反應遊戲、核心與折返跑，銜接今日主目標：${q.goal}`,goal:'建立身體控制與專注',equipment:'角錐、敏捷梯',safety_notes:'幼兒降低碰撞風險。'},
-    apply:{content:`分組成果挑戰：${q.goal} 的組合應用與小組競賽`,goal:'把基本動作轉成可執行任務',equipment:equip,safety_notes:'對練距離與護具檢查。'},
+    warmup:{content:`集合禮節、關節活動、慢跑與動態伸展（${q.intensity}強度）`,goal:'收心、提升體溫',equipment:'碼表',safety_notes:'確認場地乾燥，提醒補水。',intensity:q.intensity},
+    fitness:{content:`反應遊戲、核心與折返跑，銜接今日主目標：${q.goal}`,goal:'建立身體控制與專注',equipment:'角錐、敏捷梯',safety_notes:'幼兒降低碰撞風險。',intensity:q.intensity},
+    apply:{content:`分組成果挑戰：${q.goal} 的組合應用與小組競賽`,goal:'把基本動作轉成可執行任務',equipment:equip,safety_notes:'對練距離與護具檢查。',intensity:q.intensity,rest_seconds:DEFAULT_REST},
     review:{praise:'點名表揚專注與互助',remind:weak.length?`下次加強：${weak.slice(0,6).join('、')}`:'提醒回家練習今日主目標',homework:`每天 3 分鐘練習 ${q.goal}`,preview:'下堂課延伸今日未完成內容',done:false}
   };
   const TL=timelineFor(q.classId),tlOf=k=>TL.find(x=>x.key===k)||BLOCKS.find(x=>x.key===k);
@@ -2638,7 +2646,7 @@ Views.generateQuickPlan=async function(){
     let cur=C('lesson_blocks').find(b=>b.daily_plan_id===dp.id&&b.block_type==='group'&&b.training_group_id===g.id);
     await save('lesson_blocks',{...(cur||{id:uid('lb')}),daily_plan_id:dp.id,training_group_id:g.id,block_type:'group',start_minute:tlOf('group').s,end_minute:tlOf('group').e,
       basic:q.goal,kick:g.group_type==='對練'?'攻防步伐與反應':'前踢、旋踢準確度',poomsae:g.group_type==='品勢'?'指定品勢段落':'依級別複習',spar:g.group_type==='對練'?'條件對練':'距離控制遊戲',
-      goal:`${g.name} 完成 ${q.goal}`,commonErr:'抬頭、重心、收腳',done:false});
+      goal:`${g.name} 完成 ${q.goal}`,commonErr:'抬頭、重心、收腳',intensity:q.intensity,rest_seconds:DEFAULT_REST,done:false});
   }
   await save('discussions',{id:uid('ds'),daily_plan_id:dp.id,author_id:State.user.id,author_name:State.user.name,message:`快速備課已產生：主目標 ${q.goal}；器材 ${equip}；安全提醒已帶入。`,created_at:Date.now(),reads:[State.user.id]});
   const leadName=(id=>{const p=C('profiles').find(x=>x.id===id);return p?p.name:'';})(teamIds[0]);
@@ -2805,7 +2813,9 @@ Views.blockForm=function(dp,bl,b,canEdit){
       <div class="field"><label class="sm">教練補充</label><textarea ${set('note')}>${esc(b.note||'')}</textarea></div>
       <label class="chip ${b.done?'on':''}" onclick="Views.toggleDone('${dp.id}','${bl.key}',null)">✅ 已完成</label>`;
   }
+  const restSel=stageNeedsRest(bl.key)?`<div class="grow"><label class="sm">組間休息</label><select ${set('rest_seconds')}>${REST_OPTIONS.map(o=>`<option value="${o.v}" ${Number(b.rest_seconds)===o.v?'selected':''}>${o.l}</option>`).join('')}</select></div>`:'';
   return `${extra}
+    <div class="row" style="margin-top:6px"><div class="grow"><label class="sm">強度</label><select ${set('intensity')}><option value="">—</option>${INTENSITIES.map(o=>`<option ${b.intensity===o?'selected':''}>${o}</option>`).join('')}</select></div>${restSel}</div>
     <div class="field" style="margin-top:6px"><label class="sm">課程內容</label><textarea ${set('content')}>${esc(b.content||'')}</textarea></div>
     <div class="row"><div class="grow"><label class="sm">教學目標</label><input value="${esc(b.goal||'')}" ${set('goal')}></div>
       <div class="grow"><label class="sm">器材</label><input value="${esc(b.equipment||'')}" ${set('equipment')}></div></div>
