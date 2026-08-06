@@ -15,3 +15,5 @@ autoresearch/experiments.tsv
 健身班名單_匯入.csv
 週六班名單_匯入.csv
 ~$*
+backup_*.json
+backup_*.csv
