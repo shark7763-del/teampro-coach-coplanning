@@ -1,0 +1,1803 @@
+{
+ "tag": "exp1",
+ "date": "2026-09-14",
+ "generated_at": "2026-08-06T03:02:15.768Z",
+ "pageErrors": [],
+ "score": {
+  "score": 64.75,
+  "breakdown": {
+   "time_violation_cases": 0,
+   "stage_violation_cases": 0,
+   "group_blocking_cases": 0,
+   "granularity_missing_cases": 10,
+   "any_blocking_cases": 10,
+   "personalization": 0.475,
+   "n": 10
+  }
+ },
+ "personalization": {
+  "warmup": {
+   "distinct": 1,
+   "total": 10,
+   "ratio": 0.1
+  },
+  "fitness": {
+   "distinct": 6,
+   "total": 10,
+   "ratio": 0.6
+  },
+  "apply": {
+   "distinct": 6,
+   "total": 10,
+   "ratio": 0.6
+  },
+  "review": {
+   "distinct": 6,
+   "total": 10,
+   "ratio": 0.6
+  },
+  "_overall": 0.475
+ },
+ "results": [
+  {
+   "id": "C01",
+   "label": "初學兒童",
+   "minutes": 90,
+   "plan": {
+    "genMs": 104,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "初階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C01_測A1",
+       "stu_C01_測A2",
+       "stu_C01_測A3",
+       "stu_C01_測A4",
+       "stu_C01_測A5",
+       "stu_C01_測A6"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：基本動作穩定",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：基本動作穩定 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 基本動作穩定",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjnmuv4yvp",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "初階組 完成 基本動作穩定",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C01_測A1",
+     "stu_C01_測A2",
+     "stu_C01_測A3",
+     "stu_C01_測A4",
+     "stu_C01_測A5",
+     "stu_C01_測A6"
+    ],
+    "wallMs": 311
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 1,
+     "groupBlockCount": 1,
+     "attending": 6,
+     "genMs": 104
+    }
+   }
+  },
+  {
+   "id": "C02",
+   "label": "青少年一般班",
+   "minutes": 90,
+   "plan": {
+    "genMs": 140,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "中階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C02_測B1",
+       "stu_C02_測B2",
+       "stu_C02_測B3",
+       "stu_C02_測B5",
+       "stu_C02_測B7",
+       "stu_C02_測B8"
+      ],
+      "coach_id": "u_a2"
+     },
+     {
+      "name": "初階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C02_測B4",
+       "stu_C02_測B6"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：腿法速度與準確度",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：腿法速度與準確度 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 腿法速度與準確度",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjoaq06dc5",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "中階組 完成 腿法速度與準確度",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjoaqqbq97",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "初階組 完成 腿法速度與準確度",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C02_測B1",
+     "stu_C02_測B2",
+     "stu_C02_測B3",
+     "stu_C02_測B4",
+     "stu_C02_測B5",
+     "stu_C02_測B6",
+     "stu_C02_測B7",
+     "stu_C02_測B8"
+    ],
+    "wallMs": 480
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 2,
+     "groupBlockCount": 2,
+     "attending": 8,
+     "genMs": 140
+    }
+   }
+  },
+  {
+   "id": "C03",
+   "label": "品勢選手",
+   "minutes": 90,
+   "plan": {
+    "genMs": 128,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "高階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C03_測C1",
+       "stu_C03_測C2",
+       "stu_C03_測C3",
+       "stu_C03_測C4",
+       "stu_C03_測C5"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：品勢路線與節奏",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：品勢路線與節奏 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 品勢路線與節奏",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjp6lwi6z4",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "高階組 完成 品勢路線與節奏",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C03_測C1",
+     "stu_C03_測C2",
+     "stu_C03_測C3",
+     "stu_C03_測C4",
+     "stu_C03_測C5"
+    ],
+    "wallMs": 549
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 1,
+     "groupBlockCount": 1,
+     "attending": 5,
+     "genMs": 128
+    }
+   }
+  },
+  {
+   "id": "C04",
+   "label": "對打選手（120分課）",
+   "minutes": 120,
+   "plan": {
+    "genMs": 158,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "高階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C04_測D1",
+       "stu_C04_測D2",
+       "stu_C04_測D3",
+       "stu_C04_測D4",
+       "stu_C04_測D5",
+       "stu_C04_測D6"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：對練反應與距離",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 75,
+      "end_minute": 115,
+      "content": "分組成果挑戰：對練反應與距離 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 115,
+      "end_minute": 120,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 對練反應與距離",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjq68heff2",
+      "start_minute": 30,
+      "end_minute": 75,
+      "content": "",
+      "goal": "高階組 完成 對練反應與距離",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C04_測D1",
+     "stu_C04_測D2",
+     "stu_C04_測D3",
+     "stu_C04_測D4",
+     "stu_C04_測D5",
+     "stu_C04_測D6"
+    ],
+    "wallMs": 673
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–75 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 120,
+     "expectedMinutes": 120,
+     "stageCount": 4,
+     "groupCount": 1,
+     "groupBlockCount": 1,
+     "attending": 6,
+     "genMs": 158
+    }
+   }
+  },
+  {
+   "id": "C05",
+   "label": "賽前備戰（7天）",
+   "minutes": 90,
+   "plan": {
+    "genMs": 324,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "高階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C05_測E1",
+       "stu_C05_測E2",
+       "stu_C05_測E3",
+       "stu_C05_測E4"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：比賽選手強化",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：比賽選手強化 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 比賽選手強化",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjrhhtti5e",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "高階組 完成 比賽選手強化",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C05_測E1",
+     "stu_C05_測E2",
+     "stu_C05_測E3",
+     "stu_C05_測E4"
+    ],
+    "wallMs": 892
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 1,
+     "groupBlockCount": 1,
+     "attending": 4,
+     "genMs": 324
+    }
+   }
+  },
+  {
+   "id": "C06",
+   "label": "體能較弱",
+   "minutes": 90,
+   "plan": {
+    "genMs": 215,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "初階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C06_測F1",
+       "stu_C06_測F2",
+       "stu_C06_測F3",
+       "stu_C06_測F4",
+       "stu_C06_測F5"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：基本動作穩定",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：基本動作穩定 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 基本動作穩定",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjssn0qzky",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "初階組 完成 基本動作穩定",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C06_測F1",
+     "stu_C06_測F2",
+     "stu_C06_測F3",
+     "stu_C06_測F4",
+     "stu_C06_測F5"
+    ],
+    "wallMs": 904
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 1,
+     "groupBlockCount": 1,
+     "attending": 5,
+     "genMs": 215
+    }
+   }
+  },
+  {
+   "id": "C07",
+   "label": "傷病限制",
+   "minutes": 90,
+   "plan": {
+    "genMs": 260,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "高階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C07_測G3"
+      ],
+      "coach_id": "u_a2"
+     },
+     {
+      "name": "中階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C07_測G1",
+       "stu_C07_測G2",
+       "stu_C07_測G4"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：基本動作穩定",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：基本動作穩定 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 基本動作穩定",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjugn6woyb",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "高階組 完成 基本動作穩定",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjugnhgmf6",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "中階組 完成 基本動作穩定",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C07_測G1",
+     "stu_C07_測G2",
+     "stu_C07_測G3",
+     "stu_C07_測G4"
+    ],
+    "wallMs": 1150
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 2,
+     "groupBlockCount": 2,
+     "attending": 4,
+     "genMs": 260
+    }
+   }
+  },
+  {
+   "id": "C08",
+   "label": "晉級準備（高頻）",
+   "minutes": 90,
+   "plan": {
+    "genMs": 385,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "初階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C08_測H5"
+      ],
+      "coach_id": "u_a1"
+     },
+     {
+      "name": "中階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C08_測H1",
+       "stu_C08_測H2",
+       "stu_C08_測H3",
+       "stu_C08_測H4",
+       "stu_C08_測H6"
+      ],
+      "coach_id": "u_a2"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：晉級考重點",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：晉級考重點 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 晉級考重點",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjw7ueqall",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "初階組 完成 晉級考重點",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjw7ujrnko",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "中階組 完成 晉級考重點",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C08_測H1",
+     "stu_C08_測H2",
+     "stu_C08_測H3",
+     "stu_C08_測H4",
+     "stu_C08_測H5",
+     "stu_C08_測H6"
+    ],
+    "wallMs": 1312
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 2,
+     "groupBlockCount": 2,
+     "attending": 6,
+     "genMs": 385
+    }
+   }
+  },
+  {
+   "id": "C09",
+   "label": "團體班（人多、教練少）",
+   "minutes": 90,
+   "plan": {
+    "genMs": 699,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "高階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C09_測I16",
+       "stu_C09_測I17",
+       "stu_C09_測I18"
+      ],
+      "coach_id": "u_a1"
+     },
+     {
+      "name": "初階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C09_測I01",
+       "stu_C09_測I02",
+       "stu_C09_測I03",
+       "stu_C09_測I04",
+       "stu_C09_測I05",
+       "stu_C09_測I06",
+       "stu_C09_測I07",
+       "stu_C09_測I08",
+       "stu_C09_測I09",
+       "stu_C09_測I19",
+       "stu_C09_測I20",
+       "stu_C09_測I21",
+       "stu_C09_測I22",
+       "stu_C09_測I23"
+      ],
+      "coach_id": "u_a1"
+     },
+     {
+      "name": "中階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C09_測I10",
+       "stu_C09_測I11",
+       "stu_C09_測I12",
+       "stu_C09_測I13",
+       "stu_C09_測I14",
+       "stu_C09_測I15",
+       "stu_C09_測I24"
+      ],
+      "coach_id": "u_a2"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：基本動作穩定",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：基本動作穩定 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 基本動作穩定",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjypgeb2qf",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "高階組 完成 基本動作穩定",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjypgvrc4c",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "初階組 完成 基本動作穩定",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxjypgvrsc0",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "中階組 完成 基本動作穩定",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [
+     {
+      "t": "over",
+      "msg": "「初階組」人數 14 超過上限 10"
+     },
+     {
+      "t": "conflict",
+      "msg": "教練「助教一」同時被指派到 2 組"
+     }
+    ],
+    "publishIssues": [
+     "「初階組」人數 14 超過上限 10",
+     "教練「助教一」同時被指派到 2 組"
+    ],
+    "attending": [
+     "stu_C09_測I01",
+     "stu_C09_測I02",
+     "stu_C09_測I03",
+     "stu_C09_測I04",
+     "stu_C09_測I05",
+     "stu_C09_測I06",
+     "stu_C09_測I07",
+     "stu_C09_測I08",
+     "stu_C09_測I09",
+     "stu_C09_測I10",
+     "stu_C09_測I11",
+     "stu_C09_測I12",
+     "stu_C09_測I13",
+     "stu_C09_測I14",
+     "stu_C09_測I15",
+     "stu_C09_測I16",
+     "stu_C09_測I17",
+     "stu_C09_測I18",
+     "stu_C09_測I19",
+     "stu_C09_測I20",
+     "stu_C09_測I21",
+     "stu_C09_測I22",
+     "stu_C09_測I23",
+     "stu_C09_測I24"
+    ],
+    "wallMs": 2001
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R4_group_over",
+      "severity": "warn",
+      "msg": "「初階組」人數 14 超過上限 10"
+     },
+     {
+      "rule": "R4_group_conflict",
+      "severity": "warn",
+      "msg": "教練「助教一」同時被指派到 2 組"
+     },
+     {
+      "rule": "R5_publish",
+      "severity": "warn",
+      "msg": "「初階組」人數 14 超過上限 10"
+     },
+     {
+      "rule": "R5_publish",
+      "severity": "warn",
+      "msg": "教練「助教一」同時被指派到 2 組"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 3,
+     "groupBlockCount": 3,
+     "attending": 24,
+     "genMs": 699
+    }
+   }
+  },
+  {
+   "id": "C10",
+   "label": "個別訓練",
+   "minutes": 90,
+   "plan": {
+    "genMs": 231,
+    "status": "draft",
+    "groups": [
+     {
+      "name": "高階組",
+      "group_type": "基礎",
+      "students": [
+       "stu_C10_測J1"
+      ],
+      "coach_id": "u_a1"
+     }
+    ],
+    "blocks": [
+     {
+      "block_type": "warmup",
+      "training_group_id": null,
+      "start_minute": 0,
+      "end_minute": 10,
+      "content": "集合禮節、關節活動、慢跑與動態伸展（低強度）",
+      "goal": "收心、提升體溫",
+      "equipment": "碼表",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "fitness",
+      "training_group_id": null,
+      "start_minute": 10,
+      "end_minute": 30,
+      "content": "反應遊戲、核心與折返跑，銜接今日主目標：腿法速度與準確度",
+      "goal": "建立身體控制與專注",
+      "equipment": "角錐、敏捷梯",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "apply",
+      "training_group_id": null,
+      "start_minute": 60,
+      "end_minute": 85,
+      "content": "分組成果挑戰：腿法速度與準確度 的組合應用與小組競賽",
+      "goal": "把基本動作轉成可執行任務",
+      "equipment": "踢靶、角錐、水壺",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "review",
+      "training_group_id": null,
+      "start_minute": 85,
+      "end_minute": 90,
+      "content": "",
+      "goal": "",
+      "equipment": "",
+      "praise": "點名表揚專注與互助",
+      "remind": "提醒回家練習今日主目標",
+      "homework": "每天 3 分鐘練習 腿法速度與準確度",
+      "preview": "下堂課延伸今日未完成內容",
+      "intensity": null,
+      "rest_seconds": null
+     },
+     {
+      "block_type": "group",
+      "training_group_id": "gmsgxk0k3xkd56",
+      "start_minute": 30,
+      "end_minute": 60,
+      "content": "",
+      "goal": "高階組 完成 腿法速度與準確度",
+      "equipment": "",
+      "praise": "",
+      "remind": "",
+      "homework": "",
+      "preview": "",
+      "intensity": null,
+      "rest_seconds": null
+     }
+    ],
+    "groupIssues": [],
+    "publishIssues": [],
+    "attending": [
+     "stu_C10_測J1"
+    ],
+    "wallMs": 1269
+   },
+   "check": {
+    "violations": [
+     {
+      "rule": "R3_gap",
+      "severity": "warn",
+      "msg": "階段之間有空窗：30–60 分"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 warmup 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 warmup 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 fitness 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 fitness 缺組間休息"
+     },
+     {
+      "rule": "R6_no_intensity",
+      "severity": "block",
+      "msg": "階段 apply 缺強度"
+     },
+     {
+      "rule": "R6_no_rest",
+      "severity": "block",
+      "msg": "階段 apply 缺組間休息"
+     }
+    ],
+    "facts": {
+     "maxEnd": 90,
+     "expectedMinutes": 90,
+     "stageCount": 4,
+     "groupCount": 1,
+     "groupBlockCount": 1,
+     "attending": 1,
+     "genMs": 231
+    }
+   }
+  }
+ ]
+}

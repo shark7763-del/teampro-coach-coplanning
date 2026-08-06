@@ -1,0 +1,635 @@
+{
+  "_README": "凍結的固定評估案例。建立後不得在實驗中修改，否則新舊版本無法公平比較。任何修改都必須由教練明確指示，並重新建立 baseline。",
+  "_frozen_at": "2026-08-06",
+  "_confirmed_by_coach": {
+    "class_durations": "健身班/暑期班/選手班/黑帶培訓班=90分，週六健身班=120分",
+    "stage_baseline_90": "做操慢跑10｜熱身體能20｜分組訓練30｜應用組合25｜講評5",
+    "extra_time_rule": "超過90分的時間全部均分給『分組訓練』與『應用組合』",
+    "durations_in_benchmark": "只用真實存在的 90 / 120 兩種"
+  },
+  "_needs_confirmation": [
+    "案例 7 的傷病禁忌動作清單為佔位值，未經教練確認",
+    "案例 3/4/5/10 的比賽日期距離為佔位值",
+    "各案例的帶位與年齡對應是否符合雄麒道館實況"
+  ],
+  "cases": [
+    {
+      "id": "C01",
+      "label": "初學兒童",
+      "age_group": "幼兒",
+      "belt": "白帶",
+      "goal": "基本動作穩定",
+      "freq_per_week": 2,
+      "minutes": 90,
+      "equipment": [
+        "踢靶",
+        "角錐"
+      ],
+      "limits": [
+        "專注時間短",
+        "需要較多休息"
+      ],
+      "competition_date": null,
+      "coach_note": "第一次接觸跆拳道，重點是紀律與安全",
+      "roster": [
+        {
+          "name": "測A1",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測A2",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測A3",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測A4",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測A5",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測A6",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C02",
+      "label": "青少年一般班",
+      "age_group": "國中",
+      "belt": "藍帶",
+      "goal": "腿法速度與準確度",
+      "freq_per_week": 3,
+      "minutes": 90,
+      "equipment": [
+        "踢靶",
+        "角錐",
+        "敏捷梯"
+      ],
+      "limits": [],
+      "competition_date": null,
+      "coach_note": "一般進度班，程度中等",
+      "roster": [
+        {
+          "name": "測B1",
+          "age_group": "國中",
+          "belt_rank": "藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測B2",
+          "age_group": "國中",
+          "belt_rank": "藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測B3",
+          "age_group": "國中",
+          "belt_rank": "藍紅帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測B4",
+          "age_group": "國中",
+          "belt_rank": "黃藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測B5",
+          "age_group": "國小",
+          "belt_rank": "藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測B6",
+          "age_group": "國小",
+          "belt_rank": "黃帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測B7",
+          "age_group": "國中",
+          "belt_rank": "藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測B8",
+          "age_group": "國中",
+          "belt_rank": "紅帶",
+          "specialty": "基礎"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C03",
+      "label": "品勢選手",
+      "age_group": "國中",
+      "belt": "一段",
+      "goal": "品勢路線與節奏",
+      "freq_per_week": 5,
+      "minutes": 90,
+      "equipment": [
+        "鏡子",
+        "計時器"
+      ],
+      "limits": [],
+      "competition_date": "+90d",
+      "coach_note": "品勢專項，距離比賽尚遠，打基礎期",
+      "roster": [
+        {
+          "name": "測C1",
+          "age_group": "國中",
+          "belt_rank": "一段",
+          "specialty": "品勢"
+        },
+        {
+          "name": "測C2",
+          "age_group": "國中",
+          "belt_rank": "一段",
+          "specialty": "品勢"
+        },
+        {
+          "name": "測C3",
+          "age_group": "國中",
+          "belt_rank": "黑頭",
+          "specialty": "品勢"
+        },
+        {
+          "name": "測C4",
+          "age_group": "國小",
+          "belt_rank": "紅二線",
+          "specialty": "品勢"
+        },
+        {
+          "name": "測C5",
+          "age_group": "國中",
+          "belt_rank": "兩段",
+          "specialty": "品勢"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C04",
+      "label": "對打選手（120分課）",
+      "age_group": "國中",
+      "belt": "兩段",
+      "goal": "對練反應與距離",
+      "freq_per_week": 5,
+      "minutes": 120,
+      "equipment": [
+        "護具",
+        "踢靶",
+        "電子護具"
+      ],
+      "limits": [],
+      "competition_date": "+60d",
+      "coach_note": "對打專項，週六長課",
+      "roster": [
+        {
+          "name": "測D1",
+          "age_group": "國中",
+          "belt_rank": "兩段",
+          "specialty": "對練"
+        },
+        {
+          "name": "測D2",
+          "age_group": "國中",
+          "belt_rank": "一段",
+          "specialty": "對練"
+        },
+        {
+          "name": "測D3",
+          "age_group": "國中",
+          "belt_rank": "黑頭",
+          "specialty": "比賽選手"
+        },
+        {
+          "name": "測D4",
+          "age_group": "國小",
+          "belt_rank": "紅二線",
+          "specialty": "對練"
+        },
+        {
+          "name": "測D5",
+          "age_group": "國中",
+          "belt_rank": "一段",
+          "specialty": "比賽選手"
+        },
+        {
+          "name": "測D6",
+          "age_group": "國中",
+          "belt_rank": "兩段",
+          "specialty": "對練"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C05",
+      "label": "賽前備戰（7天）",
+      "age_group": "國中",
+      "belt": "兩段",
+      "goal": "比賽選手強化",
+      "freq_per_week": 5,
+      "minutes": 90,
+      "equipment": [
+        "護具",
+        "踢靶"
+      ],
+      "limits": [
+        "賽前需控制疲勞"
+      ],
+      "competition_date": "+7d",
+      "coach_note": "距離比賽 7 天，重點是調整不是堆量",
+      "roster": [
+        {
+          "name": "測E1",
+          "age_group": "國中",
+          "belt_rank": "兩段",
+          "specialty": "比賽選手"
+        },
+        {
+          "name": "測E2",
+          "age_group": "國中",
+          "belt_rank": "一段",
+          "specialty": "比賽選手"
+        },
+        {
+          "name": "測E3",
+          "age_group": "國中",
+          "belt_rank": "黑頭",
+          "specialty": "比賽選手"
+        },
+        {
+          "name": "測E4",
+          "age_group": "國中",
+          "belt_rank": "兩段",
+          "specialty": "比賽選手"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C06",
+      "label": "體能較弱",
+      "age_group": "國小",
+      "belt": "黃帶",
+      "goal": "基本動作穩定",
+      "freq_per_week": 2,
+      "minutes": 90,
+      "equipment": [
+        "角錐",
+        "軟墊"
+      ],
+      "limits": [
+        "心肺較弱、容易喘",
+        "需要較長組間休息"
+      ],
+      "competition_date": null,
+      "coach_note": "體能明顯落後同儕，避免連續高強度",
+      "roster": [
+        {
+          "name": "測F1",
+          "age_group": "國小",
+          "belt_rank": "黃帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測F2",
+          "age_group": "國小",
+          "belt_rank": "黃帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測F3",
+          "age_group": "國小",
+          "belt_rank": "黃藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測F4",
+          "age_group": "國小",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測F5",
+          "age_group": "國小",
+          "belt_rank": "黃帶",
+          "specialty": "基礎"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C07",
+      "label": "傷病限制",
+      "age_group": "國中",
+      "belt": "紅帶",
+      "goal": "基本動作穩定",
+      "freq_per_week": 3,
+      "minutes": 90,
+      "equipment": [
+        "踢靶",
+        "軟墊"
+      ],
+      "limits": [
+        "NEEDS_CONFIRMATION：右踝扭傷復原中，暫定禁止跳躍與旋踢"
+      ],
+      "competition_date": null,
+      "coach_note": "NEEDS_CONFIRMATION：實際禁忌動作與替代動作待教練確認",
+      "roster": [
+        {
+          "name": "測G1",
+          "age_group": "國中",
+          "belt_rank": "紅帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測G2",
+          "age_group": "國中",
+          "belt_rank": "紅帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測G3",
+          "age_group": "國中",
+          "belt_rank": "紅一線",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測G4",
+          "age_group": "國小",
+          "belt_rank": "藍紅帶",
+          "specialty": "基礎"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C08",
+      "label": "晉級準備（高頻）",
+      "age_group": "國小",
+      "belt": "藍帶",
+      "goal": "晉級考重點",
+      "freq_per_week": 5,
+      "minutes": 90,
+      "equipment": [
+        "踢靶"
+      ],
+      "limits": [],
+      "competition_date": null,
+      "coach_note": "一個月後晉級考",
+      "roster": [
+        {
+          "name": "測H1",
+          "age_group": "國小",
+          "belt_rank": "藍帶",
+          "specialty": "晉級加強"
+        },
+        {
+          "name": "測H2",
+          "age_group": "國小",
+          "belt_rank": "藍帶",
+          "specialty": "晉級加強"
+        },
+        {
+          "name": "測H3",
+          "age_group": "國小",
+          "belt_rank": "藍紅帶",
+          "specialty": "晉級加強"
+        },
+        {
+          "name": "測H4",
+          "age_group": "國中",
+          "belt_rank": "藍帶",
+          "specialty": "晉級加強"
+        },
+        {
+          "name": "測H5",
+          "age_group": "國小",
+          "belt_rank": "黃藍帶",
+          "specialty": "晉級加強"
+        },
+        {
+          "name": "測H6",
+          "age_group": "國小",
+          "belt_rank": "藍帶",
+          "specialty": "晉級加強"
+        }
+      ],
+      "coaches_available": 4
+    },
+    {
+      "id": "C09",
+      "label": "團體班（人多、教練少）",
+      "age_group": "混齡",
+      "belt": "白帶～紅帶",
+      "goal": "基本動作穩定",
+      "freq_per_week": 2,
+      "minutes": 90,
+      "equipment": [
+        "踢靶",
+        "角錐"
+      ],
+      "limits": [
+        "現場只有 2 位教練"
+      ],
+      "competition_date": null,
+      "coach_note": "24 人混齡混程度，壓測分組上限與教練需求警示",
+      "roster": [
+        {
+          "name": "測I01",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I02",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I03",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I04",
+          "age_group": "國小",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I05",
+          "age_group": "國小",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I06",
+          "age_group": "國小",
+          "belt_rank": "黃帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I07",
+          "age_group": "國小",
+          "belt_rank": "黃帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I08",
+          "age_group": "國小",
+          "belt_rank": "黃藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I09",
+          "age_group": "國小",
+          "belt_rank": "黃藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I10",
+          "age_group": "國小",
+          "belt_rank": "藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I11",
+          "age_group": "國小",
+          "belt_rank": "藍帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I12",
+          "age_group": "國小",
+          "belt_rank": "藍紅帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I13",
+          "age_group": "國中",
+          "belt_rank": "藍紅帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I14",
+          "age_group": "國中",
+          "belt_rank": "紅帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I15",
+          "age_group": "國中",
+          "belt_rank": "紅帶",
+          "specialty": "品勢"
+        },
+        {
+          "name": "測I16",
+          "age_group": "國中",
+          "belt_rank": "紅一線",
+          "specialty": "品勢"
+        },
+        {
+          "name": "測I17",
+          "age_group": "國中",
+          "belt_rank": "紅二線",
+          "specialty": "對練"
+        },
+        {
+          "name": "測I18",
+          "age_group": "國中",
+          "belt_rank": "紅二線",
+          "specialty": "對練"
+        },
+        {
+          "name": "測I19",
+          "age_group": "國小",
+          "belt_rank": "黃帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I20",
+          "age_group": "國小",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I21",
+          "age_group": "成人",
+          "belt_rank": "白帶",
+          "specialty": "一般基礎"
+        },
+        {
+          "name": "測I22",
+          "age_group": "成人",
+          "belt_rank": "黃帶",
+          "specialty": "一般基礎"
+        },
+        {
+          "name": "測I23",
+          "age_group": "幼兒",
+          "belt_rank": "白帶",
+          "specialty": "基礎"
+        },
+        {
+          "name": "測I24",
+          "age_group": "國小",
+          "belt_rank": "藍帶",
+          "specialty": "基礎"
+        }
+      ],
+      "coaches_available": 2
+    },
+    {
+      "id": "C10",
+      "label": "個別訓練",
+      "age_group": "國中",
+      "belt": "三段",
+      "goal": "腿法速度與準確度",
+      "freq_per_week": 2,
+      "minutes": 90,
+      "equipment": [
+        "踢靶",
+        "電子護具"
+      ],
+      "limits": [],
+      "competition_date": "+30d",
+      "coach_note": "一對一，針對弱點單點強化",
+      "roster": [
+        {
+          "name": "測J1",
+          "age_group": "國中",
+          "belt_rank": "三段",
+          "specialty": "比賽選手"
+        }
+      ],
+      "coaches_available": 1
+    }
+  ],
+  "_frozen_note": "coaches_available 為每案例固定可用教練數，影響分組建議，必須固定才可重現"
+}
