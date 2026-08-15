@@ -448,6 +448,34 @@ const HSIUNGCHI_PRESETS=[
 const jsdayToWeekday=d=>WEEKDAYS[(d+6)%7]; // JS getDay(0=日) -> 本系統 WEEKDAYS
 const ABILITY_TAGS=['敏捷','反應','協調','平衡','核心','柔軟度','爆發力','心肺','折返跑','體能遊戲','團隊遊戲','專項暖身'];
 const APPLY_TYPES=['應用','組合','挑戰','闖關','小組競賽','品勢演練','踢靶','攻防反應','條件對練','模擬比賽'];
+const PPT_SOURCE_ROOT='D:\\雄麒道館課程計畫';
+const PPT_SINGLE_LESSONS=[
+  {id:'white-01',cat:'白帶單堂',file:'單堂教案\\白帶0級_第01堂_道場禮節與基本站姿.pptx',title:'白帶第01堂｜道場禮節與基本站姿',focus:'建立上課秩序、敬禮、基本站姿與安全線。',checks:['聽到口令能在2秒內定位','知道道場禮節與安全線','站姿能停住不晃'],fit:'反應口令、站姿穩定與隊形定位',game:'口令反應與站姿定格',steps:'併足立、平行步、馬步、弓步；先看教練完整示範，再用短口令分解。',challenge:'站姿闖關與禮節流程演練',next:'進入第02堂：站姿轉換與前進步法。'},
+  {id:'white-02',cat:'白帶單堂',file:'單堂教案\\白帶0級_第02堂_站姿轉換與前進步法.pptx',title:'白帶第02堂｜站姿轉換與前進步法',focus:'把站姿從原地帶到移動，腳的位置與重心不能跑掉。',checks:['站姿轉換方向正確','前進步法不交叉','落地後能停住'],fit:'腳步協調、重心轉移與方向反應',game:'腳印路線挑戰',steps:'原地站姿複習、前進一步、轉換站姿、連續走線；錯誤先退回腳印定位。',challenge:'兩條路線接力，要求走完能停住',next:'進入第03堂：握拳與正拳。'},
+  {id:'white-03',cat:'白帶單堂',file:'單堂教案\\白帶0級_第03堂_握拳與正拳.pptx',title:'白帶第03堂｜握拳與正拳',focus:'拳型、安全握拳、中心線與一出一收節奏。',checks:['大拇指不包進拳頭','正拳走中心線','出拳與收拳同時完成'],fit:'肩肘腕控制與核心穩定',game:'中心線打點任務',steps:'握拳檢查、原地正拳、慢拍出收、連續正拳；先保護拳型再要求速度。',challenge:'正拳準確度闖關',next:'進入第04堂：馬步正拳。'},
+  {id:'white-04',cat:'白帶單堂',file:'單堂教案\\白帶0級_第04堂_馬步正拳.pptx',title:'白帶第04堂｜馬步正拳',focus:'把馬步穩定與正拳節奏結合。',checks:['膝蓋與腳尖方向一致','馬步高度穩定','正拳出收清楚'],fit:'下肢穩定、核心與拳步協調',game:'馬步停格挑戰',steps:'馬步定位、馬步停住、馬步正拳、左右連續；膝腳方向錯就回到定位。',challenge:'馬步正拳小組計分',next:'進入第05堂：弓步與前進步法。'},
+  {id:'white-05',cat:'白帶單堂',file:'單堂教案\\白帶0級_第05堂_弓步與前進步法.pptx',title:'白帶第05堂｜弓步與前進步法',focus:'弓步長度、前後腳重心與前進步法。',checks:['弓步前膝不內夾','後腳踩穩','前進後能站住'],fit:'跨步距離、下肢穩定與平衡',game:'弓步腳印路線',steps:'弓步定位、前進一步成弓步、左右交替、慢速連續；先距離再速度。',challenge:'弓步路線接力',next:'進入第06堂：弓步正拳與移動出拳。'},
+  {id:'white-06',cat:'白帶單堂',file:'單堂教案\\白帶0級_第06堂_弓步正拳與移動出拳.pptx',title:'白帶第06堂｜弓步正拳與移動出拳',focus:'步法落地與正拳同時完成，建立基本品勢節奏。',checks:['腳到拳到','落地後停住','拳走中心線'],fit:'步拳協調與節奏控制',game:'腳到拳到反應賽',steps:'弓步複習、原地正拳、一步一拳、左右連續；Timing錯就退回三拍。',challenge:'移動出拳分組挑戰',next:'進入第07堂：抬膝。'},
+  {id:'white-07',cat:'白帶單堂',file:'單堂教案\\白帶0級_第07堂_抬膝（踢擊前置）.pptx',title:'白帶第07堂｜抬膝（踢擊前置）',focus:'踢擊前先建立抬膝、支撐腳和平衡。',checks:['膝蓋能抬到腰附近','支撐腳穩定','抬起後能控制放下'],fit:'單腳平衡、髖屈肌與核心控制',game:'抬膝定格大賽',steps:'扶牆抬膝、站姿抬膝、左右腳交替、停2秒；高度不是第一優先，控制才是。',challenge:'抬膝闖關與同儕檢查',next:'進入第08堂：前抬腿與基準測驗。'},
+  {id:'white-08',cat:'白帶單堂',file:'單堂教案\\白帶0級_第08堂_前抬腿與基準測驗.pptx',title:'白帶第08堂｜前抬腿與基準測驗',focus:'直腿上抬、控制放下，產出基準測驗名單。',checks:['腿盡量伸直','由髖控制不是甩腿','落地能回穩'],fit:'柔軟度、髖控制與單腳平衡',game:'慢動作控制挑戰',steps:'坐姿直腿、扶牆前抬、站姿前抬、左右腳測驗；不追高度，先追控制。',challenge:'前抬腿基準測驗',next:'進入第09堂：前踢建立。'},
+  {id:'white-09',cat:'白帶單堂',file:'單堂教案\\白帶0級_第09堂_前踢建立.pptx',title:'白帶第09堂｜前踢建立',focus:'原地做出「抬膝 → 踢出 → 收腿 → 落地」四拍完整前踢。',checks:['有抬膝','腳趾勾起','先收再落'],fit:'單腳平衡與抬膝高度',game:'金雞獨立大賽',steps:'坐姿彈腿、扶牆彈腿、站姿前踢、四拍口令、左右腳交替；四拍一開始一拍一秒。',challenge:'顏色反應踢與完美前踢接力',next:'進入第10堂：移動前踢、左右腳交替。'},
+  {id:'white-10',cat:'白帶單堂',file:'單堂教案\\白帶0級_第10堂_移動前踢與左右腳交替.pptx',title:'白帶第10堂｜移動前踢與左右腳交替',focus:'把前踢帶進移動與左右腳切換。',checks:['移動後仍先抬膝','左右腳都能做','踢完落地不亂跳'],fit:'移動平衡、左右協調與方向控制',game:'左右腳反應路線',steps:'原地前踢複習、上步前踢、左右交替、移動踢靶；負荷過高就降低速度。',challenge:'左右腳流水線接力',next:'進入第11-13堂：旋踢單元。'},
+  {id:'white-11-13',cat:'白帶單堂',file:'單堂教案\\白帶0級_第11-13堂_旋踢單元.pptx',title:'白帶第11-13堂｜旋踢單元',focus:'三堂分開推進：第11堂只練轉，第12堂加踢，第13堂加靶。',checks:['支撐腳有轉','膝蓋先到','踢完收腿'],fit:'髖活動度與支撐腳旋轉',game:'轉腳大賽',steps:'坐姿轉髖、扶牆支撐腳轉、站姿慢速旋踢、四拍、上步踢靶；一堂只加一個變數。',challenge:'旋踢四拍與踢靶接力',next:'進入第14堂：弱點修正。'},
+  {id:'white-14',cat:'白帶單堂',file:'單堂教案\\白帶0級_第14堂_弱點修正.pptx',title:'白帶第14堂｜弱點修正',focus:'依前13堂退階名單補洞，模擬測驗前把弱項拉回來。',checks:['知道自己要補什麼','補強項目有進步','五項都能做出來'],fit:'依分組補基礎體能、穩定或左右腳平衡',game:'五項闖關',steps:'課前檢測、依弱項分組、分站補強、全項串聯；砍挑戰，不砍驗收。',challenge:'五項串聯與課後再測',next:'進入第15堂：模擬測驗。'},
+  {id:'white-15',cat:'白帶單堂',file:'單堂教案\\白帶0級_第15堂_模擬測驗.pptx',title:'白帶第15堂｜模擬測驗',focus:'完整跑一次考試流程，熟悉順序、動線、等待與禮節。',checks:['順序記得住','五項都做得完','禮節完整'],fit:'不額外做體能，把體力留給完整模擬',game:'測驗流程演練',steps:'流程說明、禮節動線、完整模擬兩輪、問題檢討、重點項重跑。',challenge:'完整模擬測驗與重點補測',next:'進入第16堂：正式驗收。'},
+  {id:'white-16',cat:'白帶單堂',file:'單堂教案\\白帶0級_第16堂_正式驗收.pptx',title:'白帶第16堂｜正式驗收',focus:'完成白帶五項正式驗收，產出通過、補強與退階名單。',checks:['五項達標','禮節完整','說得出重點'],fit:'熱身即可，體力保留給驗收',game:'流程提醒',steps:'流程提醒、正式驗收、補測、結果說明、頒發與收操；今天是驗收不是加新內容。',challenge:'正式驗收與補測',next:'依結果銜接黃帶或補強課。'},
+  {id:'tech-down',cat:'技術教案',file:'單堂教案\\技術教案_01_下壓系列.pptx',title:'技術教案01｜下壓系列',focus:'抬上去容易，控制著壓下來才是下壓。',checks:['腿有伸直','由髖控制壓下','落腳在身體前方'],fit:'腿後側柔軟度與髖控制力',game:'慢動作比賽',steps:'原地下壓、上步下壓、跑步下壓、前腳下壓、滑步下壓、360度下壓；前一式未過8/10不進下一式。',challenge:'控制下壓與變化式過關表',next:'依通過變化式安排下一堂。'},
+  {id:'tech-side',cat:'技術教案',file:'單堂教案\\技術教案_02_側踢系列.pptx',title:'技術教案02｜側踢系列',focus:'側身、腳刀、支撐腳轉，三個都到才是側踢。',checks:['是側身不是正面','用腳刀','支撐腳轉到位'],fit:'髖外展與支撐腳旋轉',game:'側身定格',steps:'原地側踢、後腳側踢、上步側踢、滑步側踢；側踢是後踢與後旋踢的地基。',challenge:'側踢踢靶與角度檢查',next:'側踢8/10後銜接後踢或進階側踢。'},
+  {id:'tech-back',cat:'技術教案',file:'單堂教案\\技術教案_03_後踢系列.pptx',title:'技術教案03｜後踢系列',focus:'眼睛先找到目標，腿才出去。',checks:['先轉頭找目標','腳跟走直線','落地面向目標'],fit:'轉身平衡與落地控制',game:'找靶大賽',steps:'原地後踢、換步後踢、上步後踢、跳後踢、360度後踢；第一件事不是踢，是找目標。',challenge:'後踢踢靶與落地停住',next:'依落地控制決定是否進跳後踢。'},
+  {id:'tech-spinning',cat:'技術教案',file:'單堂教案\\技術教案_04_後旋踢系列.pptx',title:'技術教案04｜後旋踢系列',focus:'頭先轉、腿伸直畫弧、轉完要停得住。',checks:['頭先轉找到目標','腿伸直畫弧','轉完停得住'],fit:'旋轉軸穩定與煞車能力',game:'轉圈煞車賽',steps:'原地後旋踢、上步後旋踢、360度後旋踢；全程以安全煞車為底線。',challenge:'後旋踢路線與落地控制挑戰',next:'落地穩定後才進360度變化。'},
+  {id:'tech-round',cat:'技術教案',file:'單堂教案\\技術教案_05_旋踢系列.pptx',title:'技術教案05｜旋踢系列',focus:'支撐腳轉、膝蓋先到、踢完收腿。',checks:['支撐腳有轉','膝蓋先到','踢完收腿'],fit:'髖活動度與支撐腳旋轉',game:'轉腳大賽',steps:'原地旋踢、上步旋踢、跑步旋踢、連續旋踢、空中兩腳、360度旋踢；支撐腳沒轉就退回不踢。',challenge:'旋踢踢靶與速度靶反應',next:'依支撐腳與收腿品質安排下一個變化式。'}
+];
+const PPT_INDEX_SECTIONS=[
+  {key:'single',name:'單堂教案',desc:'19份，可一鍵套用到今日備課。',items:PPT_SINGLE_LESSONS},
+  {key:'belt',name:'色帶級別課程計畫',desc:'9份教練團級別總覽，先做索引查找。',items:[
+    ['白帶0級_教學課程_教練團版.pptx','白帶0級｜教練團課程','20張'],['黃帶8級_教學課程_教練團版.pptx','黃帶8級｜太極一章','20張'],['黃藍帶7級_教學課程_教練團版.pptx','黃藍帶7級｜太極二章','20張'],['藍帶6級_教學課程_教練團版.pptx','藍帶6級｜太極三章','20張'],['藍紅帶5級_教學課程_教練團版.pptx','藍紅帶5級｜太極四章','22張'],['紅帶4級_教學課程_教練團版.pptx','紅帶4級｜太極五章','22張'],['紅黑一線3級_教學課程_教練團版.pptx','紅黑一線3級｜太極六章','22張'],['紅黑二線2級_教學課程_教練團版.pptx','紅黑二線2級｜太極七章','23張'],['紅黑黑頭1級_教學課程_教練團版.pptx','紅黑黑頭1級｜太極八章','22張']].map(x=>({title:x[1],file:'色帶級別課程計畫\\'+x[0],meta:x[2]}))},
+  {key:'kids',name:'太極一到八章｜國小生版',desc:'8份兒童口語品勢教案，闖關、口訣、小老師任務。',items:[1,2,3,4,5,6,7,8].map(n=>({title:`太極${['一','二','三','四','五','六','七','八'][n-1]}章｜國小生版`,file:`太極一到八章PPT教案_國小生版\\${String(n).padStart(2,'0')}_太極${['一','二','三','四','五','六','七','八'][n-1]}章_品勢教案_國小生版.pptx`,meta:'11張'}))}
+];
 const STATUS=[['draft','草稿','b-draft'],['disc','討論中','b-disc'],['wait','待確認','b-wait'],
   ['pub','已發布','b-pub'],['done','已完成','b-done'],['lock','已鎖定','b-lock']];
 const SYNC_DATA_STORES=DATA_STORES.filter(s=>s!=='audit_logs');
@@ -1257,9 +1285,9 @@ const App={
     {key:'more',label:'更多',icon:'grid',roles:['admin','head','assistant']},
   ],
   // 內部 area -> 底部/側邊要高亮的分頁（備課流程、討論歸「今日」；課後歸「我的任務」；模板/熱身/PDF 歸「課程庫」）
-  navOf(area){return {plan:'today',team:'today',discuss:'today',report:'mytasks',pdf:'library',templates:'library',warmups:'library',sop:'library'}[area]||area;},
+  navOf(area){return {plan:'today',team:'today',discuss:'today',report:'mytasks',pdf:'library',templates:'library',warmups:'library',sop:'library',pptlessons:'library'}[area]||area;},
   VIEW_AREA:{home:'today',live:'today',quickplan:'plan',classinfo:'plan',stats:'plan',groups:'plan',plan:'plan',coachtasks:'plan',confirm:'plan',publish:'plan',
-    week:'week',pdf:'library',library:'library',templates:'library',warmups:'library',sop:'library',
+    week:'week',pdf:'library',library:'library',templates:'library',warmups:'library',sop:'library',pptlessons:'library',
     mytasks:'mytasks',report:'mytasks',team:'today',discuss:'today',
     more:'more',students:'more',classes:'more',coaches:'more',import:'more',settings:'more'},
   areaDefault(key){
@@ -1886,6 +1914,7 @@ Views.view_library=function(el){
   const head=can('*')||State.user.role==='head';
   const items=[
     ['sop','SOP 教案庫','雄麒 9 級 × 16 堂教案、器材庫、錯誤診斷',svg('layers',22),head],
+    ['pptlessons','PPT 教案庫','單堂教案、色帶級別、國小生太極版索引與套用',svg('book',22),head],
     ['templates','課程模板','常用段落與教材庫，可重複套用',svg('book',22),head],
     ['warmups','熱身動作庫','熱身快選項目與 Tabata 設定',svg('play',22),head],
     ['week','歷史課程','用本週檢視切換週次查看過往課程',svg('calendar',22),head],
@@ -1894,6 +1923,92 @@ Views.view_library=function(el){
   el.innerHTML=`<div class="sect-head"><h3>課程庫</h3></div>
   <p class="muted" style="margin:0 0 10px">備課用到的教材、熱身與輸出都在這裡；每日備課請從「今日」開始。</p>
   <div class="menu">${items.map(i=>`<button class="mrow" onclick="App.go('${i[0]}')"><span class="mi">${i[3]}</span><span class="mt"><b>${i[1]}</b><span>${i[2]}</span></span><span class="chev">${svg('chevron',18)}</span></button>`).join('')}</div>`;
+};
+/* ---------- PPT 教案庫（索引 + 單堂套用） ---------- */
+function pptPath(file){return PPT_SOURCE_ROOT+'\\'+file;}
+function pptSingle(id){return PPT_SINGLE_LESSONS.find(x=>x.id===id);}
+Views.view_pptlessons=function(el){
+  const tab=Views._pptTab||'single';
+  const q=(Views._pptQ||'').trim();
+  const sec=PPT_INDEX_SECTIONS.find(s=>s.key===tab)||PPT_INDEX_SECTIONS[0];
+  let items=sec.items;
+  if(q)items=items.filter(x=>(x.title+' '+x.file+' '+(x.cat||'')).includes(q));
+  Views._pptVisible={kind:sec.key,items};
+  el.innerHTML=`<div class="sect-head"><h3>PPT 教案庫</h3><span class="sp" style="flex:1"></span><span class="tag">${PPT_SINGLE_LESSONS.length} 份可套用</span></div>
+    <div class="card"><div class="field" style="margin:0"><label class="sm">搜尋教案</label><input value="${esc(q)}" placeholder="輸入白帶、前踢、太極三章、側踢…" oninput="Views._pptQ=this.value;App.go('pptlessons')"></div>
+      <div class="tabs" style="margin-top:10px">${PPT_INDEX_SECTIONS.map(s=>`<button class="${s.key===tab?'on':''}" onclick="Views._pptTab='${s.key}';App.go('pptlessons')">${esc(s.name)}</button>`).join('')}</div>
+      <p class="muted" style="margin:8px 0 0">${esc(sec.desc)}</p></div>
+    <div class="grid g2" style="margin-top:12px">${items.map((x,i)=>Views.pptLessonCard(sec.key,x,i)).join('')||'<div class="empty">找不到符合的教案</div>'}</div>`;
+};
+Views.pptLessonCard=function(kind,x,idx){
+  const canApply=kind==='single';
+  return `<div class="card"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">${esc(x.title)}</h3><span class="sp" style="flex:1"></span><span class="tag">${esc(x.cat||x.meta||'PPT')}</span></div>
+    ${x.focus?`<div class="kv"><b>核心</b><span style="text-align:right">${esc(x.focus)}</span></div>`:''}
+    ${x.checks?`<div class="kv"><b>檢查點</b><span style="text-align:right">${esc(x.checks.join('／'))}</span></div>`:''}
+    <div class="kv"><b>檔案</b><span style="text-align:right;font-size:12px">${esc(x.file)}</span></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn xs g" onclick="${canApply?`Views.pptOpen('${x.id}')`:`Views.pptIndexOpen('${kind}',${idx})`}">查看</button>
+      ${canApply?`<button class="btn xs" onclick="Views.pptApply('${x.id}')">套用到今日備課</button>`:''}
+    </div></div>`;
+};
+Views.pptIndexOpen=function(kind,idx){
+  const visible=Views._pptVisible&&Views._pptVisible.kind===kind?Views._pptVisible.items:null;
+  const sec=PPT_INDEX_SECTIONS.find(s=>s.key===kind),x=(visible||sec?.items||[])[idx];if(!x)return;
+  Modal.open(x.title,`<div class="kv"><b>類型</b><span>${esc(x.meta||'PPT')}</span></div>
+    <div class="kv"><b>檔案位置</b><span style="text-align:right;font-size:12px">${esc(pptPath(x.file))}</span></div>
+    <div class="infobox" style="margin-top:10px">這一類目前先做索引查找；單堂教案已支援一鍵套用到今日備課。</div>
+    <button class="btn block" style="margin-top:10px" onclick="Modal.close()">關閉</button>`);
+};
+Views.pptOpen=function(id){
+  const L=pptSingle(id);if(!L)return;
+  const row=(k,v)=>v?`<div class="kv"><b>${k}</b><span style="text-align:right">${esc(Array.isArray(v)?v.join('／'):v)}</span></div>`:'';
+  Modal.open(L.title,`<div class="infobox" style="margin-top:0"><b>${esc(L.focus)}</b><br><span style="font-size:12px">${esc(pptPath(L.file))}</span></div>
+    ${row('今日檢查點',L.checks)}
+    ${row('熱身體能',L.fit)}
+    ${row('遊戲',L.game)}
+    ${row('分解/強化',L.steps)}
+    ${row('應用挑戰',L.challenge)}
+    ${row('下一堂銜接',L.next)}
+    <div class="row" style="margin-top:12px"><button class="btn secondary grow" onclick="Modal.close()">關閉</button><button class="btn grow" onclick="Views.pptApply('${L.id}')">套用到今日備課</button></div>`);
+};
+Views.pptApply=async function(id){
+  const L=pptSingle(id);if(!L)return;
+  if(!State.ctx.classId){toast('請先選擇今日班別','warn');return;}
+  let dp=findDaily(State.ctx.date,State.ctx.classId);
+  if(!dp)dp=await ensureDaily(State.ctx.date,State.ctx.classId);
+  await save('daily_plans',{...dp,pptLessonId:L.id,pptLessonTitle:L.title,pptLessonFile:L.file});
+  dp=findDaily(State.ctx.date,State.ctx.classId)||dp;
+  const tl=timelineOfPlan(dp);
+  const put=async(key,fields)=>{
+    const t=tl.find(x=>x.key===key);if(!t)return;
+    const cur=C('lesson_blocks').find(x=>x.daily_plan_id===dp.id&&x.block_type===key&&!x.training_group_id)
+      ||{id:uid('lb'),daily_plan_id:dp.id,training_group_id:null,block_type:key,start_minute:t.s,end_minute:t.e,done:false};
+    await save('lesson_blocks',{...cur,...fields});
+  };
+  const checks=L.checks.join('／');
+  await put('warmup',{content:`集合、敬禮、點名；完整示範一次今日主題：${L.focus}\n主題式暖身服務主課，安全先講清楚。`,goal:'收心、建立今日核心目標',equipment:'碼表、地面標記',safety_notes:'踢擊線與回程線分開；持靶者站穩再喊開始；先演練停止口令。'});
+  await put('fitness',{content:`${L.fit}\n遊戲：${L.game}`,goal:`為主課建立身體能力：${L.fit}`,tags:['平衡','協調','專項暖身'].filter(Boolean),formation:'棋盤式',formationOther:''});
+  await put('apply',{content:`${L.challenge}\n【今日驗收】每人依三個檢查點檢核：${checks}。10次中至少8次達標列為通過；未達標列入補強或退階名單。`,goal:'把主技術帶進應用並完成當堂驗收',equipment:'踢靶、地面標記、碼表',applyType:L.challenge.includes('闖關')?'闖關':L.challenge.includes('測驗')?'模擬比賽':'挑戰',safety_notes:`常見處理：看到動作品質下降就降速或退階。檢查點：${checks}`});
+  await put('review',{remind:`學生能說出今日三重點：${checks}`,preview:L.next,note:'課後紀錄請填：通過／需加強／尚未掌握名單、最多人做錯項目、下堂修改。'});
+  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  for(const g of groups){
+    const t=tl.find(x=>x.key==='group');
+    const cur=C('lesson_blocks').find(x=>x.daily_plan_id===dp.id&&x.block_type==='group'&&x.training_group_id===g.id)
+      ||{id:uid('lb'),daily_plan_id:dp.id,training_group_id:g.id,block_type:'group',start_minute:t.s,end_minute:t.e,done:false};
+    await save('lesson_blocks',{...cur,basic:L.title,kick:L.focus,poomsae:'',goal:`${L.focus}；檢查點：${checks}`,commonErr:'依PPT常見錯誤表現場退階修正',equipment:'踢靶、地面標記、碼表',
+      skillA:'退回分解、扶牆或低速；只要求第一個檢查點先穩定。',skillB:`完成本堂標準：${checks}，10次中8次達標。`,skillC:'加入移動、反應、左右腳或情境，但不能犧牲收腿與落地。'});
+  }
+  await audit('ppt_apply','daily_plans',dp.id,null,{lesson:L.id,title:L.title});
+  Modal.close();
+  toast(`已套用 ${L.title}${groups.length?'（含 '+groups.length+' 組分級內容）':'（尚未分組，分組後可再套用一次）'}`,'ok');
+  App.go('plan','plan');
+};
+Views.pptPlanCard=function(dp){
+  if(!dp||!dp.pptLessonId)return '';
+  return `<div class="card" style="border-left:3px solid var(--color-info)">
+    <div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">PPT 單堂教案｜${esc(dp.pptLessonTitle||'已套用')}</h3><span class="sp" style="flex:1"></span><span class="tag">PPT</span></div>
+    <div class="kv"><b>來源檔案</b><span style="text-align:right;font-size:12px">${esc(dp.pptLessonFile||'')}</span></div>
+    <div class="row" style="margin-top:8px"><button class="btn xs g" onclick="Views.pptOpen('${dp.pptLessonId}')">看教案摘要</button><button class="btn xs g" onclick="App.go('pptlessons')">換一堂</button></div></div>`;
 };
 /* ---------- 管理中心（更多） ---------- */
 Views.view_more=function(el){
@@ -2850,7 +2965,7 @@ Views.renderPlan=function(){
   const stName=id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'?';};
   const getBlk=(type,gid=null)=>blocks.find(b=>b.block_type===type&&(gid?b.training_group_id===gid:!b.training_group_id));
   body.innerHTML=`
-    ${Views.sopPlanCard(dp)}
+    ${Views.sopPlanCard(dp)}${Views.pptPlanCard(dp)}
     <div class="card">
       <div class="row"><h3 style="margin:0">${WEEKDAYS[wd]} 課程 ${badge(dp.status)}</h3><div style="flex:1"></div>
         <span class="muted">預計 ${dp.expected_count} 人・${groups.length} 組・修訂 v${dp.revision}</span></div>
