@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.18.1-internal';
+const APP_VERSION='1.18.2-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -967,6 +967,14 @@ const Stats={
   coachesAvailable(weekdayIdx){
     return C('profiles').filter(p=>p.active&&Stats.countsAsCoach(p)&&
       (!p.available_weekdays||!p.available_weekdays.length||p.available_weekdays.includes(WEEKDAYS[weekdayIdx])));
+  },
+  coachesForPlan(weekdayIdx,classId){
+    const avail=Stats.coachesAvailable(weekdayIdx);
+    if(avail.length)return avail;
+    const cls=C('classes').find(c=>c.id===classId);
+    const defaults=(cls?.default_coach_ids||[]).map(id=>C('profiles').find(p=>p.id===id&&p.active&&Stats.countsAsCoach(p))).filter(Boolean);
+    if(defaults.length)return defaults;
+    return C('profiles').filter(p=>p.active&&Stats.countsAsCoach(p));
   },
   // 實際用於分組的名單：已確認出席(confirmed)+臨時到課(walk_in)；若尚未點名則暫用預計名單
   attendingFor(date,classId){
@@ -2123,7 +2131,8 @@ Views.setTeamRole=async function(dpId,cid,role){const dp=C('daily_plans').find(d
 function ctTeamCard(dp){
   const wd=weekdayOf(dp.date);
   const coaches=C('profiles').filter(p=>p.active&&['admin','head','assistant'].includes(p.role));
-  const avail=coaches.filter(p=>!(p.available_weekdays&&p.available_weekdays.length)||p.available_weekdays.includes(WEEKDAYS[wd]));
+  const assigned=new Set(teamSlots(dp).filter(Boolean));
+  const avail=coaches.filter(p=>assigned.has(p.id)||!(p.available_weekdays&&p.available_weekdays.length)||p.available_weekdays.includes(WEEKDAYS[wd]));
   const t=teamSlots(dp),n=teamCoaches(dp).length;
   const labels=['主責教練','教練 / 助教 2','教練 / 助教 3','教練 / 助教 4'];
   const roles4=['固定帶組','全場巡視','個別修正','器材支援','安全支援','機動代班','紀錄與拍攝'];
@@ -2845,7 +2854,7 @@ Views.view_quickplan=function(el){
 Views.quickContext=function(){
   const classId=$('#qClass')?.value||State.ctx.classId,date=$('#qDate')?.value||State.ctx.date,wd=weekdayOf(date);
   return {classId,date,wd,goal:$('#qGoal')?.value||'基本動作穩定',groupMode:$('#qGroup')?.value||'level',intensity:$('#qIntensity')?.value||'中',
-    list:Stats.studentsFor(classId,wd),coaches:Stats.coachesAvailable(wd)};
+    list:Stats.studentsFor(classId,wd),coaches:Stats.coachesForPlan(wd,classId)};
 };
 Views.quickPreview=function(text,withNext){const box=$('#quickPreview');if(!box)return;
   box.innerHTML=`<pre class="codebox">${esc(text)}</pre>`+(withNext===false?'':
