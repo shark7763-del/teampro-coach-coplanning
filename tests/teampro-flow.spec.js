@@ -194,10 +194,10 @@ test('10–30′ 熱身可設定隊形，「其他」可自行輸入且會印進
   await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
 
   await page.evaluate(() => App.go('plan', 'plan'));
-  // 隊形下拉存在，且五個選項都在
-  const sel = page.locator('select').filter({ hasText: '散開棋盤式' }).first();
+  // 隊形下拉存在，且 SOP 六種隊形＋其他都在
+  const sel = page.locator('select').filter({ hasText: '棋盤式' }).first();
   await expect(sel).toBeVisible();
-  for (const o of ['散開棋盤式', '流水線（三排）', '流水線（七排）', '兩人一組', '其他（自行輸入）']) {
+  for (const o of ['棋盤式', '流水線（三排）', '三人一組', '兩人一組', '循環站（多站輪轉）', '分站／測驗站', '其他（自行輸入）']) {
     await expect(sel.locator('option', { hasText: o }).first()).toHaveCount(1);
   }
 
@@ -216,11 +216,11 @@ test('10–30′ 熱身可設定隊形，「其他」可自行輸入且會印進
   expect(html).toContain('隊形:四角落定點');
 
   // 切回一般隊形時要清掉舊的自訂文字，避免殘留
-  await page.evaluate(() => Views.wSetFormation(planStatus(State.ctx.date, State.ctx.classId).dp.id, '散開棋盤式'));
-  expect(await page.evaluate(() => formationText(getFitBlock(planStatus(State.ctx.date, State.ctx.classId).dp.id)))).toBe('散開棋盤式');
+  await page.evaluate(() => Views.wSetFormation(planStatus(State.ctx.date, State.ctx.classId).dp.id, '棋盤式'));
+  expect(await page.evaluate(() => formationText(getFitBlock(planStatus(State.ctx.date, State.ctx.classId).dp.id)))).toBe('棋盤式');
 });
 
-test('組內分流：標記熟練／待加強，存得住、印得出、下一堂自動沿用', async ({ page }) => {
+test('組內分流 Level A/B/C：標記存得住、印得出、下一堂自動沿用', async ({ page }) => {
   await seedAndLogin(page);
   await page.evaluate(() => App.go('quickplan', 'plan'));
   await page.getByRole('button', { name: '產生五階段初稿' }).click();
@@ -232,13 +232,14 @@ test('組內分流：標記熟練／待加強，存得住、印得出、下一�
   expect(before).toBeGreaterThan(1);
 
   await g0.getByRole('button', { name: /組內分流/ }).click();
-  await g0.locator('.stu').nth(0).click();               // 未標 → 熟練
-  await g0.locator('.stu').nth(1).click();               // 未標 → 熟練
-  await g0.locator('.stu').nth(1).click();               // 熟練 → 待加強
+  await g0.locator('.stu').nth(0).click();               // 未標 → A 退階
+  await g0.locator('.stu').nth(1).click();               // 未標 → A
+  await g0.locator('.stu').nth(1).click();               // A → B 標準
+  await g0.locator('.stu').nth(1).click();               // B → C 進階
   // 分流模式下點學員是切換標記，不是把人搬走
   expect(await g0.locator('.stu').count()).toBe(before);
-  await expect(g0).toContainText('✅');
-  await expect(g0).toContainText('⚠️');
+  await expect(g0).toContainText('🔧');
+  await expect(g0).toContainText('🔥');
 
   const gid = await page.evaluate(() => Views._groupState.groups[0].id);
   await page.getByRole('button', { name: /儲存分組到今日備課/ }).click();
@@ -248,25 +249,26 @@ test('組內分流：標記熟練／待加強，存得住、印得出、下一�
   }, gid);
   const saved = await page.evaluate(id => {
     const g = C('training_groups').find(x => x.id === id);
-    return { n: (g.students || []).length, A: skillRoster(g, 'A').length, B: skillRoster(g, 'B').length };
+    return { n: (g.students || []).length, A: skillRoster(g, 'A').length, B: skillRoster(g, 'B').length, C: skillRoster(g, 'C').length };
   }, gid);
   expect(saved.n).toBe(before);   // 人沒有變少
   expect(saved.A).toBe(1);
-  expect(saved.B).toBe(1);
+  expect(saved.B).toBe(0);
+  expect(saved.C).toBe(1);
 
-  // 備課頁出現兩流的內容欄位，填得進去
+  // 備課頁出現三級的內容欄位，填得進去
   await page.evaluate(() => App.go('plan', 'plan'));
   await expect(page.locator('#view')).toContainText('組內分流');
   await page.evaluate(id => {
     const dp = planStatus(State.ctx.date, State.ctx.classId).dp;
-    return Views.saveBlockField(dp.id, 'group', id, 'skillA', '太白圖二整套')
-      .then(() => Views.saveBlockField(dp.id, 'group', id, 'skillB', '太白圖一分解'));
+    return Views.saveBlockField(dp.id, 'group', id, 'skillA', '扶牆分解低速')
+      .then(() => Views.saveBlockField(dp.id, 'group', id, 'skillC', '移動後隨機靶'));
   }, gid);
 
-  // 教練現場版 PDF 兩流都要印出來
+  // 教練現場版 PDF 各級都要印出來
   const html = await page.evaluate(() => Views.buildPDFHtml('coach'));
-  expect(html).toContain('太白圖二整套');
-  expect(html).toContain('太白圖一分解');
+  expect(html).toContain('扶牆分解低速');
+  expect(html).toContain('移動後隨機靶');
 
   // 下一週同一天：重新產生分組時自動沿用上一堂的標記
   await page.evaluate(() => { State.ctx.date = addDays(State.ctx.date, 7); App.go('groups', 'plan'); });
@@ -275,4 +277,96 @@ test('組內分流：標記熟練／待加強，存得住、印得出、下一�
     return gs.reduce((a, g) => a + Object.keys(g.skill || {}).length, 0);
   });
   expect(carried).toBe(2);
+});
+
+test('SOP 教案庫：144 堂載入正確，套用後五階段與 A/B/C 分級內容都帶進備課', async ({ page }) => {
+  await seedAndLogin(page);
+
+  // 資料集完整：9 級 × 16 堂、器材庫、錯誤診斷、八段模板
+  const meta = await page.evaluate(() => ({
+    belts: SOP.belts.length,
+    lessons: SOP.belts.reduce((a, b) => a + b.lessons.length, 0),
+    equip: SOP.equip.length,
+    fixes: SOP.fixes.length,
+    timeline: SOP.timeline.length,
+    white: SOP.belts[0].name + SOP.belts[0].grade,
+    l05: sopS(SOP.belts[1].lessons[4].t),
+  }));
+  expect(meta.belts).toBe(9);
+  expect(meta.lessons).toBe(144);
+  expect(meta.equip).toBeGreaterThan(10);
+  expect(meta.fixes).toBeGreaterThan(5);
+  expect(meta.timeline).toBe(8);
+  expect(meta.white).toBe('白帶0級');
+  expect(meta.l05).toContain('跑步旋踢');
+
+  // 教案庫頁：切到黃帶看得到 16 堂
+  await page.evaluate(() => { Views._sopBelt = 'yellow'; App.go('sop'); });
+  await expect(page.locator('#view')).toContainText('太極一章與移動足技入門');
+  await expect(page.locator('#view')).toContainText('Baseline');   // T8 節點標記
+
+  // 先做出分組，再套用教案（分級內容要寫進每一組）
+  await page.evaluate(() => App.go('quickplan', 'plan'));
+  await page.getByRole('button', { name: '產生五階段初稿' }).click();
+  await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
+
+  await page.evaluate(() => Views.sopApply('yellow', 5));
+  await page.waitForFunction(() => (planStatus(State.ctx.date, State.ctx.classId).dp || {}).sopBelt === 'yellow');
+
+  const applied = await page.evaluate(() => {
+    const dp = planStatus(State.ctx.date, State.ctx.classId).dp;
+    const bl = t => C('lesson_blocks').find(b => b.daily_plan_id === dp.id && b.block_type === t && !b.training_group_id) || {};
+    const g = C('training_groups').find(x => x.daily_plan_id === dp.id);
+    const gb = C('lesson_blocks').find(b => b.daily_plan_id === dp.id && b.block_type === 'group' && b.training_group_id === g.id) || {};
+    return {
+      lesson: dp.sopLesson,
+      warmup: bl('warmup').content || '',
+      fitnessFormation: bl('fitness').formation,
+      applyContent: bl('apply').content || '',
+      preview: bl('review').preview || '',
+      groupBasic: gb.basic, groupKick: gb.kick, groupPoomsae: gb.poomsae,
+      A: gb.skillA || '', B: gb.skillB || '', C: gb.skillC || '',
+    };
+  });
+  expect(applied.lesson).toBe(5);
+  expect(applied.warmup).toContain('點名');                 // 0-5 集合與目標
+  expect(applied.fitnessFormation).toBe('棋盤式');
+  expect(applied.applyContent).toContain('當堂驗收');
+  expect(applied.preview).toContain('Lesson 06');           // 下一堂銜接
+  expect(applied.groupBasic).toContain('跑步旋踢');
+  expect(applied.groupPoomsae).toBe('太極一章');
+  expect(applied.A).toContain('只練腳或只練手');              // Level A 退階
+  expect(applied.B).toContain('10次中8次');                   // Level B 標準
+  expect(applied.C).toContain('移動');                       // Level C 進階
+
+  // 備課頁最上方出現 SOP 教案卡；A/B/C 內容即使還沒分級也看得到並提示去分級
+  await page.evaluate(() => App.go('plan', 'plan'));
+  await expect(page.locator('#view')).toContainText('黃帶 Lesson 05');
+  await expect(page.locator('#view')).toContainText('分級技術練習');
+  await expect(page.locator('#view')).toContainText('還沒把學員分到 A/B/C');
+  const html = await page.evaluate(() => Views.buildPDFHtml('coach'));
+  expect(html).toContain('黃帶 L05');
+});
+
+test('SOP 錯誤診斷可把修正練習帶進今日備課的注意事項', async ({ page }) => {
+  await seedAndLogin(page);
+  await page.evaluate(() => App.go('quickplan', 'plan'));
+  await page.getByRole('button', { name: '產生五階段初稿' }).click();
+  await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
+
+  await page.evaluate(() => { Views._sopTab = '錯誤診斷'; App.go('sop'); });
+  await expect(page.locator('#view')).toContainText('抬膝不穩');
+  await page.getByRole('button', { name: '帶進今日備課' }).first().click();
+  await page.waitForFunction(() => {
+    const dp = planStatus(State.ctx.date, State.ctx.classId).dp;
+    const b = C('lesson_blocks').find(x => x.daily_plan_id === dp.id && x.block_type === 'apply' && !x.training_group_id);
+    return !!(b && (b.safety_notes || '').includes('抬膝不穩'));
+  });
+
+  const notes = await page.evaluate(() => {
+    const dp = planStatus(State.ctx.date, State.ctx.classId).dp;
+    return (C('lesson_blocks').find(b => b.daily_plan_id === dp.id && b.block_type === 'apply' && !b.training_group_id) || {}).safety_notes || '';
+  });
+  expect(notes).toContain('抬膝不穩');
+  expect(notes).toContain('扶持抬膝停2秒');
 });
