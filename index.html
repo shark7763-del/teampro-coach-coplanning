@@ -1941,14 +1941,14 @@ Views.view_pptlessons=function(el){
     <div class="grid g2" style="margin-top:12px">${items.map((x,i)=>Views.pptLessonCard(sec.key,x,i)).join('')||'<div class="empty">找不到符合的教案</div>'}</div>`;
 };
 Views.pptLessonCard=function(kind,x,idx){
-  const canApply=kind==='single';
+  const canApply=true;
   return `<div class="card"><div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">${esc(x.title)}</h3><span class="sp" style="flex:1"></span><span class="tag">${esc(x.cat||x.meta||'PPT')}</span></div>
     ${x.focus?`<div class="kv"><b>核心</b><span style="text-align:right">${esc(x.focus)}</span></div>`:''}
     ${x.checks?`<div class="kv"><b>檢查點</b><span style="text-align:right">${esc(x.checks.join('／'))}</span></div>`:''}
     <div class="kv"><b>檔案</b><span style="text-align:right;font-size:12px">${esc(x.file)}</span></div>
     <div class="row" style="margin-top:8px">
-      <button class="btn xs g" onclick="${canApply?`Views.pptOpen('${x.id}')`:`Views.pptIndexOpen('${kind}',${idx})`}">查看</button>
-      ${canApply?`<button class="btn xs" onclick="Views.pptApply('${x.id}')">套用到今日備課</button>`:''}
+      <button class="btn xs g" onclick="${kind==='single'?`Views.pptOpen('${x.id}')`:`Views.pptIndexOpen('${kind}',${idx})`}">查看</button>
+      <button class="btn xs" onclick="${kind==='single'?`Views.pptApply('${x.id}')`:`Views.pptApplyIndex('${kind}',${idx})`}">套用到今日備課</button>
     </div></div>`;
 };
 Views.pptIndexOpen=function(kind,idx){
@@ -1956,8 +1956,8 @@ Views.pptIndexOpen=function(kind,idx){
   const sec=PPT_INDEX_SECTIONS.find(s=>s.key===kind),x=(visible||sec?.items||[])[idx];if(!x)return;
   Modal.open(x.title,`<div class="kv"><b>類型</b><span>${esc(x.meta||'PPT')}</span></div>
     <div class="kv"><b>檔案位置</b><span style="text-align:right;font-size:12px">${esc(pptPath(x.file))}</span></div>
-    <div class="infobox" style="margin-top:10px">這一類目前先做索引查找；單堂教案已支援一鍵套用到今日備課。</div>
-    <button class="btn block" style="margin-top:10px" onclick="Modal.close()">關閉</button>`);
+    <div class="infobox" style="margin-top:10px">可將這份 PPT 摘要套用到今日備課，系統會先帶入五階段課程骨架；細節可再於備課頁微調。</div>
+    <div class="row" style="margin-top:10px"><button class="btn secondary grow" onclick="Modal.close()">關閉</button><button class="btn grow" onclick="Views.pptApplyIndex('${kind}',${idx})">套用到今日備課</button></div>`);
 };
 Views.pptOpen=function(id){
   const L=pptSingle(id);if(!L)return;
@@ -1973,6 +1973,38 @@ Views.pptOpen=function(id){
 };
 Views.pptApply=async function(id){
   const L=pptSingle(id);if(!L)return;
+  return Views.pptApplyData(L);
+};
+Views.pptIndexLesson=function(kind,idx){
+  const visible=Views._pptVisible&&Views._pptVisible.kind===kind?Views._pptVisible.items:null;
+  const sec=PPT_INDEX_SECTIONS.find(s=>s.key===kind),x=(visible||sec?.items||[])[idx];if(!x)return null;
+  if(kind==='belt'){
+    const poom=(x.title.split('｜')[1]||'本級品勢').trim();
+    return {id:`belt-${idx}`,title:x.title,file:x.file,focus:`依「${x.title}」建立本級訓練方向、分組教學與進階安排。`,
+      checks:['本級核心能力清楚','新品勢/複習品勢與足技主軸明確','課後產出補強與退階名單'],
+      fit:'依本級核心能力安排主題式暖身，先做方向、站姿、支撐腳、落地與安全線。',
+      game:'本級技術分站與短回合檢核',
+      steps:`以${poom}與本級足技為主軸：先示範總覽，再拆成路線、站姿、手法/足技、Timing；低速通過後才加移動或速度。`,
+      challenge:'本級測驗項目分站、模擬流程、弱點補強與退階站。',
+      next:'依級別總覽選下一堂 SOP 或單堂教案，未通過者先進補強/退階站。'};
+  }
+  if(kind==='kids'){
+    const poom=x.title.replace('｜國小生版','');
+    return {id:`kids-${idx}`,title:x.title,file:x.file,focus:`用國小生聽得懂的闖關語言教 ${poom}。`,
+      checks:['路線不走錯','核心動作能做出來','喊聲與頓點清楚'],
+      fit:'方向反應、站姿定格、腳步路線與節奏遊戲。',
+      game:'闖關、小老師互看、口訣回合',
+      steps:`先用短口訣講${poom}今天主角，再用路線闖關、分段慢做、小老師檢查，最後串成完整品勢。`,
+      challenge:'過關挑戰：慢速打一套、同伴指出一個做對重點、教練檢查喊聲與頓點。',
+      next:'下次先複習路線與最容易錯的段落，再進下一章或進階速度。'};
+  }
+  return null;
+};
+Views.pptApplyIndex=async function(kind,idx){
+  const L=Views.pptIndexLesson(kind,idx);if(!L)return;
+  return Views.pptApplyData(L);
+};
+Views.pptApplyData=async function(L){
   if(!State.ctx.classId){toast('請先選擇今日班別','warn');return;}
   let dp=findDaily(State.ctx.date,State.ctx.classId);
   if(!dp)dp=await ensureDaily(State.ctx.date,State.ctx.classId);
