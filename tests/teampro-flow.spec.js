@@ -186,3 +186,93 @@ test('管理者開啟「列入教練排班」後會進入可出席教練名單',
   const heads = await page.evaluate(() => Stats.coachesAvailable(0).filter(p => p.role === 'head').length);
   expect(heads).toBeGreaterThan(0);
 });
+
+test('10–30′ 熱身可設定隊形，「其他」可自行輸入且會印進 PDF', async ({ page }) => {
+  await seedAndLogin(page);
+  await page.evaluate(() => App.go('quickplan', 'plan'));
+  await page.getByRole('button', { name: '產生五階段初稿' }).click();
+  await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
+
+  await page.evaluate(() => App.go('plan', 'plan'));
+  // 隊形下拉存在，且五個選項都在
+  const sel = page.locator('select').filter({ hasText: '散開棋盤式' }).first();
+  await expect(sel).toBeVisible();
+  for (const o of ['散開棋盤式', '流水線（三排）', '流水線（七排）', '兩人一組', '其他（自行輸入）']) {
+    await expect(sel.locator('option', { hasText: o }).first()).toHaveCount(1);
+  }
+
+  // 選一般隊形 → 存進 fitness block
+  await page.evaluate(() => Views.wSetFormation(planStatus(State.ctx.date, State.ctx.classId).dp.id, '兩人一組'));
+  expect(await page.evaluate(() => getFitBlock(planStatus(State.ctx.date, State.ctx.classId).dp.id).formation)).toBe('兩人一組');
+
+  // 選「其他」→ 出現自訂輸入框，內容存得住
+  await page.evaluate(() => Views.wSetFormation(planStatus(State.ctx.date, State.ctx.classId).dp.id, '其他'));
+  await expect(page.locator('input[aria-label="自訂隊形"]')).toBeVisible();
+  await page.evaluate(() => Views.wSetFormationText(planStatus(State.ctx.date, State.ctx.classId).dp.id, '四角落定點'));
+  expect(await page.evaluate(() => formationText(getFitBlock(planStatus(State.ctx.date, State.ctx.classId).dp.id)))).toBe('四角落定點');
+
+  // 教練現場執行版 PDF 要印得出隊形
+  const html = await page.evaluate(() => Views.buildPDFHtml('coach'));
+  expect(html).toContain('隊形:四角落定點');
+
+  // 切回一般隊形時要清掉舊的自訂文字，避免殘留
+  await page.evaluate(() => Views.wSetFormation(planStatus(State.ctx.date, State.ctx.classId).dp.id, '散開棋盤式'));
+  expect(await page.evaluate(() => formationText(getFitBlock(planStatus(State.ctx.date, State.ctx.classId).dp.id)))).toBe('散開棋盤式');
+});
+
+test('組內分流：標記熟練／待加強，存得住、印得出、下一堂自動沿用', async ({ page }) => {
+  await seedAndLogin(page);
+  await page.evaluate(() => App.go('quickplan', 'plan'));
+  await page.getByRole('button', { name: '產生五階段初稿' }).click();
+  await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
+
+  await page.evaluate(() => App.go('groups', 'plan'));
+  const g0 = page.locator('.gcard').first();
+  const before = await g0.locator('.stu').count();
+  expect(before).toBeGreaterThan(1);
+
+  await g0.getByRole('button', { name: /組內分流/ }).click();
+  await g0.locator('.stu').nth(0).click();               // 未標 → 熟練
+  await g0.locator('.stu').nth(1).click();               // 未標 → 熟練
+  await g0.locator('.stu').nth(1).click();               // 熟練 → 待加強
+  // 分流模式下點學員是切換標記，不是把人搬走
+  expect(await g0.locator('.stu').count()).toBe(before);
+  await expect(g0).toContainText('✅');
+  await expect(g0).toContainText('⚠️');
+
+  const gid = await page.evaluate(() => Views._groupState.groups[0].id);
+  await page.getByRole('button', { name: /儲存分組到今日備課/ }).click();
+  await page.waitForFunction(id => {
+    const g = C('training_groups').find(x => x.id === id);
+    return !!(g && Object.keys(g.skill || {}).length === 2);
+  }, gid);
+  const saved = await page.evaluate(id => {
+    const g = C('training_groups').find(x => x.id === id);
+    return { n: (g.students || []).length, A: skillRoster(g, 'A').length, B: skillRoster(g, 'B').length };
+  }, gid);
+  expect(saved.n).toBe(before);   // 人沒有變少
+  expect(saved.A).toBe(1);
+  expect(saved.B).toBe(1);
+
+  // 備課頁出現兩流的內容欄位，填得進去
+  await page.evaluate(() => App.go('plan', 'plan'));
+  await expect(page.locator('#view')).toContainText('組內分流');
+  await page.evaluate(id => {
+    const dp = planStatus(State.ctx.date, State.ctx.classId).dp;
+    return Views.saveBlockField(dp.id, 'group', id, 'skillA', '太白圖二整套')
+      .then(() => Views.saveBlockField(dp.id, 'group', id, 'skillB', '太白圖一分解'));
+  }, gid);
+
+  // 教練現場版 PDF 兩流都要印出來
+  const html = await page.evaluate(() => Views.buildPDFHtml('coach'));
+  expect(html).toContain('太白圖二整套');
+  expect(html).toContain('太白圖一分解');
+
+  // 下一週同一天：重新產生分組時自動沿用上一堂的標記
+  await page.evaluate(() => { State.ctx.date = addDays(State.ctx.date, 7); App.go('groups', 'plan'); });
+  const carried = await page.evaluate(() => {
+    const gs = Views._groupState.groups;
+    return gs.reduce((a, g) => a + Object.keys(g.skill || {}).length, 0);
+  });
+  expect(carried).toBe(2);
+});

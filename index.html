@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.16.0-internal';
+const APP_VERSION='1.17.0-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -2004,6 +2004,8 @@ Views.view_coachtasks=function(el){
     <div class="kv"><b>學員</b><span style="text-align:right">${(g.students||[]).map(sid=>beltDot(stBelt(sid))+stName(sid)).join(' ')||'—'}</span></div>
     <div class="kv"><b>今日目標</b><span>${esc(gb.goal||g.target||'—')}</span></div>
     <div class="kv"><b>內容</b><span>${esc([gb.basic&&('基本:'+gb.basic),gb.kick&&('腿法:'+gb.kick),gb.poomsae&&('品勢:'+gb.poomsae),gb.spar&&('對練:'+gb.spar)].filter(Boolean).join('・')||'—')}</span></div>
+    ${hasSplit(g)?`<div class="kv"><b>✅${SKILL_LABEL.A}（${skillRoster(g,'A').length}）</b><span style="text-align:right">${esc(skillNames(g,'A').join('、')||'—')}${gb.skillA?'<br>→ '+esc(gb.skillA):''}</span></div>
+    <div class="kv"><b>⚠️${SKILL_LABEL.B}（${skillRoster(g,'B').length}）</b><span style="text-align:right">${esc(skillNames(g,'B').join('、')||'—')}${gb.skillB?'<br>→ '+esc(gb.skillB):''}</span></div>`:''}
     <div class="kv"><b>器材</b><span>${esc(gb.equipment||'—')}</span></div>
     <div class="kv"><b>注意</b><span>${esc(gb.commonErr||gb.safety_notes||'—')}</span></div>
     <button class="btn g xs" style="margin-top:6px" onclick="App.go('groups','plan')">調整教練 / 內容</button></div>`;}).join('')
@@ -2082,7 +2084,8 @@ Views.view_live=function(el){
   const sb=blocks.find(b=>b.block_type===bl.key&&!b.training_group_id)||{};
   const coach=id=>{const p=C('profiles').find(x=>x.id===id);return p?p.name:'—';};
   const focus=bl.key==='group'
-    ? (groups.length?groups.map(g=>{const gb=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};return `<div class="kv"><b>${esc(g.name)}（${esc(coach(g.coach_id))}）</b><span>${esc([gb.basic,gb.kick].filter(Boolean).join('・')||g.target||'—')}</span></div>`;}).join(''):'<div class="muted">尚未分組</div>')
+    ? (groups.length?groups.map(g=>{const gb=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};return `<div class="kv"><b>${esc(g.name)}（${esc(coach(g.coach_id))}）</b><span>${esc([gb.basic,gb.kick].filter(Boolean).join('・')||g.target||'—')}</span></div>`
+        +(hasSplit(g)?`<div class="kv"><b>　✅${SKILL_LABEL.A}</b><span>${esc(skillNames(g,'A').join('、'))}${gb.skillA?'：'+esc(gb.skillA):''}</span></div><div class="kv"><b>　⚠️${SKILL_LABEL.B}</b><span>${esc(skillNames(g,'B').join('、'))}${gb.skillB?'：'+esc(gb.skillB):''}</span></div>`:'');}).join(''):'<div class="muted">尚未分組</div>')
     : `<div class="kv"><b>內容</b><span>${esc(sb.content||[sb.praise,sb.remind].filter(Boolean).join('；')||'—')}</span></div>`;
   el.innerHTML=`
   <div class="live"><div class="nxt">第 ${idx+1}/5 階段・${cl?esc(cl.name):''}</div>
@@ -2090,7 +2093,7 @@ Views.view_live=function(el){
     <div class="clock" id="liveClock" aria-live="polite">--:--</div>
     <div class="nxt">${idx<4?'下一段：'+LTL[idx+1].name:'最後一段'}　｜　負責：${esc(coach(sb.responsible_coach_id))}</div></div>
   <div class="card" style="margin-top:12px"><div class="sect-head" style="margin-top:0"><h3>本階段重點</h3></div>
-    ${focus}<div class="kv"><b>器材</b><span>${esc(sb.equipment||'—')}</span></div>
+    ${focus}${formationText(sb)?`<div class="kv"><b>隊形</b><span>${esc(formationText(sb))}</span></div>`:''}<div class="kv"><b>器材</b><span>${esc(sb.equipment||'—')}</span></div>
     <div class="kv"><b>安全提醒</b><span>${esc(sb.safety_notes||'—')}</span></div></div>
   <div class="live-btns">
     <button class="btn ok" onclick="Views.liveDone()">完成本階段</button>
@@ -2479,6 +2482,29 @@ Views.toggleCoachActive=async function(id){if(id===State.user.id){toast('不可�
 <script>
 /* ---------- GROUPS (分組建議 + 拖曳/點選調整) ---------- */
 Views._groupState=null;
+/* ---------- 組內分流（同一組、同一位教練，分「熟練 / 待加強」兩流） ----------
+   標記存在「當日這一組」上（g.skill = {學員id:'A'|'B'}），不是學員的永久屬性，
+   因為熟練與否是對「今天練的這一型」而言；只用上一堂的標記當預設值。 */
+const SKILL_LABEL={A:'熟練',B:'待加強'};
+const SKILL_ICON={A:'✅',B:'⚠️'};
+function skillOf(g,sid){return (g&&g.skill&&g.skill[sid])||'';}
+function skillRoster(g,k){return (g.students||[]).filter(sid=>skillOf(g,sid)===k);}
+function hasSplit(g){return !!(g&&(g.students||[]).some(sid=>skillOf(g,sid)));}
+function skillNames(g,k){return skillRoster(g,k).map(id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'';}).filter(Boolean);}
+function skillSummary(g){return hasSplit(g)?`✅${SKILL_LABEL.A} ${skillRoster(g,'A').length} 人・⚠️${SKILL_LABEL.B} ${skillRoster(g,'B').length} 人`:'';}
+/* 同班別、今日之前最近一次標記過的課 → 當作預設值，教練仍可改 */
+function skillHistory(classId,beforeDate){
+  const dps=C('daily_plans').filter(d=>d.class_id===classId&&d.date<beforeDate).sort((a,b)=>a.date<b.date?-1:1);
+  const map={};
+  dps.forEach(d=>C('training_groups').filter(g=>g.daily_plan_id===d.id)
+    .forEach(g=>Object.keys(g.skill||{}).forEach(sid=>{if(g.skill[sid])map[sid]=g.skill[sid];})));
+  return map;
+}
+function carrySkill(groups,classId,date){
+  const hist=skillHistory(classId,date);let n=0;
+  groups.forEach(g=>{g.skill=g.skill||{};(g.students||[]).forEach(sid=>{if(!g.skill[sid]&&hist[sid]){g.skill[sid]=hist[sid];n++;}});});
+  return n;
+}
 Views.view_groups=function(el){
   ensureClassCtx();
   const cls=C('classes').filter(c=>c.active);
@@ -2508,7 +2534,13 @@ Views.view_groups=function(el){
   // 已存在分組→載入；沒有→自動產生（預設依色帶），教練可直接調整或儲存
   const dp=findDaily(State.ctx.date,State.ctx.classId);
   const gs=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];
-  if(gs.length){Views._groupState={groups:gs.map(g=>({...g,students:[...(g.students||[])]})),notes:[]};Views.renderGroups(list);}
+  if(gs.length){
+    const copy=gs.map(g=>({...g,students:[...(g.students||[])],skill:{...(g.skill||{})}}));
+    const notes=[];
+    // 只在整份分組都還沒標過時才沿用上一堂，避免蓋掉教練刻意清掉的標記
+    if(!copy.some(hasSplit)){const n=carrySkill(copy,State.ctx.classId,State.ctx.date);if(n)notes.push(`已沿用上一堂的組內分流標記 ${n} 人，請確認後再儲存。`);}
+    Views._groupState={groups:copy,notes};Views.renderGroups(list);
+  }
   else if(list.length){Views.genGroups();}
 };
 Views.genGroups=function(){
@@ -2516,6 +2548,9 @@ Views.genGroups=function(){
   const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
   if(!list.length){toast('此日無學員','warn');return;}
   const res=Grouping.suggest(list,Views._gMode(),Stats.coachesAvailable(wd).length);
+  const carried=carrySkill(res.groups,State.ctx.classId,State.ctx.date);
+  if(carried)res.notes=(res.notes||[]).concat(`已沿用上一堂的組內分流標記 ${carried} 人，請確認後再儲存。`);
+  Views._splitGi=null;
   Views._groupState={groups:res.groups,notes:res.notes};
   Views.renderGroups(list);
   toast('已產生 '+res.groups.length+' 組','ok');
@@ -2537,19 +2572,32 @@ Views.renderGroups=function(list){
         <b contenteditable onblur="Views._groupState.groups[${gi}].name=this.textContent">${esc(g.name)}</b>
         <span class="tag">${g.group_type}</span><span class="muted">${(g.students||[]).length}人</span>
         <div style="flex:1"></div>
+        <button class="btn xs ${Views._splitGi===gi?'ok':'g'}" onclick="Views.toggleSplit(${gi})" title="組內分流：同一位教練帶，分熟練／待加強兩流">${Views._splitGi===gi?'✓ 分流中':'⚡ 組內分流'}</button>
         <button class="btn xs g" onclick="Views.delGroup(${gi})">✕</button>
       </div>
       <div class="row" style="margin-bottom:6px">
         <select onchange="Views._groupState.groups[${gi}].coach_id=this.value" class="grow"><option value="">選教練</option>${coaches.map(c=>`<option value="${c.id}" ${c.id===g.coach_id?'selected':''}>${esc(c.name)}(${ROLE_LABEL[c.role]})</option>`).join('')}</select>
         <select onchange="Views._groupState.groups[${gi}].assistant_id=this.value" class="grow"><option value="">選助教</option>${coaches.filter(c=>c.role==='assistant').map(c=>`<option value="${c.id}" ${c.id===g.assistant_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>
       </div>
-      <div>${(g.students||[]).map(sid=>`<span class="stu ${Views._selStu===sid?'sel':''}" draggable="true" ondragstart="Views._drag='${sid}'" onclick="Views.pickStu('${sid}',${gi})">${beltDot(stBelt(sid))}${esc(stName(sid))}</span>`).join('')||'<span class="muted">（空組）</span>'}</div>
+      <div>${(g.students||[]).map(sid=>{const sk=skillOf(g,sid);const split=Views._splitGi===gi;
+        return `<span class="stu ${Views._selStu===sid?'sel':''}" draggable="${split?'false':'true'}" ondragstart="Views._drag='${sid}'" title="${sk?esc(SKILL_LABEL[sk]):''}" onclick="${split?`Views.cycleSkill(${gi},'${sid}')`:`Views.pickStu('${sid}',${gi})`}">${sk?SKILL_ICON[sk]:''}${beltDot(stBelt(sid))}${esc(stName(sid))}</span>`;}).join('')||'<span class="muted">（空組）</span>'}</div>
+      ${Views._splitGi===gi
+        ?`<div class="infobox" style="margin-top:6px">點學員切換：未標 → ✅${SKILL_LABEL.A} → ⚠️${SKILL_LABEL.B} → 未標。目前 ${skillSummary(g)||'尚未標記'}。兩流各自要練什麼，在下一步「課程內容」填。</div>`
+        :hasSplit(g)?`<div class="muted" style="margin-top:4px">組內分流：${skillSummary(g)}</div>`:''}
     </div>`).join('')}
     ${val.unassigned.length?`<div class="gcard" data-gi="-1" ondragover="event.preventDefault();this.classList.add('drop')" ondragleave="this.classList.remove('drop')" ondrop="Views.dropStu(event,-1)"><div class="gh"><b>未分組</b><span class="muted">${val.unassigned.length}人</span></div>
       <div class="pool">${val.unassigned.map(s=>`<span class="stu ${Views._selStu===s.id?'sel':''}" draggable="true" ondragstart="Views._drag='${s.id}'" onclick="Views.pickStu('${s.id}',-1)">${beltDot(s.belt_rank)}${esc(s.name)}</span>`).join('')}</div></div>`:''}
     <div class="actionbar"><button class="btn secondary" onclick="App.go('stats','plan')">返回人數</button><span class="sp"></span><button class="btn" onclick="Views.saveGroups(true)">儲存並進入備課</button></div>`;
 };
-Views._selStu=null;Views._drag=null;
+Views._selStu=null;Views._drag=null;Views._splitGi=null;
+Views.toggleSplit=function(gi){Views._splitGi=(Views._splitGi===gi?null:gi);Views._selStu=null;Views.reRenderGroups();};
+Views.cycleSkill=function(gi,sid){
+  const g=Views._groupState.groups[gi];if(!g)return;
+  g.skill=g.skill||{};const cur=g.skill[sid]||'';
+  const next=cur===''?'A':cur==='A'?'B':'';
+  if(next)g.skill[sid]=next;else delete g.skill[sid];
+  Views.reRenderGroups();
+};
 Views.pickStu=function(sid,gi){
   if(Views._selStu===sid){Views._selStu=null;Views.reRenderGroups();return;}
   if(Views._selStu){ // 已選 -> 搬移到 gi
@@ -2557,15 +2605,15 @@ Views.pickStu=function(sid,gi){
   }else{Views._selStu=sid;Views.reRenderGroups();}
 };
 Views.moveStu=function(sid,toGi){
-  const gs=Views._groupState.groups;
-  gs.forEach(g=>{g.students=(g.students||[]).filter(x=>x!==sid);});
-  if(toGi>=0)gs[toGi].students.push(sid);
+  const gs=Views._groupState.groups;let mark='';
+  gs.forEach(g=>{if(g.skill&&g.skill[sid]){mark=g.skill[sid];delete g.skill[sid];}g.students=(g.students||[]).filter(x=>x!==sid);});
+  if(toGi>=0){gs[toGi].students.push(sid);if(mark){gs[toGi].skill=gs[toGi].skill||{};gs[toGi].skill[sid]=mark;}} // 換組時分流標記跟著走
   Views.reRenderGroups();
 };
 Views.dropStu=function(e,gi){e.preventDefault();if(Views._drag){Views.moveStu(Views._drag,gi);Views._drag=null;}};
 Views.reRenderGroups=function(){const wd=weekdayOf(State.ctx.date);Views.renderGroups(Stats.attendingFor(State.ctx.date,State.ctx.classId));};
-Views.addGroup=function(){Views._groupState.groups.push({id:uid('g'),name:'新組別',group_type:'基礎',coach_id:'',assistant_id:'',students:[]});Views.reRenderGroups();};
-Views.delGroup=function(gi){Views._groupState.groups.splice(gi,1);Views.reRenderGroups();};
+Views.addGroup=function(){Views._groupState.groups.push({id:uid('g'),name:'新組別',group_type:'基礎',coach_id:'',assistant_id:'',students:[],skill:{}});Views.reRenderGroups();};
+Views.delGroup=function(gi){Views._groupState.groups.splice(gi,1);Views._splitGi=null;Views.reRenderGroups();};
 Views.saveGroups=async function(next){
   const wd=weekdayOf(State.ctx.date);
   const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
@@ -2579,7 +2627,8 @@ Views.saveGroups=async function(next){
   for(const g of oldGs)await remove('training_groups',g.id);
   for(const g of Views._groupState.groups){
     await save('training_groups',{id:g.id||uid('g'),daily_plan_id:dp.id,name:g.name,group_type:g.group_type,
-      coach_id:g.coach_id||'',assistant_id:g.assistant_id||'',target:g.target||'',notes:g.notes||'',students:g.students||[]});
+      coach_id:g.coach_id||'',assistant_id:g.assistant_id||'',target:g.target||'',notes:g.notes||'',students:g.students||[],
+      skill:Object.fromEntries(Object.entries(g.skill||{}).filter(([sid,v])=>v&&(g.students||[]).includes(sid)))});
   }
   await audit('save_groups','training_groups',dp.id,null,{count:Views._groupState.groups.length});
   toast(val.issues.length?'已儲存（仍有提醒）':'分組已儲存','ok');
@@ -2816,7 +2865,16 @@ Views.renderGroupBlocks=function(dp,groups,blocks,canEdit,stName){
         <div class="grow"><label class="sm">對練</label><input value="${esc(b.spar||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','spar',this.value)"></div></div>
       <div class="row" style="margin-top:6px"><div class="grow"><label class="sm">今日目標</label><input value="${esc(b.goal||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','goal',this.value)"></div>
         <div class="grow"><label class="sm">常見錯誤/注意</label><input value="${esc(b.commonErr||'')}" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','commonErr',this.value)"></div></div>
-      `:`<div class="kv"><b>基本動作</b><span>${esc(b.basic||'—')}</span></div><div class="kv"><b>目標</b><span>${esc(b.goal||'—')}</span></div>`}
+      ${hasSplit(g)?`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">
+        <div class="sm" style="font-weight:600">組內分流（同一位教練帶，分兩流）</div>
+        <label class="sm" style="margin-top:4px">✅ ${SKILL_LABEL.A}（${skillRoster(g,'A').length}人）</label>
+        <div class="muted" style="margin-bottom:2px">${esc(skillNames(g,'A').join('、')||'—')}</div>
+        <input style="width:100%" value="${esc(b.skillA||'')}" placeholder="例如：整套走完＋細節修正、自主複習" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','skillA',this.value)">
+        <label class="sm" style="margin-top:6px">⚠️ ${SKILL_LABEL.B}（${skillRoster(g,'B').length}人）</label>
+        <div class="muted" style="margin-bottom:2px">${esc(skillNames(g,'B').join('、')||'—')}</div>
+        <input style="width:100%" value="${esc(b.skillB||'')}" placeholder="例如：分解動作、教練親自帶回頭補" onchange="Views.saveBlockField('${dp.id}','group','${g.id}','skillB',this.value)">
+        <div class="muted" style="margin-top:4px">分流名單在「分組」頁用「⚡ 組內分流」調整。</div></div>`:''}
+      `:`<div class="kv"><b>基本動作</b><span>${esc(b.basic||'—')}</span></div><div class="kv"><b>目標</b><span>${esc(b.goal||'—')}</span></div>${hasSplit(g)?`<div class="kv"><b>✅${SKILL_LABEL.A}</b><span>${esc(b.skillA||'—')}</span></div><div class="kv"><b>⚠️${SKILL_LABEL.B}</b><span>${esc(b.skillB||'—')}</span></div>`:''}`}
       </div>`;
     }).join(''):'<div class="empty">尚未分組，<a onclick="App.go(\'groups\')">前往分組</a></div>'}
     </div></div>`;
@@ -3062,6 +3120,8 @@ Views.view_mytasks=function(el){
       <div class="divider"></div>
       <div class="kv"><b>30–60′ 基本動作</b><span>${esc(gblk.basic||'—')}</span></div>
       <div class="kv"><b>腿法/品勢</b><span>${esc([gblk.kick,gblk.poomsae].filter(Boolean).join('/')||'—')}</span></div>
+      ${hasSplit(g)?`<div class="kv"><b>✅${SKILL_LABEL.A}（${skillRoster(g,'A').length}）</b><span style="text-align:right">${esc(skillNames(g,'A').join('、')||'—')}${gblk.skillA?'<br>→ '+esc(gblk.skillA):''}</span></div>
+      <div class="kv"><b>⚠️${SKILL_LABEL.B}（${skillRoster(g,'B').length}）</b><span style="text-align:right">${esc(skillNames(g,'B').join('、')||'—')}${gblk.skillB?'<br>→ '+esc(gblk.skillB):''}</span></div>`:''}
       <div class="kv"><b>今日目標</b><span>${esc(gblk.goal||g.target||'—')}</span></div>
       <div class="kv"><b>60–85′ 應用</b><span>${esc(apply.content||'—')}</span></div>
       <div class="kv"><b>器材</b><span>${esc(apply.equipment||gblk.equipment||'—')}</span></div>
@@ -3205,14 +3265,14 @@ Views.buildPDFHtml=function(ver){
     const groupRows=groups.map(g=>{const b=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};
       return `<tr><td><b>${esc(g.name)}</b><br>${esc(coachName(g.coach_id))}</td>
         <td>${(g.students||[]).length}人${ver==='full'?'<br>'+(g.students||[]).map(stName).join('、'):''}</td>
-        <td>${esc([b.basic&&('基本:'+b.basic),b.kick&&('腿法:'+b.kick),b.poomsae&&('品勢:'+b.poomsae),b.spar&&('對練:'+b.spar)].filter(Boolean).join('；')||'—')}</td>
+        <td>${esc([b.basic&&('基本:'+b.basic),b.kick&&('腿法:'+b.kick),b.poomsae&&('品勢:'+b.poomsae),b.spar&&('對練:'+b.spar)].filter(Boolean).join('；')||'—')}${hasSplit(g)?`<div style="margin-top:2px"><b>✅${SKILL_LABEL.A}（${skillRoster(g,'A').length}人）</b>${esc(skillNames(g,'A').join('、'))}：${esc(b.skillA||'—')}<br><b>⚠️${SKILL_LABEL.B}（${skillRoster(g,'B').length}人）</b>${esc(skillNames(g,'B').join('、'))}：${esc(b.skillB||'—')}</div>`:''}</td>
         <td>${esc(b.goal||g.target||'—')}</td></tr>`;}).join('');
     days+=`<div class="pday no-break">
       <h2>${w}（${date}）　預計 ${list.length} 人　${cls?.start_time||''}-${cls?.end_time||''}</h2>
       ${ver==='full'?`<div style="font-size:11px;margin-bottom:4px">年齡：幼兒${sm.age.幼兒}／國小${sm.age.國小}／國中${sm.age.國中}／成人${sm.age.成人}　｜　級別：${BELTS.filter(b=>sm.belt[b]).map(b=>b+sm.belt[b]).join(' ')}</div>`:''}
       <table class="ptbl"><tr><th style="width:14%">時段</th><th>內容</th><th style="width:20%">目標/器材</th></tr>
         <tr><td>0–10′ 做操慢跑</td><td>${esc(warm.content||'集合、禮節、做操、慢跑')}</td><td>${esc(warm.goal||'暖身')}</td></tr>
-        <tr><td>10–30′ 熱身體能</td><td>${fit.warmupMode&&fit.warmupMode!=='全體一起'?'<b>['+esc(fit.warmupMode)+']</b> ':''}${(fit.warmups&&fit.warmups.length)?esc(fit.warmups.map(w=>w.name+(w.target&&w.target!=='全體'?'('+w.target+')':'')+' '+(w.minutes||0)+'分').join('、'))+'　':''}${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
+        <tr><td>10–30′ 熱身體能</td><td>${fit.warmupMode&&fit.warmupMode!=='全體一起'?'<b>['+esc(fit.warmupMode)+']</b> ':''}${formationText(fit)?'<b>[隊形:'+esc(formationText(fit))+']</b> ':''}${(fit.warmups&&fit.warmups.length)?esc(fit.warmups.map(w=>w.name+(w.target&&w.target!=='全體'?'('+w.target+')':'')+' '+(w.minutes||0)+'分').join('、'))+'　':''}${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
         <tr><td colspan="3" style="background:#eef2ff"><b>30–60′ 分組訓練</b></td></tr>
         ${groupRows||'<tr><td colspan="3">（未分組）</td></tr>'}
         <tr><td>60–85′ 應用挑戰</td><td>${esc(app.applyType?('['+app.applyType+'] '):'')}${esc(app.content||'')}</td><td>${esc(app.equipment||'')}</td></tr>
@@ -3414,13 +3474,18 @@ function getFitBlock(dpId){let b=C('lesson_blocks').find(x=>x.daily_plan_id===dp
   return b?{...b,warmups:[...(b.warmups||[])]}:{id:uid('lb'),daily_plan_id:dpId,training_group_id:null,block_type:'fitness',start_minute:timelineOfPlan(C('daily_plans').find(d=>d.id===dpId)).find(x=>x.key==='fitness').s,end_minute:timelineOfPlan(C('daily_plans').find(d=>d.id===dpId)).find(x=>x.key==='fitness').e,warmups:[]};}
 const WARMUP_MODES=['全體一起','幼兒分開','常態分開','分兩區','依分組'];
 const WARMUP_TARGETS=['全體','幼兒','常態班'];
+const FORMATIONS=['散開棋盤式','流水線（三排）','流水線（七排）','兩人一組','其他'];
+/* 隊形顯示字：選「其他」時用教練自行輸入的文字 */
+function formationText(b){if(!b)return '';const f=b.formation||'';return f==='其他'?(b.formationOther||'').trim():f;}
 Views.warmupPanel=function(dp,b){
   const ws=b.warmups||[];const total=ws.reduce((a,w)=>a+(+w.minutes||0),0);const target=(b.end_minute||30)-(b.start_minute||10);
   const col=total===target?'var(--color-success)':total>target?'var(--color-danger)':'var(--color-warning)';
-  const mode=b.warmupMode||'全體一起';const split=mode!=='全體一起';
+  const mode=b.warmupMode||'全體一起';const split=mode!=='全體一起';const fm=b.formation||'';
   return `<div class="card" style="background:var(--color-surface-soft);margin:6px 0;box-shadow:none">
     <div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">熱身快選</h3><span class="sp" style="flex:1"></span><b style="font-size:13px;color:${col}">已安排 ${total}/${target} 分鐘</b></div>
     <div class="row" style="margin-bottom:8px;align-items:center"><label class="sm" style="margin:0;flex:0 0 auto">進行方式</label><select onchange="Views.wSetMode('${dp.id}',this.value)" style="flex:1">${WARMUP_MODES.map(m=>`<option ${m===mode?'selected':''}>${m}</option>`).join('')}</select></div>
+    <div class="row" style="margin-bottom:8px;align-items:center"><label class="sm" style="margin:0;flex:0 0 auto">隊　形</label><select onchange="Views.wSetFormation('${dp.id}',this.value)" style="flex:1"><option value="" ${fm?'':'selected'}>—</option>${FORMATIONS.map(f=>`<option value="${f}" ${f===fm?'selected':''}>${f==='其他'?'其他（自行輸入）':f}</option>`).join('')}</select></div>
+    ${fm==='其他'?`<div style="margin-bottom:8px"><input style="width:100%" placeholder="自行輸入隊形，例如：四角落定點、圓圈繞行…" value="${esc(b.formationOther||'')}" aria-label="自訂隊形" onchange="Views.wSetFormationText('${dp.id}',this.value)"></div>`:''}
     ${ws.length?ws.map((w,i)=>`<div class="row" style="margin-bottom:6px;align-items:center;flex-wrap:nowrap">
       <b style="flex:1;min-width:0">${esc(w.name)}${w.tabata?' <span class="tag">Tabata</span>':''}</b>
       ${split?`<select style="width:auto;flex:0 0 auto" aria-label="對象" onchange="Views.wSetTarget('${dp.id}',${i},this.value)">${WARMUP_TARGETS.map(t=>`<option ${(w.target||'全體')===t?'selected':''}>${t}</option>`).join('')}</select>`:''}
@@ -3433,6 +3498,8 @@ Views.warmupPanel=function(dp,b){
     ${total>target?`<div class="warnbox" style="margin-top:6px">熱身已超過 ${target} 分鐘，請調整分鐘或延長階段。</div>`:total<target&&ws.length?`<div class="muted" style="margin-top:4px">還差 ${target-total} 分鐘。</div>`:''}</div>`;
 };
 Views.wSetMode=async function(dpId,v){const b=getFitBlock(dpId);b.warmupMode=v;await save('lesson_blocks',b);Views.renderPlan();};
+Views.wSetFormation=async function(dpId,v){const b=getFitBlock(dpId);b.formation=v;if(v!=='其他')b.formationOther='';await save('lesson_blocks',b);Views.renderPlan();};
+Views.wSetFormationText=async function(dpId,v){const b=getFitBlock(dpId);b.formationOther=v;await save('lesson_blocks',b);};
 Views.wSetTarget=async function(dpId,i,v){const b=getFitBlock(dpId);if(b.warmups[i]){b.warmups[i].target=v;await save('lesson_blocks',b);Views.renderPlan();}};
 Views.wSetMin=async function(dpId,i,val){const b=getFitBlock(dpId);if(b.warmups[i]){b.warmups[i].minutes=Math.max(0,+val||0);await save('lesson_blocks',b);Views.renderPlan();}};
 Views.wRemove=async function(dpId,i){const b=getFitBlock(dpId);b.warmups.splice(i,1);await save('lesson_blocks',b);Views.renderPlan();};
