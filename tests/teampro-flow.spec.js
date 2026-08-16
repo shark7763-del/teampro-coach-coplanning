@@ -370,3 +370,100 @@ test('SOP 錯誤診斷可把修正練習帶進今日備課的注意事項', asyn
   expect(notes).toContain('抬膝不穩');
   expect(notes).toContain('扶持抬膝停2秒');
 });
+
+test('熱身站表：依人數自動排站、5人角色循環、高風險站准入與備援', async ({ page }) => {
+  await seedAndLogin(page);
+
+  // 資料集：20 張器材卡 + 決策規則都在
+  const meta = await page.evaluate(() => ({
+    cards: WSOP.cards.length, layout: WSOP.layout.length, roles: WSOP.roles.length,
+    whistle: WSOP.whistle.length, risk: WSOP.risk.length, mixed: WSOP.mixed.length,
+    timeline: WSOP.timeline.length, lanes: wLanes().length,
+    laneKeys: wLanes().map(l => l.k),
+    levelDef: Object.keys(WSOP.levelDef).length,
+    preflight: WSOP.preflight.checks.length + WSOP.preflight.fallback.length,
+  }));
+  expect(meta.cards).toBe(20);
+  expect(meta.roles).toBe(5);
+  expect(meta.whistle).toBe(4);
+  expect(meta.timeline).toBe(5);
+  expect(meta.lanes).toBe(4);
+  expect(meta.laneKeys).toEqual(['甲', '乙', '丙', '丁']);   // 站別用甲乙丙丁，不跟 Level A/B/C 撞名
+  expect(meta.levelDef).toBe(3);
+  expect(meta.preflight).toBe(11);
+
+  // 純函式：人數 → 站數（5 人一站，人多加站）
+  const calc = await page.evaluate(() => ({
+    p10: warmupPlan(10, 1, 0).stations,
+    p20: warmupPlan(20, 1, 1).stations,
+    p30: warmupPlan(30, 1, 1).stations,
+    p40: warmupPlan(40, 1, 1).stations,
+    p38: warmupPlan(38, 1, 1).stations,
+    // 40 人無助教：准入表寫「取消」的高風險站要被換掉
+    noAsst: warmupPlan(40, 1, 0).blocked.length,
+    cancelLeft: warmupPlan(40, 1, 0).list.filter(s => /取消/.test((s.riskRule || {}).no || '')).length,
+    dupes: (() => { const e = warmupPlan(40, 1, 0).list.map(s => s.eq); return e.length - new Set(e).size; })(),
+    warn: warmupPlan(40, 1, 0).coachWarn,
+  }));
+  expect(calc.p10).toBe(2);
+  expect(calc.p20).toBe(4);
+  expect(calc.p30).toBe(6);
+  expect(calc.p40).toBe(8);
+  expect(calc.p38).toBe(8);            // 38 人也是 8 站（無條件進位）
+  expect(calc.cancelLeft).toBe(0);     // 不該留下「取消級」高風險站
+  expect(calc.dupes).toBeLessThanOrEqual(2); // 不該整排撞同一項器材
+  expect(calc.warn).toContain('助教');
+
+  // 准入表語意：翻滾墊/攀爬/高欄是「取消級」，電子設備只是故障備援不取消
+  const rules = await page.evaluate(() => ({
+    mat: /取消/.test((wRiskRule('翻滾墊') || {}).no || ''),
+    climb: /取消/.test((wRiskRule('攀爬／懸吊欄杆') || {}).no || ''),
+    hurdle: /取消/.test((wRiskRule('高欄架') || {}).no || ''),
+    electric: /取消/.test((wRiskRule('反應燈球') || {}).no || ''),
+    plain: wRiskRule('台階'),
+    // 40人0助教時，電子設備站保留但要標「需助教守站」並帶故障備援
+    kept: warmupPlan(40, 1, 0).list.filter(s => s.needAssist && s.fallback).length,
+  }));
+  expect(rules.mat).toBe(true);
+  expect(rules.climb).toBe(true);
+  expect(rules.hurdle).toBe(true);
+  expect(rules.electric).toBe(false);
+  expect(rules.plain).toBeNull();
+  expect(rules.kept).toBeGreaterThan(0);
+
+  // 實際排站：每人都有站、每人都有角色
+  await page.evaluate(() => App.go('quickplan', 'plan'));
+  await page.getByRole('button', { name: '產生五階段初稿' }).click();
+  await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
+
+  await page.evaluate(() => App.go('plan', 'plan'));
+  await page.getByRole('button', { name: /依人數排站/ }).click();
+  await page.waitForFunction(() => {
+    const dp = planStatus(State.ctx.date, State.ctx.classId).dp;
+    return !!(getFitBlock(dp.id).stations || {}).list;
+  });
+
+  const st = await page.evaluate(() => {
+    const dp = planStatus(State.ctx.date, State.ctx.classId).dp;
+    const s = getFitBlock(dp.id).stations;
+    const all = s.list.flatMap(x => x.members || []);
+    return {
+      people: s.people, stations: s.stations,
+      assigned: all.length,
+      noRole: all.filter(m => !m.role).length,
+      dupe: all.length - new Set(all.map(m => m.sid)).size,
+      hasCard: s.list.filter(x => x.card).length,
+    };
+  });
+  expect(st.stations).toBe(Math.max(2, Math.ceil(st.people / 5)));
+  expect(st.assigned).toBe(st.people);   // 每個人都被排到站
+  expect(st.noRole).toBe(0);             // 每個人都有角色，沒有人無目的等待
+  expect(st.dupe).toBe(0);               // 沒有人被排到兩站
+  expect(st.hasCard).toBe(st.stations);  // 每站都對到器材卡
+
+  await expect(page.locator('#view')).toContainText('熱身站表');
+
+  // 站表要印進教練現場版 PDF
+  const html = await page.evaluate(() => Views.buildPDFHtml('coach'));
+  expect(html).toContain('站表');
+});
