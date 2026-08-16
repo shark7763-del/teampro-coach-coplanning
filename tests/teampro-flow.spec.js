@@ -467,3 +467,60 @@ test('熱身站表：依人數自動排站、5人角色循環、高風險站准�
   const html = await page.evaluate(() => Views.buildPDFHtml('coach'));
   expect(html).toContain('站表');
 });
+
+test('未分組可一鍵建成組別或自動分配，建成後就能指派教練', async ({ page }) => {
+  await seedAndLogin(page);
+  await page.evaluate(() => App.go('groups', 'plan'));
+
+  // 造出「有組別，但有人沒被分到」的情境：把第一組的人全部倒回未分組
+  const before = await page.evaluate(() => {
+    const g = Views._groupState.groups[0];
+    const moved = (g.students || []).length;
+    g.students = [];
+    Views.reRenderGroups();
+    return { moved, groups: Views._groupState.groups.length };
+  });
+  expect(before.moved).toBeGreaterThan(0);
+
+  const un1 = await page.evaluate(() => Views.unassignedIds().length);
+  expect(un1).toBe(before.moved);
+  await expect(page.locator('.gcard').last()).toContainText('未分組');
+
+  // 一鍵建成新組別 → 未分組清空、多一組、而且該組有教練下拉可選
+  await page.getByRole('button', { name: '＋ 建成新組別' }).click();
+  const after = await page.evaluate(() => ({
+    un: Views.unassignedIds().length,
+    groups: Views._groupState.groups.length,
+    newGroupStudents: (Views._groupState.groups[Views._groupState.groups.length - 1].students || []).length,
+    hasCoachField: 'coach_id' in Views._groupState.groups[Views._groupState.groups.length - 1],
+  }));
+  expect(after.un).toBe(0);
+  expect(after.groups).toBe(before.groups + 1);
+  expect(after.newGroupStudents).toBe(before.moved);
+  expect(after.hasCoachField).toBe(true);
+
+  // 新建的那一組要真的出現「選教練」下拉（未分組區塊沒有，這就是使用者回報的點）
+  const selects = await page.locator('.gcard select').count();
+  expect(selects).toBe(after.groups * 2);   // 每組 選教練 + 選助教
+
+  // 自動分配：再倒回去一次，改用依程度分配到現有組
+  const re = await page.evaluate(() => {
+    const g = Views._groupState.groups.find(x => (x.students || []).length);
+    const n = (g.students || []).length;
+    g.students = [];
+    Views.reRenderGroups();
+    return n;
+  });
+  expect(re).toBeGreaterThan(0);
+  await page.getByRole('button', { name: '自動分配到現有組' }).click();
+  const done = await page.evaluate(() => ({
+    un: Views.unassignedIds().length,
+    total: Views._groupState.groups.reduce((a, g) => a + (g.students || []).length, 0),
+    dupe: (() => {
+      const all = Views._groupState.groups.flatMap(g => g.students || []);
+      return all.length - new Set(all).size;
+    })(),
+  }));
+  expect(done.un).toBe(0);      // 全部排完
+  expect(done.dupe).toBe(0);    // 沒有人被排進兩組
+});

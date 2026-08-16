@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.19.0-internal';
+const APP_VERSION='1.19.1-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -2861,9 +2861,53 @@ Views.renderGroups=function(list){
         ?`<div class="infobox" style="margin-top:6px">點學員切換：未標 → ${SKILL_KEYS.map(k=>SKILL_ICON[k]+SKILL_LABEL[k]).join(' → ')} → 未標。目前 ${skillSummary(g)||'尚未標記'}。<br>各級要練什麼，在下一步「課程內容」填；SOP 規定<b>不得按腰帶硬分</b>，依今天這個技術的實際能力分。</div>`
         :hasSplit(g)?`<div class="muted" style="margin-top:4px">組內分流：${skillSummary(g)}</div>`:''}
     </div>`).join('')}
-    ${val.unassigned.length?`<div class="gcard" data-gi="-1" ondragover="event.preventDefault();this.classList.add('drop')" ondragleave="this.classList.remove('drop')" ondrop="Views.dropStu(event,-1)"><div class="gh"><b>未分組</b><span class="muted">${val.unassigned.length}人</span></div>
+    ${val.unassigned.length?`<div class="gcard" data-gi="-1" ondragover="event.preventDefault();this.classList.add('drop')" ondragleave="this.classList.remove('drop')" ondrop="Views.dropStu(event,-1)"><div class="gh"><b>未分組</b><span class="muted">${val.unassigned.length}人</span>
+      <div style="flex:1"></div>
+      <button class="btn xs" onclick="Views.groupUnassigned()">＋ 建成新組別</button>
+      <button class="btn xs g" onclick="Views.autoAssignUnassigned()">自動分配到現有組</button></div>
+      <div class="muted" style="margin:-2px 0 6px">未分組是暫存區、不是組別，所以沒有教練欄。用上面兩顆把人排進組別後就能選教練。</div>
       <div class="pool">${val.unassigned.map(s=>`<span class="stu ${Views._selStu===s.id?'sel':''}" draggable="true" ondragstart="Views._drag='${s.id}'" onclick="Views.pickStu('${s.id}',-1)">${beltDot(s.belt_rank)}${esc(s.name)}</span>`).join('')}</div></div>`:''}
     <div class="actionbar"><button class="btn secondary" onclick="App.go('stats','plan')">返回人數</button><span class="sp"></span><button class="btn" onclick="Views.saveGroups(true)">儲存並進入備課</button></div>`;
+};
+/* 未分組是暫存區，不是組別（所以沒有 coach_id）。提供兩條出路，避免 15 個人要點 15 次。 */
+Views.unassignedIds=function(){
+  const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
+  const inG=new Set(Views._groupState.groups.flatMap(g=>g.students||[]));
+  return list.filter(s=>!inG.has(s.id)).map(s=>s.id);
+};
+Views.groupUnassigned=function(){
+  const ids=Views.unassignedIds();
+  if(!ids.length){toast('目前沒有未分組學員','warn');return;}
+  const st=C('students');
+  const dims=[...new Set(ids.map(id=>{const s=st.find(x=>x.id===id);return s?levelDim(s):'';}))].filter(Boolean);
+  const name=dims.length===1?dims[0]+'組':'新組別';
+  Views._groupState.groups.push({id:uid('g'),name,group_type:'基礎',coach_id:'',assistant_id:'',students:ids,skill:{}});
+  Views._splitGi=null;Views.reRenderGroups();
+  toast(`已把 ${ids.length} 位建成「${name}」，記得指派教練`,'ok');
+};
+Views.autoAssignUnassigned=function(){
+  const ids=Views.unassignedIds();
+  if(!ids.length){toast('目前沒有未分組學員','warn');return;}
+  const gs=Views._groupState.groups;
+  if(!gs.length){toast('目前沒有任何組別，請先按「＋ 建成新組別」','warn');return;}
+  const st=C('students'),lim=(settings().limits)||{};
+  const mainDim=g=>{const c={};(g.students||[]).forEach(id=>{const s=st.find(x=>x.id===id);if(s){const d=levelDim(s);c[d]=(c[d]||0)+1;}});
+    return Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||'';};
+  const gd=gs.map(g=>({g,dim:mainDim(g)}));
+  let n=0,over=0;
+  ids.forEach(id=>{
+    const s=st.find(x=>x.id===id);if(!s)return;
+    const d=levelDim(s);
+    const same=gd.filter(x=>x.dim===d);
+    const pool=(same.length?same:gd).slice().sort((a,b)=>(a.g.students||[]).length-(b.g.students||[]).length);
+    const cap=x=>{const c=lim[x.g.group_type];return !c||(x.g.students||[]).length<c;};
+    const target=pool.find(cap)||pool[0];
+    if(!target)return;
+    if(!cap(target))over++;
+    (target.g.students=target.g.students||[]).push(id);n++;
+  });
+  Views.reRenderGroups();
+  toast(`已依程度分配 ${n} 位${over?`（其中 ${over} 位使該組超過人數上限）`:''}，請確認`,over?'warn':'ok');
 };
 Views._selStu=null;Views._drag=null;Views._splitGi=null;
 Views.toggleSplit=function(gi){Views._splitGi=(Views._splitGi===gi?null:gi);Views._selStu=null;Views.reRenderGroups();};
