@@ -383,7 +383,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.18.3-internal';
+const APP_VERSION='1.18.4-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -2051,6 +2051,13 @@ Views.pptApplyData=async function(L){
   await save('daily_plans',{...dp,pptLessonId:L.id,pptLessonKind:kind,pptLessonType:typeLabel,pptLessonTitle:L.title,pptLessonFile:L.file,
     pptLessonFocus:L.focus,pptLessonChecks:L.checks,pptLessonFit:L.fit,pptLessonGame:L.game,pptLessonSteps:L.steps,pptLessonChallenge:L.challenge,pptLessonNext:L.next});
   dp=findDaily(State.ctx.date,State.ctx.classId)||dp;
+  const groups=await Views.pptSyncBlocks(dp,L);
+  await audit('ppt_apply','daily_plans',dp.id,null,{lesson:L.id,title:L.title});
+  Modal.close();
+  toast(`已套用 ${L.title}${groups?'（含 '+groups+' 組分級內容）':'（尚未分組，分組後可再套用一次）'}`,'ok');
+  App.go('plan','plan');
+};
+Views.pptSyncBlocks=async function(dp,L){
   const tl=timelineOfPlan(dp);
   const put=async(key,fields)=>{
     const t=tl.find(x=>x.key===key);if(!t)return;
@@ -2058,7 +2065,8 @@ Views.pptApplyData=async function(L){
       ||{id:uid('lb'),daily_plan_id:dp.id,training_group_id:null,block_type:key,start_minute:t.s,end_minute:t.e,done:false};
     await save('lesson_blocks',{...cur,...fields});
   };
-  const checks=L.checks.join('／');
+  const checkArr=(Array.isArray(L.checks)?L.checks:String(L.checks||'').split(/\n|\/|／/)).map(s=>String(s).trim()).filter(Boolean);
+  const checks=(checkArr.length?checkArr:['待設定檢查點']).join('／');
   await put('warmup',{content:`集合、敬禮、點名；完整示範一次今日主題：${L.focus}\n主題式暖身服務主課，安全先講清楚。`,goal:'收心、建立今日核心目標',equipment:'碼表、地面標記',safety_notes:'踢擊線與回程線分開；持靶者站穩再喊開始；先演練停止口令。'});
   await put('fitness',{content:`${L.fit}\n遊戲：${L.game}`,goal:`為主課建立身體能力：${L.fit}`,tags:['平衡','協調','專項暖身'].filter(Boolean),formation:'棋盤式',formationOther:''});
   await put('apply',{content:`${L.challenge}\n【今日驗收】每人依三個檢查點檢核：${checks}。10次中至少8次達標列為通過；未達標列入補強或退階名單。`,goal:'把主技術帶進應用並完成當堂驗收',equipment:'踢靶、地面標記、碼表',applyType:L.challenge.includes('闖關')?'闖關':L.challenge.includes('測驗')?'模擬比賽':'挑戰',safety_notes:`常見處理：看到動作品質下降就降速或退階。檢查點：${checks}`});
@@ -2071,10 +2079,7 @@ Views.pptApplyData=async function(L){
     await save('lesson_blocks',{...cur,basic:L.title,kick:L.focus,poomsae:'',goal:`${L.focus}；檢查點：${checks}`,commonErr:'依PPT常見錯誤表現場退階修正',equipment:'踢靶、地面標記、碼表',
       skillA:'退回分解、扶牆或低速；只要求第一個檢查點先穩定。',skillB:`完成本堂標準：${checks}，10次中8次達標。`,skillC:'加入移動、反應、左右腳或情境，但不能犧牲收腿與落地。'});
   }
-  await audit('ppt_apply','daily_plans',dp.id,null,{lesson:L.id,title:L.title});
-  Modal.close();
-  toast(`已套用 ${L.title}${groups.length?'（含 '+groups.length+' 組分級內容）':'（尚未分組，分組後可再套用一次）'}`,'ok');
-  App.go('plan','plan');
+  return groups.length;
 };
 Views.pptPlanCard=function(dp){
   if(!dp||!dp.pptLessonId)return '';
@@ -2082,22 +2087,55 @@ Views.pptPlanCard=function(dp){
   return `<div class="card" style="border-left:3px solid var(--color-info)">
     <div class="sect-head" style="margin-top:0"><h3 style="font-size:14px">PPT ${esc(type)}｜${esc(dp.pptLessonTitle||'已套用')}</h3><span class="sp" style="flex:1"></span><span class="tag">PPT</span></div>
     <div class="kv"><b>來源檔案</b><span style="text-align:right;font-size:12px">${esc(dp.pptLessonFile||'')}</span></div>
-    <div class="row" style="margin-top:8px"><button class="btn xs g" onclick="Views.pptPlanOpen('${dp.id}')">看教案摘要</button><button class="btn xs g" onclick="App.go('pptlessons')">換一堂</button></div></div>`;
+    <div class="row" style="margin-top:8px"><button class="btn xs g" onclick="Views.pptPlanOpen('${dp.id}')">看教案摘要</button><button class="btn xs" onclick="Views.pptEditOpen('${dp.id}')">編輯摘要</button><button class="btn xs g" onclick="App.go('pptlessons')">換一堂</button></div></div>`;
+};
+Views.pptPlanLesson=function(dp){
+  const L=pptSingle(dp.pptLessonId)||{};
+  return {id:dp.pptLessonId||L.id,kind:dp.pptLessonKind||L.kind||'single',typeLabel:dp.pptLessonType||pptTypeLabel(dp.pptLessonKind||'single'),
+    title:dp.pptLessonTitle||L.title||'PPT 教案',file:dp.pptLessonFile||L.file||'',focus:dp.pptLessonFocus||L.focus||'',
+    checks:dp.pptLessonChecks||L.checks||[],fit:dp.pptLessonFit||L.fit||'',game:dp.pptLessonGame||L.game||'',
+    steps:dp.pptLessonSteps||L.steps||'',challenge:dp.pptLessonChallenge||L.challenge||'',next:dp.pptLessonNext||L.next||''};
 };
 Views.pptPlanOpen=function(dpId){
   const dp=C('daily_plans').find(x=>x.id===dpId);if(!dp)return;
-  const L=pptSingle(dp.pptLessonId);
-  if(L)return Views.pptOpen(L.id);
+  const L=Views.pptPlanLesson(dp);
   const row=(k,v)=>v?`<div class="kv"><b>${k}</b><span style="text-align:right">${esc(Array.isArray(v)?v.join('／'):v)}</span></div>`:'';
-  Modal.open(dp.pptLessonTitle||'PPT 教案摘要',`<div class="infobox" style="margin-top:0"><b>${esc(dp.pptLessonFocus||dp.pptLessonType||'PPT')}</b><br><span style="font-size:12px">${esc(pptPath(dp.pptLessonFile||''))}</span></div>
-    ${row('類型',dp.pptLessonType)}
-    ${row('今日檢查點',dp.pptLessonChecks)}
-    ${row('熱身體能',dp.pptLessonFit)}
-    ${row('遊戲',dp.pptLessonGame)}
-    ${row('分解/強化',dp.pptLessonSteps)}
-    ${row('應用挑戰',dp.pptLessonChallenge)}
-    ${row('下一堂銜接',dp.pptLessonNext)}
+  Modal.open(L.title||'PPT 教案摘要',`<div class="infobox" style="margin-top:0"><b>${esc(L.focus||L.typeLabel||'PPT')}</b><br><span style="font-size:12px">${esc(pptPath(L.file||''))}</span></div>
+    ${row('類型',L.typeLabel)}
+    ${row('今日檢查點',L.checks)}
+    ${row('熱身體能',L.fit)}
+    ${row('遊戲',L.game)}
+    ${row('分解/強化',L.steps)}
+    ${row('應用挑戰',L.challenge)}
+    ${row('下一堂銜接',L.next)}
     <div class="row" style="margin-top:12px"><button class="btn secondary grow" onclick="Modal.close()">關閉</button><button class="btn grow" onclick="App.go('pptlessons')">回 PPT 教案庫</button></div>`);
+};
+Views.pptEditOpen=function(dpId){
+  const dp=C('daily_plans').find(x=>x.id===dpId);if(!dp)return;
+  const L=Views.pptPlanLesson(dp);
+  const field=(id,label,val,rows=3)=>`<div class="field"><label class="sm">${label}</label><textarea id="${id}" rows="${rows}">${esc(Array.isArray(val)?val.join('\n'):val||'')}</textarea></div>`;
+  Modal.open(`編輯摘要｜${L.title}`,`<div class="infobox" style="margin-top:0">儲存後會同步更新今日備課五階段內容與分組 A/B/C。檢查點請一行寫一個。</div>
+    ${field('pptEditFocus','核心',L.focus,3)}
+    ${field('pptEditChecks','檢查點',L.checks,4)}
+    ${field('pptEditFit','熱身體能',L.fit,3)}
+    ${field('pptEditSteps','分解/強化',L.steps,4)}
+    ${field('pptEditChallenge','應用挑戰',L.challenge,3)}
+    ${field('pptEditNext','下一堂銜接',L.next,3)}
+    <div class="row" style="margin-top:12px"><button class="btn secondary grow" onclick="Modal.close()">取消</button><button class="btn grow" onclick="Views.pptEditSave('${dpId}')">儲存並更新五階段</button></div>`);
+};
+Views.pptEditSave=async function(dpId){
+  const dp=C('daily_plans').find(x=>x.id===dpId);if(!dp)return;
+  const v=id=>(document.getElementById(id)?.value||'').trim();
+  const checks=v('pptEditChecks').split(/\n|\/|／/).map(s=>s.trim()).filter(Boolean);
+  if(!v('pptEditFocus')||!checks.length){toast('核心與檢查點不可空白','warn');return;}
+  const L={...Views.pptPlanLesson(dp),focus:v('pptEditFocus'),checks,fit:v('pptEditFit'),game:dp.pptLessonGame||'',steps:v('pptEditSteps'),challenge:v('pptEditChallenge'),next:v('pptEditNext')};
+  await save('daily_plans',{...dp,pptLessonFocus:L.focus,pptLessonChecks:L.checks,pptLessonFit:L.fit,pptLessonSteps:L.steps,pptLessonChallenge:L.challenge,pptLessonNext:L.next});
+  const fresh=C('daily_plans').find(x=>x.id===dpId)||dp;
+  const groups=await Views.pptSyncBlocks(fresh,L);
+  await audit('ppt_edit','daily_plans',dpId,null,{lesson:L.id,title:L.title});
+  Modal.close();
+  toast(`已更新 PPT 摘要與五階段內容${groups?'（含 '+groups+' 組分級內容）':''}`,'ok');
+  App.go('plan','plan');
 };
 /* ---------- 管理中心（更多） ---------- */
 Views.view_more=function(el){
