@@ -307,22 +307,50 @@ textarea{resize:vertical;min-height:60px}
 /* ---------- print / PDF ---------- */
 #print{display:none}
 @media print{
-  @page{size:A4 portrait;margin:12mm}
-  body{background:#fff;font-size:12px}
+  @page{size:A4 portrait;margin:11mm}
+  body{background:#fff;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #shell,#login,#bnav,#toast,#modal{display:none!important}
   #print{display:block!important}
   .pg{page-break-after:always}
   .pg:last-child{page-break-after:auto}
   .no-break{page-break-inside:avoid}
-  .ptbl{width:100%;border-collapse:collapse;font-size:11px}
-  .ptbl th,.ptbl td{border:1px solid #94a3b8;padding:4px 6px;text-align:left;vertical-align:top}
-  .ptbl th{background:#e2e8f0}
-  .phead{border-bottom:3px solid #4f46e5;padding-bottom:8px;margin-bottom:12px}
-  .phead h1{margin:0;font-size:20px}
-  .phead .meta{font-size:11px;color:#475569;margin-top:4px}
-  .pday{border:1px solid #94a3b8;border-radius:6px;padding:10px;margin-bottom:12px}
-  .pday h2{font-size:14px;margin:0 0 6px;background:#4f46e5;color:#fff;padding:5px 8px;border-radius:4px}
+  /* 一日課表允許跨頁（整塊硬擠到下一頁會留下大片空白），改成只保護單列 */
+  .pday{page-break-inside:auto}
+  .pday h2{page-break-after:avoid}
+  .ptbl tr{page-break-inside:avoid}
+  .ptbl thead{display:table-header-group}
 }
+/* ---------- 課表單樣式（列印與畫面預覽共用，避免兩邊版面不一致） ---------- */
+.ppreview{background:#fff;color:#0f172a}
+.ptbl{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
+.ptbl th,.ptbl td{border:1px solid #94a3b8;padding:3px 5px;text-align:left;vertical-align:top;line-height:1.42;word-wrap:break-word;overflow-wrap:break-word;color:#0f172a}
+.ptbl th{background:#e2e8f0;font-size:10.5px;color:#334155}
+/* 欄寬：完整版要印名單，教練版只印人數 → 內容欄吃掉多出來的寬度 */
+.ptbl.v-full col.c-time{width:15%}
+.ptbl.v-full col.c-roster{width:24%}
+.ptbl.v-full col.c-body{width:46%}
+.ptbl.v-full col.c-goal{width:15%}
+.ptbl.v-coach col.c-time{width:15%}
+.ptbl.v-coach col.c-roster{width:7%}
+.ptbl.v-coach col.c-body{width:63%}
+.ptbl.v-coach col.c-goal{width:15%}
+.ptbl tr.sect td{background:#eef2ff;padding:2px 5px}
+.ptbl tr.subth th{background:#f1f5f9;font-size:10px}
+.ptbl .sub{font-size:10px;color:#475569}
+.ptbl .nm{font-size:10px;color:#334155;line-height:1.4;margin-top:1px}
+.ptbl .pk{margin-bottom:1px}
+.ptbl .pk .k{display:inline-block;min-width:2.6em;margin-right:3px;color:#64748b;font-weight:700}
+.ptbl .psplit{margin-top:3px;padding-top:3px;border-top:1px dashed #cbd5e1}
+.ptbl .psplit .lv{margin-bottom:3px}
+.ptbl .psplit .lv:last-child{margin-bottom:0}
+.ptbl .psplit .lv .nm{display:block}
+.ptbl .psplit .lv .do{padding-left:1.1em;text-indent:-1.1em}
+.ptbl .psplit .lv .do:before{content:'→ ';color:#64748b}
+.phead{border-bottom:3px solid #4f46e5;padding-bottom:8px;margin-bottom:12px}
+.phead h1{margin:0;font-size:20px}
+.phead .meta{font-size:11px;color:#475569;margin-top:4px}
+.pday{border:1px solid #94a3b8;border-radius:6px;padding:8px;margin-bottom:10px}
+.pday h2{font-size:13px;margin:0 0 5px;background:#4f46e5;color:#fff;padding:4px 8px;border-radius:4px}
 </style>
 
 <!-- ============ LOGIN ============ -->
@@ -383,7 +411,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.19.1-internal';
+const APP_VERSION='1.19.2-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -3588,22 +3616,30 @@ Views.buildPDFHtml=function(ver){
     const gb=(type)=>blocks.find(b=>b.block_type===type&&!b.training_group_id)||{};
     const warm=gb('warmup'),fit=gb('fitness'),app=gb('apply'),rev=gb('review');
     const coachName=id=>{const c=C('profiles').find(p=>p.id===id);return c?c.name:'—';};
+    const TL=timelineFor(State.ctx.classId);
+    const rng=k=>{const t=TL.find(x=>x.key===k)||BLOCKS.find(x=>x.key===k);return `${t.s}–${t.e}′`;};
+    const kvline=(k,v)=>v?`<div class="pk"><span class="k">${k}</span>${esc(v)}</div>`:'';
     const groupRows=groups.map(g=>{const b=blocks.find(x=>x.block_type==='group'&&x.training_group_id===g.id)||{};
-      return `<tr><td><b>${esc(g.name)}</b><br>${esc(coachName(g.coach_id))}</td>
-        <td>${(g.students||[]).length}人${ver==='full'?'<br>'+(g.students||[]).map(stName).join('、'):''}</td>
-        <td>${esc([b.basic&&('基本:'+b.basic),b.kick&&('腿法:'+b.kick),b.poomsae&&('品勢:'+b.poomsae),b.spar&&('對練:'+b.spar)].filter(Boolean).join('；')||'—')}${hasSplit(g)?`<div style="margin-top:2px">${SKILL_KEYS.filter(k=>skillRoster(g,k).length).map(k=>`<b>${SKILL_ICON[k]}${SKILL_LABEL[k]}（${skillRoster(g,k).length}人）</b>${esc(skillNames(g,k).join('、'))}：${esc(b['skill'+k]||'—')}`).join('<br>')}</div>`:''}</td>
+      const body=[kvline('基本',b.basic),kvline('腿法',b.kick),kvline('品勢',b.poomsae),kvline('對練',b.spar)].join('')||'<div class="pk">—</div>';
+      const split=hasSplit(g)?`<div class="psplit">${SKILL_KEYS.filter(k=>skillRoster(g,k).length).map(k=>`<div class="lv"><b>${SKILL_ICON[k]}${SKILL_LABEL[k]}（${skillRoster(g,k).length}人）</b>${ver==='full'?`<span class="nm">${esc(skillNames(g,k).join('、'))}</span>`:''}<div class="do">${esc(b['skill'+k]||'—')}</div></div>`).join('')}</div>`:'';
+      return `<tr><td><b>${esc(g.name)}</b><div class="sub">${esc(coachName(g.coach_id))}</div></td>
+        <td><b>${(g.students||[]).length}人</b>${ver==='full'&&(g.students||[]).length?`<div class="nm">${esc((g.students||[]).map(stName).join('、'))}</div>`:''}</td>
+        <td>${body}${split}</td>
         <td>${esc(b.goal||g.target||'—')}</td></tr>`;}).join('');
-    days+=`<div class="pday no-break">
+    days+=`<div class="pday">
       <h2>${w}（${date}）　預計 ${list.length} 人　${cls?.start_time||''}-${cls?.end_time||''}${dp.sopBelt&&sopLesson(dp.sopBelt,dp.sopLesson)?'　｜　'+esc(sopBelt(dp.sopBelt).name)+' L'+String(dp.sopLesson).padStart(2,'0')+'：'+esc(sopS(sopLesson(dp.sopBelt,dp.sopLesson).t)):''}</h2>
       ${ver==='full'?`<div style="font-size:11px;margin-bottom:4px">年齡：幼兒${sm.age.幼兒}／國小${sm.age.國小}／國中${sm.age.國中}／成人${sm.age.成人}　｜　級別：${BELTS.filter(b=>sm.belt[b]).map(b=>b+sm.belt[b]).join(' ')}</div>`:''}
-      <table class="ptbl"><tr><th style="width:14%">時段</th><th>內容</th><th style="width:20%">目標/器材</th></tr>
-        <tr><td>0–10′ 做操慢跑</td><td>${esc(warm.content||'集合、禮節、做操、慢跑')}</td><td>${esc(warm.goal||'暖身')}</td></tr>
-        <tr><td>10–30′ 熱身體能</td><td>${fit.stations&&fit.stations.list?`<div style="margin-bottom:2px"><b>[站表 ${fit.stations.stations}站×${fit.stations.perStation}人]</b> ${fit.stations.list.map(s=>esc(s.tag)+' '+esc(s.eq)+(ver==='full'?'（'+(s.members||[]).map(m=>esc(m.role)+':'+stName(m.sid)).join('、')+'）':'')).join('｜')}</div>`:''}${fit.warmupMode&&fit.warmupMode!=='全體一起'?'<b>['+esc(fit.warmupMode)+']</b> ':''}${formationText(fit)?'<b>[隊形:'+esc(formationText(fit))+']</b> ':''}${(fit.warmups&&fit.warmups.length)?esc(fit.warmups.map(w=>w.name+(w.target&&w.target!=='全體'?'('+w.target+')':'')+' '+(w.minutes||0)+'分').join('、'))+'　':''}${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
-        <tr><td colspan="3" style="background:#eef2ff"><b>30–60′ 分組訓練</b></td></tr>
-        ${groupRows||'<tr><td colspan="3">（未分組）</td></tr>'}
-        <tr><td>60–85′ 應用挑戰</td><td>${esc(app.applyType?('['+app.applyType+'] '):'')}${formationText(app)?'<b>[隊形:'+esc(formationText(app))+']</b> ':''}${esc(app.content||'')}</td><td>${esc(app.equipment||'')}</td></tr>
-        <tr><td>85–90′ 講評</td><td>${esc([rev.praise&&('表揚:'+rev.praise),rev.remind&&('提醒:'+rev.remind),rev.homework&&('作業:'+rev.homework),rev.preview&&('預告:'+rev.preview)].filter(Boolean).join('；')||'—')}</td><td></td></tr>
-      </table>
+      <table class="ptbl ${ver==='full'?'v-full':'v-coach'}">
+        <colgroup><col class="c-time"><col class="c-roster"><col class="c-body"><col class="c-goal"></colgroup>
+        <thead><tr><th>時段</th><th colspan="2">內容</th><th>目標／器材</th></tr></thead><tbody>
+        <tr><td>${rng('warmup')} 做操慢跑</td><td colspan="2">${esc(warm.content||'集合、禮節、做操、慢跑')}</td><td>${esc(warm.goal||'暖身')}</td></tr>
+        <tr><td>${rng('fitness')} 熱身體能</td><td colspan="2">${fit.stations&&fit.stations.list?`<div style="margin-bottom:2px"><b>[站表 ${fit.stations.stations}站×${fit.stations.perStation}人]</b> ${fit.stations.list.map(s=>esc(s.tag)+' '+esc(s.eq)+(ver==='full'?'（'+(s.members||[]).map(m=>esc(m.role)+':'+stName(m.sid)).join('、')+'）':'')).join('｜')}</div>`:''}${fit.warmupMode&&fit.warmupMode!=='全體一起'?'<b>['+esc(fit.warmupMode)+']</b> ':''}${formationText(fit)?'<b>[隊形:'+esc(formationText(fit))+']</b> ':''}${(fit.warmups&&fit.warmups.length)?esc(fit.warmups.map(w=>w.name+(w.target&&w.target!=='全體'?'('+w.target+')':'')+' '+(w.minutes||0)+'分').join('、'))+'　':''}${esc(fit.content||'')} ${(fit.tags||[]).map(t=>'['+t+']').join('')}</td><td>${esc(fit.equipment||'')}</td></tr>
+        <tr class="sect"><td colspan="4"><b>${rng('group')} 分組訓練</b></td></tr>
+        <tr class="subth"><th>組別／教練</th><th>${ver==='full'?'學員名單':'人數'}</th><th>訓練內容</th><th>目標</th></tr>
+        ${groupRows||'<tr><td colspan="4">（未分組）</td></tr>'}
+        <tr><td>${rng('apply')} 應用挑戰</td><td colspan="2">${esc(app.applyType?('['+app.applyType+'] '):'')}${formationText(app)?'<b>[隊形:'+esc(formationText(app))+']</b> ':''}${esc(app.content||'')}</td><td>${esc(app.equipment||'')}</td></tr>
+        <tr><td>${rng('review')} 講評</td><td colspan="2">${esc([rev.praise&&('表揚:'+rev.praise),rev.remind&&('提醒:'+rev.remind),rev.homework&&('作業:'+rev.homework),rev.preview&&('預告:'+rev.preview)].filter(Boolean).join('；')||'—')}</td><td></td></tr>
+      </tbody></table>
       ${ver==='full'?`<div style="font-size:11px;margin-top:4px">注意事項：${esc([warm.safety_notes,app.safety_notes].filter(Boolean).join('；')||'—')}　｜　課後紀錄：實到＿＿人　完成度＿＿＿</div>`:''}
     </div>`;
   });
@@ -3616,13 +3652,7 @@ Views.buildPDFHtml=function(ver){
     ${ver==='full'?`<div style="margin-top:12px;font-size:11px">教練討論結論：______________________________　核准人：____________　日期：____________</div>`:''}
   </div>`;
 };
-Views.previewPDF=function(){$('#pdfPrev').innerHTML='<div class="ppreview">'+Views.buildPDFHtml(Views._pdfVer)+'</div>';
-  // 讓預覽套用列印表格樣式
-  $('#pdfPrev').querySelectorAll('.ptbl').forEach(t=>{t.style.width='100%';t.style.borderCollapse='collapse';t.querySelectorAll('th,td').forEach(c=>{c.style.border='1px solid #94a3b8';c.style.padding='4px 6px';c.style.fontSize='11px';c.style.verticalAlign='top';});t.querySelectorAll('th').forEach(c=>c.style.background='#e2e8f0');});
-  $('#pdfPrev').querySelectorAll('.pday h2').forEach(h=>{h.style.background='#4f46e5';h.style.color='#fff';h.style.padding='4px 8px';h.style.borderRadius='4px';h.style.fontSize='13px';});
-  $('#pdfPrev').querySelectorAll('.pday').forEach(d=>{d.style.border='1px solid #94a3b8';d.style.borderRadius='6px';d.style.padding='8px';d.style.marginBottom='10px';});
-  $('#pdfPrev').querySelectorAll('.phead').forEach(h=>{h.style.borderBottom='3px solid #4f46e5';h.style.paddingBottom='6px';h.style.marginBottom='10px';});
-};
+Views.previewPDF=function(){$('#pdfPrev').innerHTML='<div class="ppreview">'+Views.buildPDFHtml(Views._pdfVer)+'</div>';};
 Views.buildPDF=function(){
   const s=settings();const wkStart=mondayOf(State.ctx.date);
   document.title=`${s.dojo}_週課程計畫_${wkStart}至${addDays(wkStart,6)}`;
