@@ -227,7 +227,8 @@ test('組內分流 Level A/B/C：標記存得住、印得出、下一堂自動�
   await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
 
   await page.evaluate(() => App.go('groups', 'plan'));
-  const g0 = page.locator('.gcard').first();
+  // 只認分組結果區的卡片：畫面其他地方（備課頁、教練任務）也用 .gcard
+  const g0 = page.locator('#gResult .gcard').first();
   const before = await g0.locator('.stu').count();
   expect(before).toBeGreaterThan(1);
 
@@ -484,7 +485,7 @@ test('未分組可一鍵建成組別或自動分配，建成後就能指派教�
 
   const un1 = await page.evaluate(() => Views.unassignedIds().length);
   expect(un1).toBe(before.moved);
-  await expect(page.locator('.gcard').last()).toContainText('未分組');
+  await expect(page.locator('#gResult .gcard').last()).toContainText('未分組');
 
   // 一鍵建成新組別 → 未分組清空、多一組、而且該組有教練下拉可選
   await page.getByRole('button', { name: '＋ 建成新組別' }).click();
@@ -500,7 +501,7 @@ test('未分組可一鍵建成組別或自動分配，建成後就能指派教�
   expect(after.hasCoachField).toBe(true);
 
   // 新建的那一組要真的出現「選教練」下拉（未分組區塊沒有，這就是使用者回報的點）
-  const selects = await page.locator('.gcard select').count();
+  const selects = await page.locator('#gResult .gcard select').count();
   expect(selects).toBe(after.groups * 2);   // 每組 選教練 + 選助教
 
   // 自動分配：再倒回去一次，改用依程度分配到現有組
@@ -523,4 +524,48 @@ test('未分組可一鍵建成組別或自動分配，建成後就能指派教�
   }));
   expect(done.un).toBe(0);      // 全部排完
   expect(done.dupe).toBe(0);    // 沒有人被排進兩組
+});
+
+/* 組別順序以前是吃 IndexedDB 依 id 的順序，而 uid() 帶 Math.random() 後綴
+   → 每次讀回來順序都不同（同一份週課表印兩次組別順序會變、分組頁卡片位置每次都跳，
+   也讓上面那條「組內分流」測試間歇性紅掉）。改為 sort_order 決定順序。 */
+test('分組順序穩定：重開分組頁、重印課表單，組別順序都不變', async ({ page }) => {
+  await seedAndLogin(page);
+  await page.evaluate(() => App.go('quickplan', 'plan'));
+  await page.getByRole('button', { name: '產生五階段初稿' }).click();
+  await expect(page.locator('#quickPreview')).toContainText('五階段初稿');
+
+  const readOrder = () => page.evaluate(() => {
+    const dp = findDaily(State.ctx.date, State.ctx.classId);
+    return groupsOf(dp.id).map(g => g.name);
+  });
+  const domOrder = () => page.evaluate(() =>
+    [...document.querySelectorAll('#gResult .gcard')].map(c => c.querySelector('.gh b').textContent));
+
+  await page.evaluate(() => App.go('groups', 'plan'));
+  const first = await readOrder();
+  expect(first.length).toBeGreaterThan(1);
+  // 每一組都要有 sort_order，且就是陣列索引
+  expect(await page.evaluate(() => {
+    const dp = findDaily(State.ctx.date, State.ctx.classId);
+    return groupsOf(dp.id).map(g => g.sort_order);
+  })).toEqual(first.map((_, i) => i));
+  // 畫面卡片順序＝資料順序（data-gi 才不會指到別組）
+  expect(await domOrder()).toEqual(first);
+
+  // 離開再回來、重新讀取，順序不得改變
+  for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => App.go('today', 'today'));
+    await page.evaluate(() => App.go('groups', 'plan'));
+    expect(await readOrder()).toEqual(first);
+    expect(await domOrder()).toEqual(first);
+  }
+
+  // 課表單（PDF）印出來的組別順序也要跟畫面一致
+  const inPdf = await page.evaluate(names => {
+    const html = Views.buildPDFHtml('coach');
+    return names.map(n => html.indexOf('<b>' + n + '</b>'));
+  }, first);
+  expect(inPdf.every(i => i >= 0)).toBe(true);
+  expect(inPdf.slice().sort((a, b) => a - b)).toEqual(inPdf);
 });

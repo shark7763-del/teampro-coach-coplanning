@@ -411,7 +411,7 @@ textarea{resize:vertical;min-height:60px}
 /* =========================================================================
    TeamPro 教練共同備課系統  —  單檔 HTML + IndexedDB
    ========================================================================= */
-const APP_VERSION='1.19.2-internal';
+const APP_VERSION='1.19.3-internal';
 const DB_NAME='teampro_planner', DB_VER=5;
 /* ⬇⬇⬇ 部署 GAS 後把 /exec 網址貼在這裡，所有人打開同一個網址就會自動雲端同步。
    （也可以登入後在「設定」頁貼上，但要多裝置共用，建議直接寫在這裡再上架。） */
@@ -1143,6 +1143,7 @@ const Grouping={
     const need=groups.reduce((a,g)=>a+g.coachNeed,0);
     if(coachCount!=null && need>coachCount) notes.push(`本次分組共需 ${need} 位教練／助教，但今日僅 ${coachCount} 位可出席，請調整分組或課程模式。`);
     groups.forEach(g=>{if(g.students.length>this.limit(g.group_type))notes.push(`「${g.name}」${g.students.length} 人超過建議上限 ${this.limit(g.group_type)}，建議再拆分。`);});
+    groups.forEach((g,i)=>{g.sort_order=i;});   // 產生順序即呈現順序（初階→中階→高階…）
     return {groups,notes};
   },
   // 驗證目前分組
@@ -1255,7 +1256,7 @@ async function seedDemo(){
     const coachIds=['u_head','u_head2','u_c3','u_a1'];
     for(let gi=0;gi<gps.length;gi++){
       const g=gps[gi];
-      await save('training_groups',{id:g.id,daily_plan_id:dp.id,name:g.name,group_type:g.group_type,
+      await save('training_groups',{id:g.id,daily_plan_id:dp.id,name:g.name,group_type:g.group_type,sort_order:gi,
         coach_id:coachIds[gi]||'',assistant_id:'',lead_coach_id:coachIds[0],
         target:'掌握本日基本動作並能完成組合',notes:'',students:g.students});
     }
@@ -1270,7 +1271,7 @@ async function seedDemo(){
       start_minute:85,end_minute:90,content:'',goal:'',equipment:'',safety_notes:'',responsible_coach_id:'u_head',done:false,
       praise:'今日表揚：學員01、學員12 動作確實',remind:'注意旋踢收腿',homework:'回家做棒式 3 組',preview:'下次練後踢',note:''});
     // 30-60 各組 block
-    const grps=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+    const grps=groupsOf(dp.id);
     for(const g of grps){
       await save('lesson_blocks',{id:uid('lb'),daily_plan_id:dp.id,training_group_id:g.id,block_type:'group',
         start_minute:30,end_minute:60,content:'',goal:'',equipment:'',safety_notes:'',responsible_coach_id:g.coach_id,done:false,
@@ -1634,7 +1635,7 @@ function planStatus(date,classId){
   const dp=findDaily(date,classId);
   const wd=weekdayOf(date);
   const list=Stats.attendingFor(date,classId);
-  const groups=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];
+  const groups=dp?groupsOf(dp.id):[];
   const blocks=dp?C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id):[];
   const stageFilled=k=>{const b=blocks.find(x=>x.block_type===k&&!x.training_group_id);if(!b)return false;
     if(k==='review')return !!(b.praise||b.remind||b.homework||b.preview);
@@ -1792,7 +1793,7 @@ function countMyTasks(){
   const uid2=State.user.id, td=todayStr();
   const dps=C('daily_plans').filter(d=>d.date===td);
   let n=0;
-  dps.forEach(dp=>{C('training_groups').filter(g=>g.daily_plan_id===dp.id&&(g.coach_id===uid2||g.assistant_id===uid2)).forEach(()=>n++);});
+  dps.forEach(dp=>{groupsOf(dp.id).filter(g=>g.coach_id===uid2||g.assistant_id===uid2).forEach(()=>n++);});
   return n;
 }
 const PLAN_STEP_DEFS=[
@@ -2103,7 +2104,7 @@ Views.pptSyncBlocks=async function(dp,L){
   await put('fitness',{content:`${L.fit}\n遊戲：${L.game}`,goal:`為主課建立身體能力：${L.fit}`,tags:['平衡','協調','專項暖身'].filter(Boolean),formation:'棋盤式',formationOther:''});
   await put('apply',{content:`${L.challenge}\n【今日驗收】每人依三個檢查點檢核：${checks}。10次中至少8次達標列為通過；未達標列入補強或退階名單。`,goal:'把主技術帶進應用並完成當堂驗收',equipment:'踢靶、地面標記、碼表',applyType:L.challenge.includes('闖關')?'闖關':L.challenge.includes('測驗')?'模擬比賽':'挑戰',safety_notes:`常見處理：看到動作品質下降就降速或退階。檢查點：${checks}`});
   await put('review',{remind:`學生能說出今日三重點：${checks}`,preview:L.next,note:'課後紀錄請填：通過／需加強／尚未掌握名單、最多人做錯項目、下堂修改。'});
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   for(const g of groups){
     const t=tl.find(x=>x.key==='group');
     const cur=C('lesson_blocks').find(x=>x.daily_plan_id===dp.id&&x.block_type==='group'&&x.training_group_id===g.id)
@@ -2271,7 +2272,7 @@ Views.view_coachtasks=function(el){
   $('#ctDate').onchange=e=>{State.ctx.date=e.target.value;App.go('coachtasks','plan');};
   const body=$('#ctBody');
   if(!dp){body.innerHTML='<div class="empty">尚未建立備課，請先完成分組。</div>';return;}
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
   const list=Stats.attendingFor(State.ctx.date,State.ctx.classId);
   const val=Grouping.validate(groups.map(g=>({...g,students:[...(g.students||[])]})),list,dp);
@@ -2314,7 +2315,7 @@ Views.view_confirm=function(el){
 };
 /* 教練確認卡：教練分工頁（第5步）與教練確認頁共用同一份，避免兩邊行為不一致 */
 function ctConfirmCard(dp){
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   const ids=[...new Set([...groups.flatMap(g=>[g.coach_id,g.assistant_id]),...teamCoaches(dp)].filter(Boolean))];
   const confirms=dp.confirms||[];
   const doneN=ids.filter(id=>confirms.some(c=>c.user_id===id)).length;
@@ -2360,7 +2361,7 @@ Views.view_live=function(el){
   if(!dp){el.innerHTML='<div class="empty">尚未建立今日課程，無法進入現場模式。<br><br><button class="btn" onclick="App.go(\'classinfo\',\'plan\')">前往備課</button></div>';return;}
   const cl=C('classes').find(c=>c.id===State.ctx.classId);
   const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   const LTL=timelineFor(State.ctx.classId);
   if(App._liveIdx==null){App._liveIdx=0;App._liveStart=Date.now();App._liveDur=(LTL[0].e-LTL[0].s)*60;}
   const idx=App._liveIdx,bl=LTL[idx];
@@ -2402,7 +2403,7 @@ Views.view_live=function(el){
 Views.liveStep=function(d){App._liveIdx=Math.max(0,Math.min(4,(App._liveIdx||0)+d));App._liveStart=Date.now();const t=timelineFor(State.ctx.classId)[App._liveIdx];App._liveDur=(t.e-t.s)*60;App.go('live','today');};
 Views.liveExtend=function(min){App._liveDur=(App._liveDur||0)+min*60;toast('本階段延長 '+min+' 分鐘','ok');};
 Views.liveDone=async function(){const dp=findDaily(State.ctx.date,State.ctx.classId);const bl=timelineFor(State.ctx.classId)[App._liveIdx||0];if(dp&&bl.key!=='group')await Views.saveBlockField(dp.id,bl.key,null,'done',true);toast('已完成本階段','ok');Views.liveStep(1);};
-Views.liveGroups=function(){const dp=findDaily(State.ctx.date,State.ctx.classId);const groups=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];const stName=id=>{const s=C('students').find(x=>x.id===id);return s?esc(s.name):'';};const coach=id=>{const p=C('profiles').find(x=>x.id===id);return p?esc(p.name):'—';};Modal.open('今日分組',groups.length?groups.map(g=>`<div class="card" style="margin-bottom:8px;box-shadow:none"><b>${esc(g.name)}（${coach(g.coach_id)}）</b><div class="muted" style="margin-top:4px">${(g.students||[]).map(stName).join('、')||'—'}</div></div>`).join(''):'<div class="empty">尚未分組</div>');};
+Views.liveGroups=function(){const dp=findDaily(State.ctx.date,State.ctx.classId);const groups=dp?groupsOf(dp.id):[];const stName=id=>{const s=C('students').find(x=>x.id===id);return s?esc(s.name):'';};const coach=id=>{const p=C('profiles').find(x=>x.id===id);return p?esc(p.name):'—';};Modal.open('今日分組',groups.length?groups.map(g=>`<div class="card" style="margin-bottom:8px;box-shadow:none"><b>${esc(g.name)}（${coach(g.coach_id)}）</b><div class="muted" style="margin-top:4px">${(g.students||[]).map(stName).join('、')||'—'}</div></div>`).join(''):'<div class="empty">尚未分組</div>');};
 Views.liveNote=function(dpId,kind){Modal.open(kind==='傷勢'?'紀錄傷勢 / 安全事件':'紀錄現場狀況',`${kind!=='傷勢'?`<div class="chips" style="margin-bottom:10px">${['人數異動','器材問題','課程延遲','學員不適','臨時調整'].map(t=>`<span class="chip" onclick="var i=document.getElementById('lnMsg');i.value=(i.value?i.value+'；':'')+'${t}'">${t}</span>`).join('')}</div>`:''}<textarea id="lnMsg" placeholder="描述…" aria-label="現場狀況"></textarea><button class="btn ${kind==='傷勢'?'danger':''} block" style="margin-top:8px" onclick="Views.saveLiveNote('${dpId}','${kind}')">送出</button>`);};
 Views.saveLiveNote=async function(dpId,kind){const msg=$('#lnMsg').value.trim();if(!msg){toast('請輸入內容','warn');return;}await save('discussions',{id:uid('ds'),daily_plan_id:dpId,author_id:State.user.id,author_name:State.user.name+'（現場）',message:(kind==='傷勢'?'【傷勢/安全】':'【現場】')+msg,parent_id:null,created_at:Date.now(),reads:[State.user.id]});Modal.close();toast(kind==='傷勢'?'已紀錄傷勢事件':'現場狀況已紀錄','ok');};
 
@@ -2779,6 +2780,22 @@ const SKILL_HINT={A:'退回分解／扶持／低速，必要時用欄杆、彈�
   C:'加入移動、距離、速度、反應或情境，但不得犧牲收腿與落地'};
 function skillOf(g,sid){return (g&&g.skill&&g.skill[sid])||'';}
 function skillRoster(g,k){return (g.students||[]).filter(sid=>skillOf(g,sid)===k);}
+/* 組別一律照 sort_order 呈現。舊資料沒有這個欄位時，之前是直接吃 IndexedDB 依 id 的順序，
+   而 uid()＝Date.now()+Math.random() → 每次讀回來順序都不一樣（同一份週課表印兩次組別順序會不同、
+   分組頁卡片位置每次都跳）。退回 created_at、再退回組名，至少保證穩定。 */
+/* 舊資料（沒有 sort_order）用組名的既定階梯排，讓它看起來仍是由淺到深；
+   認不出來的名字排在後面，再以組名比大小保證穩定。 */
+const GROUP_NAME_ORDER=['幼兒','國小','國中','青少年','成人','低色帶','中色帶','高色帶','黑帶',
+  '初階','中階','高階','基礎','一般','品勢','對練','健身'];
+function groupNameRank(name){
+  const i=GROUP_NAME_ORDER.findIndex(k=>String(name||'').startsWith(k));
+  return i<0?GROUP_NAME_ORDER.length:i;
+}
+function sortGroups(list){
+  const key=g=>[typeof g?.sort_order==='number'?g.sort_order:1e9, groupNameRank(g?.name), String(g?.name||'')];
+  return list.slice().sort((a,b)=>{const A=key(a),B=key(b);return A[0]-B[0]||A[1]-B[1]||A[2].localeCompare(B[2],'zh-Hant');});
+}
+function groupsOf(dpId){return sortGroups(C('training_groups').filter(g=>g.daily_plan_id===dpId));}
 function hasSplit(g){return !!(g&&(g.students||[]).some(sid=>skillOf(g,sid)));}
 function skillNames(g,k){return skillRoster(g,k).map(id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'';}).filter(Boolean);}
 function skillSummary(g){return hasSplit(g)?SKILL_KEYS.map(k=>`${SKILL_ICON[k]}${SKILL_LABEL[k]} ${skillRoster(g,k).length} 人`).join('・'):'';}
@@ -2800,7 +2817,7 @@ async function migrateSkillLevels(){
 function skillHistory(classId,beforeDate){
   const dps=C('daily_plans').filter(d=>d.class_id===classId&&d.date<beforeDate).sort((a,b)=>a.date<b.date?-1:1);
   const map={};
-  dps.forEach(d=>C('training_groups').filter(g=>g.daily_plan_id===d.id)
+  dps.forEach(d=>groupsOf(d.id)
     .forEach(g=>Object.keys(g.skill||{}).forEach(sid=>{if(g.skill[sid])map[sid]=g.skill[sid];})));
   return map;
 }
@@ -2837,7 +2854,7 @@ Views.view_groups=function(el){
   Views._gMode=()=>mode;
   // 已存在分組→載入；沒有→自動產生（預設依色帶），教練可直接調整或儲存
   const dp=findDaily(State.ctx.date,State.ctx.classId);
-  const gs=dp?C('training_groups').filter(g=>g.daily_plan_id===dp.id):[];
+  const gs=dp?groupsOf(dp.id):[];
   if(gs.length){
     const copy=gs.map(g=>({...g,students:[...(g.students||[])],skill:{...(g.skill||{})}}));
     const notes=[];
@@ -2973,8 +2990,10 @@ Views.saveGroups=async function(next){
   // 清掉舊 group + 其 group block
   const oldGs=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
   for(const g of oldGs)await remove('training_groups',g.id);
-  for(const g of Views._groupState.groups){
-    await save('training_groups',{id:g.id||uid('g'),daily_plan_id:dp.id,name:g.name,group_type:g.group_type,
+  for(let gi=0;gi<Views._groupState.groups.length;gi++){
+    const g=Views._groupState.groups[gi];
+    // 卡片在畫面上的先後＝儲存的 sort_order，教練新增/刪除組別後順序也跟著固定下來
+    await save('training_groups',{id:g.id||uid('g'),daily_plan_id:dp.id,name:g.name,group_type:g.group_type,sort_order:gi,
       coach_id:g.coach_id||'',assistant_id:g.assistant_id||'',target:g.target||'',notes:g.notes||'',students:g.students||[],
       skill:Object.fromEntries(Object.entries(g.skill||{}).filter(([sid,v])=>v&&(g.students||[]).includes(sid)))});
   }
@@ -3041,10 +3060,10 @@ Views.generateQuickPlan=async function(){
     for(const g of old)await remove('training_groups',g.id);
     for(let i=0;i<sug.length;i++){
       const coach=q.coaches[i%Math.max(1,q.coaches.length)];
-      await save('training_groups',{...sug[i],daily_plan_id:dp.id,coach_id:coach?.id||'',assistant_id:'',target:q.goal});
+      await save('training_groups',{...sug[i],sort_order:i,daily_plan_id:dp.id,coach_id:coach?.id||'',assistant_id:'',target:q.goal});
     }
   }
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   /* 依各組主責教練自動組出今日教練團與主責教練，教練可在第5步調整；
      不自動帶的話首頁「主教練」會一直是「—」，第5步也永遠不會打勾。 */
   const teamIds=[...new Set(groups.map(g=>g.coach_id).filter(Boolean))].slice(0,MAX_COACHES_PER_CLASS);
@@ -3166,7 +3185,7 @@ Views.renderPlan=function(){
   }
   touchEditLock(dp.id);
   const otherLock=currentEditLock(dp.id);
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
   const canEdit=dp.status!=='lock'&&(can('plan')||State.user.role==='head'||can('*'));
   const stName=id=>{const s=C('students').find(x=>x.id===id);return s?s.name:'?';};
@@ -3398,7 +3417,7 @@ Views.renderWeek=function(wkStart){
     const isClassDay=activeWd.includes(w);
     if(dp){
       const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
-      const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+      const groups=groupsOf(dp.id);
       blocks.forEach(b=>{(b.tags||[]).forEach(t=>{if(analysisTags[t]!=null)analysisTags[t]++;});if(b.block_type==='apply'&&b.applyType)applyN++;if(b.poomsae)poomN++;if(b.spar)sparN++;});
       const filled=blocks.filter(b=>b.content||b.basic||b.praise).length;
       const totalB=4+groups.length;
@@ -3460,7 +3479,7 @@ Views.view_mytasks=function(el){
   const td=todayStr();State.ctx.date=td;
   const myGroups=[];
   C('daily_plans').filter(d=>d.date===td).forEach(dp=>{
-    C('training_groups').filter(g=>g.daily_plan_id===dp.id&&(g.coach_id===State.user.id||g.assistant_id===State.user.id)).forEach(g=>myGroups.push({dp,g}));
+    groupsOf(dp.id).filter(g=>g.coach_id===State.user.id||g.assistant_id===State.user.id).forEach(g=>myGroups.push({dp,g}));
   });
   const cls=id=>C('classes').find(c=>c.id===id);
   el.innerHTML=`<div class="hero"><h2>📋 我的今日任務</h2><p>${WEEKDAYS[weekdayOf(td)]}・${td}・${State.user.name}</p></div>
@@ -3507,7 +3526,7 @@ Views.view_report=function(el){
   $('#rClass').onchange=e=>{State.ctx.classId=e.target.value;App.go('report');};
   const body=$('#reportBody');
   if(!dp){body.innerHTML='<div class="empty"><div class="ic">✅</div>此日尚無備課，無法填寫課後紀錄</div>';return;}
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   const opts=[{id:'',name:'全班（整體）'}].concat(groups.map(g=>({id:g.id,name:g.name})));
   const gid=Views._reportGroup!=null?Views._reportGroup:'';
   const rep=C('post_class_reports').find(r=>r.daily_plan_id===dp.id&&(r.training_group_id||'')===(gid||''))||{};
@@ -3611,7 +3630,7 @@ Views.buildPDFHtml=function(ver){
     const date=addDays(wkStart,i);const dp=findDaily(date,State.ctx.classId);
     if(!dp)return;
     const list=Stats.studentsFor(State.ctx.classId,i);const sm=Stats.summary(list);
-    const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+    const groups=groupsOf(dp.id);
     const blocks=C('lesson_blocks').filter(b=>b.daily_plan_id===dp.id);
     const gb=(type)=>blocks.find(b=>b.block_type===type&&!b.training_group_id)||{};
     const warm=gb('warmup'),fit=gb('fitness'),app=gb('apply'),rev=gb('review');
@@ -4279,7 +4298,7 @@ Views.sopApply=async function(bk,n){
   await put('apply',{content:sopS(L.s6)+'\n【當堂驗收】'+sopS(L.s7),equipment:sopS(L.eq),safety_notes:sopS(L.err),...fm});
   await put('review',{remind:sopS(L.q3),preview:sopS(L.next),note:sopS(L.qt)});
   // 分組訓練：每一組都帶入本堂主題與 A/B/C 分級內容
-  const groups=C('training_groups').filter(g=>g.daily_plan_id===dp.id);
+  const groups=groupsOf(dp.id);
   for(const g of groups){
     const t=tl.find(x=>x.key==='group');
     const cur=C('lesson_blocks').find(x=>x.daily_plan_id===dp.id&&x.block_type==='group'&&x.training_group_id===g.id)
